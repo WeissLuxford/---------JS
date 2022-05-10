@@ -1,7 +1,7 @@
 function firstFunction() {
 
 
-    var userAge = prompt("Потвердите что вам исполнилось 18 лет", "");
+    var +userAge = prompt("Потвердите что вам исполнилось 18 лет", "");
 
 // var userAge = prompt("Потвердиет что вам исполнилось 18 лет", "");
 
@@ -9,6 +9,8 @@ function firstFunction() {
     alert("Введи что нибудь");
 } else if (userAge <= 18) {
     alert("Дружок.. не губи свою жизнь");
+} else if (userAge <= 50) {
+    alert("Твоя жизнь, твои решения.. Проходи");
 } else if (userAge >= 50) {
     alert("Твоя жизнь, твои решения.. Проходи");
 } else if (userAge >= 59) {
