@@ -1,7 +1,7 @@
 function firstFunction() {
 
 
-    var +userAge = prompt("Потвердите что вам исполнилось 18 лет", "");
+    var userAge = +prompt("Потвердите что вам исполнилось 18 лет", "");
 
 // var userAge = prompt("Потвердиет что вам исполнилось 18 лет", "");
 
