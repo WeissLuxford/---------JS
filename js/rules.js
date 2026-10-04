@@ -539,11 +539,11 @@ export function spellCast(c, d, sp, slotLevel, extra = 0) {
     else if (sp.castAt) level = Number(sp.castAt);
     else if (d.pact && sp.cost === "slot") level = Math.max(base, d.pact.level);
   }
-  const lines = (sp.damage || []).map(x => {
+  const lines = (sp.damage || []).map((x, i) => {
     let dice = x.dice || "";
     if (base === 0 && sp.scaling === "cantrip-dice") dice = scaleDice(dice, d.tier, { scaleFlat: false });
-    if (base > 0 && sp.upcast && level > base) dice = addDice(dice, scaleDice(sp.upcast, level - base));
-    if (sp.cost === "item" && sp.upcast && extra > 0) dice = addDice(dice, scaleDice(sp.upcast, extra));
+    if (i === 0 && base > 0 && sp.upcast && level > base) dice = addDice(dice, scaleDice(sp.upcast, level - base));
+    if (i === 0 && sp.cost === "item" && sp.upcast && extra > 0) dice = addDice(dice, scaleDice(sp.upcast, extra));
     if (x.addMod) dice = addDice(dice, d.spell.mod);
     return { dice, type: swapType(c, x.type), swapped: swapType(c, x.type) !== x.type, origType: x.type };
   });

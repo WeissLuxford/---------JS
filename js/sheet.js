@@ -1234,7 +1234,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     });
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
 
   async function runAction(a, el) {
     const { c } = S;
@@ -1374,6 +1374,16 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "portrait": return portraitDialog();
       case "add-attack": return editEntity("attack", null);
       case "add-spell": return editEntity("spell", null);
+      case "spell-library": {
+        const { openSpellLibrary } = await import("./library.js");
+        return openSpellLibrary({
+          get: () => ({ c: S.c, d: S.d }),
+          onAdd: sp => mutate(ch => {
+            ch.spells.push(sp);
+            ch.spells = normalize(ch).spells;
+          })
+        });
+      }
       case "add-feature": return editEntity("feature", null, el.dataset.cat);
       case "add-item": return editEntity("item", null, S.ui.invFilter && !["all", "equipped", "other"].includes(S.ui.invFilter) ? S.ui.invFilter : "gear");
       case "add-note": return editNote(el.dataset.sec, null);

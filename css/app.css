@@ -387,7 +387,7 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .tab.on { color: var(--gold-3); border-bottom-color: var(--gold-2); }
 .tab.on .ic { color: var(--gold-2); filter: drop-shadow(0 0 5px rgba(233, 199, 122, .6)); }
 
-.sheet.viewer [data-act^="add-"], .sheet.viewer [data-act="edit-note"], .sheet.viewer .hp-actions, .sheet.viewer [data-act="spend-hd"], .sheet.viewer .rest-row, .sheet.viewer [data-act="drop-conc"], .sheet.viewer .hero-cam, .sheet.viewer .hp-quick, .sheet.viewer .legend .btn { display: none !important; }
+.sheet.viewer [data-act^="add-"], .sheet.viewer [data-act="spell-library"], .sheet.viewer [data-act="edit-note"], .sheet.viewer .hp-actions, .sheet.viewer [data-act="spend-hd"], .sheet.viewer .rest-row, .sheet.viewer [data-act="drop-conc"], .sheet.viewer .hero-cam, .sheet.viewer .hp-quick, .sheet.viewer .legend .btn { display: none !important; }
 .sheet.viewer [data-act="pact-pip"], .sheet.viewer [data-act="slot-pip"], .sheet.viewer [data-act="use-pip"], .sheet.viewer [data-act="toggle-cond"], .sheet.viewer [data-act="exhaustion"], .sheet.viewer [data-act="toggle-save"], .sheet.viewer [data-act="cycle-skill"], .sheet.viewer [data-act="death"], .sheet.viewer [data-act="hp"], .sheet.viewer [data-act="edit-info"], .sheet.viewer [data-act="edit-armor"], .sheet.viewer [data-act="portrait"], .sheet.viewer [data-act="unarchive"] { pointer-events: none; cursor: default; }
 .sheet.viewer .medal[data-act] { border-color: var(--line); }
 .ro-bar small { display: block; color: var(--dim); font-size: 13px; }
@@ -1103,6 +1103,26 @@ li:has(> .rt-todo) { list-style: none; margin-left: -18px; }
 .flag.green { border-color: #4fcf6a; color: #4fcf6a; }
 .flag .ic { width: 13px; height: 13px; }
 .item-spells { color: #9be7a0; }
+
+.lib-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 10px; }
+.lib-cls { flex: 0 1 200px; margin: 0; }
+.lib-levels { margin-bottom: 6px; }
+.lib-count { margin: 4px 0 8px; font-size: 14px; }
+.lib-list { display: flex; flex-direction: column; gap: 6px; }
+.lib-row { border: 1px solid var(--line); border-radius: 9px; background: rgba(0, 0, 0, .18); }
+.lib-row.open { border-color: var(--line-2); }
+.lib-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; text-align: left; }
+.lib-head:hover b { color: var(--gold-3); }
+.lib-lvl { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line-2); color: var(--gold-2); font-family: var(--font-head); font-size: 15px; }
+.lib-names { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.lib-names b { font-weight: 600; }
+.lib-names small { color: var(--dim); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-chev .ic { width: 16px; height: 16px; color: var(--gold); transition: transform .15s; }
+.lib-row.open .lib-chev .ic { transform: rotate(180deg); }
+.lib-card { padding: 0 10px 10px; }
+.lib-cls-line { color: var(--dim); font-size: 14px; margin: 8px 4px 0; }
+.lib-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+.lib-src { margin-top: 12px; font-size: 13px; }
 
 @media (max-width: 1180px) {
   .char-grid { grid-template-columns: 250px minmax(0, 1fr); }

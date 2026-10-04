@@ -312,10 +312,10 @@ export function tabSpells(ctx) {
   const levels = Object.keys(groups).map(Number).sort((a, b) => a - b);
   const lists = levels.map(l => panel(l === 0 ? "Заговоры" : `${l} круг`, `<div class="tiles">${groups[l].sort((a, b) => a.name.localeCompare(b.name, "ru")).map(s => spellTile(ctx, s)).join("")}</div>`, { ic: l === 0 ? "sparkle" : "book" })).join("");
   return `
-    ${panel("Заклинательство", head, { ic: "book", actions: addBtn("add-spell", "Заклинание") })}
+    ${panel("Заклинательство", head, { ic: "book", actions: `<button class="btn ghost sm" data-act="spell-library">${icon("book")}Библиотека</button>` + addBtn("add-spell", "Своё") })}
     ${concentrationBar(c)}
     ${tools}
-    <div class="spell-lists">${lists || (c.spells.length ? `<p class="empty">Под этот фильтр ничего не подходит</p>` : `<p class="empty">Заклинаний пока нет. Нажми «Заклинание», чтобы добавить.</p>`)}</div>
+    <div class="spell-lists">${lists || (c.spells.length ? `<p class="empty">Под этот фильтр ничего не подходит</p>` : `<p class="empty">Заклинаний пока нет. Выбери их в «Библиотеке» или добавь своё.</p>`)}</div>
     <p class="empty" data-search-empty hidden>Ничего не нашлось</p>`;
 }
 
