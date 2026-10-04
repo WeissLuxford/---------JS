@@ -4,6 +4,8 @@ import { esc, timeAgo, toast, openForm, pickFile } from "./ui.js";
 import { subscribeList, createChar, getMode, onStatus } from "./store.js";
 import { subtitle } from "./tabs.js";
 import { shortWho } from "./device.js";
+import { onAccess } from "./access.js";
+import { openDeviceManager, ownerSignIn, ownerSignOut } from "./admin.js";
 
 export function mountHome(root, navigate) {
   document.title = "Листы персонажей";
@@ -12,6 +14,7 @@ export function mountHome(root, navigate) {
   let showArchived = false;
   let statusText = "";
   let disposed = false;
+  let access = null;
 
   const offStatus = onStatus(st => {
     const next = st.mode === "local" ? st.error || "Только в этом браузере" : st.state === "error" || st.state === "offline" ? st.error : "";
@@ -19,6 +22,11 @@ export function mountHome(root, navigate) {
       statusText = next;
       paint();
     }
+  });
+
+  const offAccess = onAccess(a => {
+    access = a;
+    paint();
   });
 
   const unsub = subscribeList((items, meta = {}) => {
@@ -58,6 +66,8 @@ export function mountHome(root, navigate) {
       <div class="home">
         <header class="home-head">
           <div class="home-title">${icon("d20")}<div><h1>Листы персонажей</h1><p>D&amp;D 5e · все, у кого есть ссылка, могут смотреть и править</p></div></div>
+          ${access && access.isOwner ? `<div class="owner-bar">${icon("shield")}<span>Ты владелец${access.locked ? " · редактирование закрыто" : ""}</span><span class="spacer"></span><button class="btn sm gold" data-devices>${icon("monitor")}Устройства</button><button class="btn sm ghost" data-owner-out>Выйти</button></div>` : ""}
+          ${access && !access.canEdit ? `<div class="home-status">${icon("eye")}${access.reason === "banned" ? "Этому устройству запрещено вносить правки" : "Владелец закрыл редактирование: можно только смотреть"}</div>` : ""}
           ${statusText ? `<div class="home-status">${icon("cloudOff")}${esc(statusText)}</div>` : ""}
           ${offlineEmpty ? `<div class="home-status">${icon("cloudOff")}Нет связи с облаком: список появится, когда будет интернет</div>` : ""}
         </header>
@@ -67,7 +77,7 @@ export function mountHome(root, navigate) {
           <button class="ch-card new subtle" data-import>${icon("upload")}<span>Загрузить из файла</span></button>
         </div>
         ${archived.length ? `<div class="arch-toggle"><button class="btn ghost sm" data-arch>${icon("archive")}Архив (${archived.length})</button></div>${showArchived ? `<div class="ch-grid">${archived.map(charCard).join("")}</div>` : ""}` : ""}
-        <footer class="home-foot"><a href="old/">Старый проект: Math Quiz</a><span>${getMode() === "cloud" ? "Синхронизация через облако" : "Локальный режим"}</span></footer>
+        <footer class="home-foot"><a href="old/">Старый проект: Math Quiz</a><span>${getMode() === "cloud" ? "Синхронизация через облако" : "Локальный режим"}</span>${getMode() === "cloud" && access && !access.isOwner ? `<button class="link-btn" data-owner-in>${icon("shield")}Вход владельца</button>` : ""}</footer>
       </div>`;
   }
 
@@ -94,6 +104,9 @@ export function mountHome(root, navigate) {
         }
       });
     }
+    if (e.target.closest("[data-devices]")) return openDeviceManager();
+    if (e.target.closest("[data-owner-in]")) return ownerSignIn();
+    if (e.target.closest("[data-owner-out]")) return ownerSignOut();
     if (e.target.closest("[data-arch]")) {
       showArchived = !showArchived;
       paint();
@@ -123,6 +136,7 @@ export function mountHome(root, navigate) {
     disposed = true;
     unsub && unsub();
     offStatus();
+    offAccess();
     root.removeEventListener("click", onClick);
   };
 }

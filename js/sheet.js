@@ -9,7 +9,9 @@ import { cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, L
 import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode } from "./store.js";
 import { diffPaths, applyPaths } from "./sync.js";
 import { describeChanges } from "./changes.js";
-import { describeWho, isMe, KIND_ICONS, editorName, setEditorName } from "./device.js";
+import { describeWho, isMe, KIND_ICONS, editorName, setEditorName, whoAmI } from "./device.js";
+import { onAccess, registerDevice, currentUid } from "./access.js";
+import { banDevice, openDeviceManager } from "./admin.js";
 
 const SNAPSHOT_GAP = 10 * 60 * 1000;
 const lastSnapshot = new Map();
@@ -40,7 +42,8 @@ export function mountSheet(root, id, initialTab, navigate) {
     openRef: null,
     openModalApi: null,
     lastCast: {},
-    disposed: false
+    disposed: false,
+    access: { canEdit: true, reason: "", isOwner: false }
   };
 
   root.innerHTML = `<div class="loading">${icon("d20")}<span>Загружаю лист...</span></div>`;
@@ -102,6 +105,22 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (!meta.pendingWrites) toast(`${icon("cloud")} Лист обновлён: кто-то внёс изменения`, { kind: "info" });
   });
 
+  const offAccess = onAccess(a => {
+    const changedRights = a.canEdit !== S.access.canEdit || a.isOwner !== S.access.isOwner || a.reason !== S.access.reason;
+    S.access = a;
+    if (changedRights && S.c && !S.disposed) renderAll(true);
+  });
+
+  function readOnly() {
+    return !S.access.canEdit;
+  }
+
+  function roText() {
+    return S.access.reason === "banned"
+      ? "Владелец запретил этому устройству вносить правки. Смотреть лист можно."
+      : `Владелец закрыл редактирование. Смотреть лист можно. Чтобы править, попроси владельца пустить это устройство: ${describeWho({ ...whoAmI(), name: editorName() })}, ID ${currentUid().slice(0, 6)}.`;
+  }
+
   function inputFocused() {
     const a = document.activeElement;
     return !!(a && root.contains(a) && a.matches("input, textarea, select"));
@@ -130,6 +149,7 @@ export function mountSheet(root, id, initialTab, navigate) {
           <button class="icon-btn" data-act="menu" title="Меню">${icon("dots")}</button>
         </header>
         <nav class="tabs" role="tablist">${TABS.map(t => `<button class="tab ${S.tab === t.key ? "on" : ""}" data-tab="${t.key}" role="tab">${icon(t.icon)}<span class="tab-l">${t.name}</span><span class="tab-s">${t.short || t.name}</span></button>`).join("")}</nav>
+        ${readOnly() ? `<div class="ro-bar">${icon("eye")}<span>${esc(roText())}</span></div>` : ""}
         ${c.archived ? `<div class="archived-bar">${icon("archive")} Персонаж в архиве <button class="btn sm" data-act="unarchive">Вернуть</button></div>` : ""}
         <main class="tab-body" data-body></main>
       </div>`;
@@ -145,6 +165,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     body.dataset.tab = S.tab;
     $$(".tab", root).forEach(b => b.classList.toggle("on", b.dataset.tab === S.tab));
     $$("textarea.autogrow", body).forEach(grow);
+    if (readOnly()) $$("input, textarea, select", body).forEach(el => (el.disabled = true));
     updateCalcs();
   }
 
@@ -246,6 +267,10 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   function mutate(fn, opts) {
     if (S.disposed || !S.c) return;
+    if (readOnly()) {
+      toast(`${icon("eye")} ${esc(roText())}`, { kind: "bad" });
+      return;
+    }
     snapshot("Перед правкой");
     fn(S.c);
     changed(opts);
@@ -264,7 +289,7 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   const onInput = e => {
     const el = e.target.closest("[data-path]");
-    if (!el || !root.contains(el) || !S.c) return;
+    if (!el || !root.contains(el) || !S.c || readOnly()) return;
     if (el.tagName === "TEXTAREA" && el.classList.contains("autogrow")) grow(el);
     if (e.type === "input" && (el.tagName === "SELECT" || el.type === "checkbox")) return;
     let v = el.type === "checkbox" ? el.checked : el.value;
@@ -820,11 +845,13 @@ export function mountSheet(root, id, initialTab, navigate) {
           <div class="hist-who"><b>${esc(describeWho(by))}</b>${isMe(by) ? `<span class="hist-tag me">это устройство</span>` : ""}${reason ? `<span class="hist-tag">${esc(reason)}</span>` : ""}<small>${dateTime(h.at, true)} · ${timeAgo(h.at)}${i === 0 ? " · последние правки" : ""}</small></div>
         </header>
         ${changes.length ? `<ul class="hist-changes">${shown.map(t => `<li>${esc(t)}</li>`).join("")}${more > 0 ? `<li class="dim">и ещё ${more}</li>` : ""}</ul>` : `<p class="hist-none">Видимых изменений нет</p>`}
-        <div class="hist-actions"><button class="btn sm ghost" data-i="${i}">${icon("history")}Вернуть как было до этих правок</button></div>
+        <div class="hist-actions">${S.access.isOwner && by && by.uid && by.uid !== currentUid() ? `<button class="btn sm danger" data-ban-i="${i}">${icon("close")}Запретить устройство</button>` : ""}<button class="btn sm ghost" data-i="${i}">${icon("history")}Вернуть как было до этих правок</button></div>
       </article>`;
     }).join("");
     m.body.innerHTML = `<p class="hint">Каждая запись: кто правил, с какого устройства и что поменял. Кнопка возвращает лист к состоянию до этих правок, и это тоже можно откатить. Портрет не меняется.${editorName() ? "" : " Чтобы рядом с устройством стояло твоё имя, задай подпись в меню."}</p><div class="hist-list">${rows}</div>`;
     m.body.addEventListener("click", async e => {
+      const ban = e.target.closest("[data-ban-i]");
+      if (ban) return banDevice(list[Number(ban.dataset.banI)].by);
       const b = e.target.closest("[data-i]");
       if (!b || b.disabled) return;
       const h = list[Number(b.dataset.i)];
@@ -884,6 +911,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       ["roll-log", "scroll", "Журнал бросков"],
       ["history", "history", "История изменений"],
       ["sign", "signature", "Подпись в истории: " + (editorName() || "не задана")],
+      ...(S.access.isOwner ? [["devices", "monitor", "Устройства и запреты"]] : []),
       ["copy-link", "link", "Скопировать ссылку"],
       ["export", "download", "Скачать файл персонажа"],
       ["import", "upload", "Загрузить из файла"],
@@ -894,7 +922,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     const m = openModal({
       title: "Меню",
       cls: "small",
-      body: `<div class="menu-list">${items.map(([a, ic, l]) => `<button class="menu-item" data-m="${a}">${icon(ic)}<span>${l}</span></button>`).join("")}</div><p class="hint">${getMode() === "cloud" ? "Данные в облаке: все, у кого есть ссылка, видят и правят этот лист." : "Облако недоступно: данные хранятся только в этом браузере."}${st.error ? `<br>${esc(st.error)}` : ""}</p>`
+      body: `<div class="menu-list">${items.map(([a, ic, l]) => `<button class="menu-item" data-m="${a}">${icon(ic)}<span>${l}</span></button>`).join("")}</div><p class="hint">${getMode() === "cloud" ? "Данные в облаке: все, у кого есть ссылка, видят и правят этот лист." : "Облако недоступно: данные хранятся только в этом браузере."}${currentUid() ? `<br>ID этого устройства: ${esc(currentUid().slice(0, 6))}` : ""}${st.error ? `<br>${esc(st.error)}` : ""}</p>`
     });
     m.body.addEventListener("click", e => {
       const b = e.target.closest("[data-m]");
@@ -912,6 +940,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "long-rest": return longRest();
       case "roll-log": return rollLogDialog();
       case "history": return historyDialog();
+      case "devices": return openDeviceManager();
       case "sign":
         return openForm({
           title: "Подпись в истории",
@@ -919,6 +948,7 @@ export function mountSheet(root, id, initialTab, navigate) {
           value: { name: editorName() },
           onSave: val => {
             setEditorName(val.name);
+            registerDevice();
             toast(val.name.trim() ? `Правки с этого устройства будут подписаны: ${esc(val.name.trim())}` : "Подпись убрана", { kind: "good" });
           }
         });
@@ -1081,6 +1111,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (S.openModalApi) S.openModalApi.close();
     unsub && unsub();
     unStatus();
+    offAccess();
     offHover();
     root.removeEventListener("input", onInput);
     root.removeEventListener("change", onInput);

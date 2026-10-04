@@ -1,6 +1,7 @@
 import { FIREBASE_CONFIG, FIREBASE_VERSION } from "./config.js";
 import { DELETE, applyPaths } from "./sync.js";
 import { whoAmI } from "./device.js";
+import { initAccess, currentUid } from "./access.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
 const LS_CHARS = "dnd.chars";
@@ -34,6 +35,8 @@ export function getMode() {
 export const validId = id => typeof id === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(id);
 
 const clone = v => JSON.parse(JSON.stringify(v ?? null));
+
+const who = () => ({ ...whoAmI(), uid: currentUid() });
 
 function readLocal() {
   try {
@@ -112,6 +115,7 @@ export async function initStore() {
     }
     fs = fsMod;
     mode = "cloud";
+    await initAccess({ app, fsMod, database: db, cdn: CDN });
     setStatus({ state: navigator.onLine === false ? "offline" : "idle", error: navigator.onLine === false ? OFFLINE_MSG : "" });
   } catch {
     mode = "local";
@@ -190,7 +194,7 @@ export async function saveChanges(id, changes, full) {
     const doc = map[id] ? map[id] : stripId(full);
     applyPaths(doc, changes);
     doc.updatedAt = now;
-    doc.updatedBy = whoAmI();
+    doc.updatedBy = who();
     map[id] = doc;
     writeLocal(map);
     setStatus({ state: "saved", error: "" });
@@ -201,7 +205,7 @@ export async function saveChanges(id, changes, full) {
   for (const [path, value] of changes) {
     args.push(new fs.FieldPath(...path), value === DELETE ? fs.deleteField() : value);
   }
-  args.push("updatedAt", now, "updatedBy", whoAmI());
+  args.push("updatedAt", now, "updatedBy", who());
   pending++;
   setStatus({ state: navigator.onLine === false ? "offline" : "saving", error: navigator.onLine === false ? OFFLINE_MSG : "" });
   const slow = setTimeout(() => setStatus({ state: "offline", error: OFFLINE_MSG }), 6000);
@@ -225,7 +229,7 @@ export async function saveChanges(id, changes, full) {
 
 export async function createChar(id, c) {
   const now = Date.now();
-  const data = { ...stripId(c), createdAt: now, updatedAt: now, updatedBy: whoAmI() };
+  const data = { ...stripId(c), createdAt: now, updatedAt: now, updatedBy: who() };
   if (mode === "local") {
     const map = readLocal();
     map[id] = data;
@@ -255,7 +259,7 @@ export async function addHistory(id, data, reason) {
   const body = stripId(data);
   delete body.portrait;
   delete body.updatedBy;
-  const entry = { at: Date.now(), reason: reason || "", by: whoAmI(), data: body };
+  const entry = { at: Date.now(), reason: reason || "", by: who(), data: body };
   try {
     if (mode === "cloud") {
       await fs.addDoc(fs.collection(db, "characters", id, "history"), entry);
@@ -296,7 +300,7 @@ export async function listHistory(id) {
 export function humanError(e) {
   const code = String((e && (e.code || e.name)) || "");
   const msg = String((e && e.message) || "");
-  if (code.includes("permission-denied")) return "Нет доступа к базе: проверь правила Firestore";
+  if (code.includes("permission-denied")) return "Нет прав на правку: устройство запрещено, редактирование закрыто владельцем или правила Firestore не пускают";
   if (code.includes("unavailable")) return OFFLINE_MSG;
   if (code.includes("resource-exhausted")) return "Превышен бесплатный лимит Firebase на сегодня";
   if (code.includes("QuotaExceeded") || msg.includes("quota")) return "Память браузера переполнена";
