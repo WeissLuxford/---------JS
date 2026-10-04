@@ -1,3 +1,4 @@
+import { canInstall } from "./pwa.js";
 import { SKILLS, compute, normalize, fmt, importCharacter, NOTE_KEYS, payCoins, COIN_NAMES, CONDITIONS, FEATURE_CATS } from "./rules.js";
 import { icon } from "./icons.js";
 import { esc, $, toast, openModal, confirmDialog, promptNumber, rollLog, fxSettings, dateTime, timeAgo, download, pickFile } from "./ui.js";
@@ -287,9 +288,12 @@ export function installDialogs(X) {
       ["roll-mode", "d20", "Режим броска: " + (S.rollMode === "adv" ? "преимущество" : S.rollMode === "dis" ? "помеха" : "обычный")],
       ["dice", "d20", "Бросить кубы"],
       ["switch-char", "people", "Другой персонаж"],
+      ["rules-ref", "book", "Шпаргалка правил"],
+      ...(canInstall() ? [["install", "phone", "Установить как приложение"]] : []),
       ["search-all", "search", "Поиск по листу"],
       ["roll-log", "scroll", "Журнал бросков"],
       ["fx-sound", "bell", "Звуки бросков: " + (fxSettings().sound ? "включены" : "выключены")],
+      ["tips-toggle", "info", "Подсказки в бою: " + (X.tipsOn() ? "включены" : "выключены")],
       ["fx-anim", "d20", "Анимация кубов: " + (fxSettings().anim ? "включена" : "выключена")],
       ...(r.canEdit ? [["history", "history", "История изменений"]] : []),
       ["share", "link", manage && cloud && a.enforced ? "Поделиться и доступ" : "Поделиться"],

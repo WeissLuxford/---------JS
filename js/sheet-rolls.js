@@ -283,6 +283,7 @@ export function installRolls(X) {
       }
     });
     if (ok === false) return;
+    if (action === "dmg" && X.curHp() <= 0 && !S.c.hp.stable && S.c.hp.deathFail < 3 && X.tipsOn()) toast(`${icon("skull")} <b>0 хитов: ты без сознания.</b> В начале каждого хода спасбросок от смерти. Лечение сразу поднимает.`, { kind: "bad", timeout: 8000 });
     if (note) toast(`${icon("shield")} ${esc(note)}`, { kind: "info" });
     if (concLost) toast(`${icon("spiral")} Концентрация на «${esc(concLost)}» прервана: персонаж без сознания`, { kind: "bad" });
     if (concDc) toast(`${icon("spiral")} Концентрация на «${esc(S.c.concentration)}»: спасбросок Телосложения, СЛ ${concDc}. <button class="btn sm" data-conc-roll>Бросить</button>`, { timeout: 9000 });

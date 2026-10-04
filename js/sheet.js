@@ -541,6 +541,14 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "long-rest": return X.longRest();
       case "roll-log": return X.rollLogDialog();
       case "dice": return openDiceRoller();
+      case "install": {
+        const { installApp } = await import("./pwa.js");
+        return installApp();
+      }
+      case "rules-ref": {
+        const { openReference } = await import("./ref.js");
+        return openReference();
+      }
       case "print": {
         const { openPrint } = await import("./print.js");
         return openPrint(c, S.d);
@@ -716,9 +724,29 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "new-turn": {
         S.ui.turn = { action: false, bonus: false, reaction: false };
         X.saveTurn();
+        const tips = X.turnReminders();
         const timed = (c.effects || []).some(x => x.rounds != null);
-        if (timed && !readOnly()) return runAction("next-round", el);
-        return toast(`${icon("history")} Новый ход`, { timeout: 1500 });
+        if (timed && !readOnly()) {
+          const ended = [];
+          X.withUndo("Следующий раунд", () => mutate(ch => {
+            ch.effects = ch.effects.map(x => (x.rounds == null ? x : { ...x, rounds: x.rounds - 1 })).filter(x => {
+              if (x.rounds != null && x.rounds <= 0) {
+                ended.push(x.name);
+                return false;
+              }
+              return true;
+            });
+          }));
+          if (ended.length) tips.unshift({ text: `Закончилось: ${ended.join(", ")}` });
+        }
+        return X.showReminders(tips);
+      }
+      case "tips-toggle": {
+        const on = !X.tipsOn();
+        try {
+          localStorage.setItem("dnd.tips", on ? "1" : "0");
+        } catch {}
+        return toast(on ? "Подсказки в бою включены" : "Подсказки в бою выключены", { timeout: 1800 });
       }
       case "add-effect": return X.effectPicker();
       case "edit-effect": {
@@ -874,6 +902,7 @@ export function mountSheet(root, id, initialTab, navigate) {
   const onToastClick = e => {
     if (S.disposed) return;
     if (e.target.closest("#undo-bar [data-undo]")) return X.doUndo();
+    if (e.target.closest("#toasts [data-rem-death]")) X.doRoll("death");
     const hs = e.target.closest("#toasts [data-heal-self]");
     if (hs) X.applyHp("heal", Number(hs.dataset.healSelf) || 0);
     const tf = e.target.closest("#toasts [data-temp-force]");

@@ -2,6 +2,7 @@ import { initStore, createIfMissing, getMode, validId } from "./store.js";
 import { mountHome } from "./home.js";
 import { mountSheet } from "./sheet.js";
 import { closeAllModals, whenHistoryIdle, onModalEntry } from "./ui.js";
+import "./pwa.js";
 
 const root = document.getElementById("app");
 let unmount = null;

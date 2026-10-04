@@ -138,5 +138,51 @@ export function installTurn(X) {
     toast(`${icon("sparkle")} «${esc(sp.name)}» на тебе? <button class="btn sm" data-add-effect="${key}" data-mine="${mine ? 1 : 0}" data-conc="${esc(sp.name)}">Добавить эффект себе</button>`, { timeout: 8000 });
   }
 
-  Object.assign(X, { actionMenu, movementMenu, addEffect, effectPicker, editEffect, offerEffect });
+  function tipsOn() {
+    try {
+      return localStorage.getItem("dnd.tips") !== "0";
+    } catch {
+      return true;
+    }
+  }
+
+  function turnReminders() {
+    const c = S.c;
+    const d = S.d;
+    const tips = [];
+    if (!c || !tipsOn()) return tips;
+    const hp = X.curHp();
+    const dead = c.hp.deathFail >= 3;
+    if (hp <= 0 && !dead && !c.hp.stable) tips.push({ text: "Ты без сознания: в начале хода спасбросок от смерти", btn: `<button class="btn sm" data-rem-death>${icon("d20")}Бросить</button>`, bad: true });
+    if (c.concentration) tips.push({ text: `Концентрация: «${c.concentration}». Урон = спасбросок Телосложения` });
+    for (const e of c.effects || []) {
+      if (e.rounds === 1) tips.push({ text: `«${e.name}» закончится после этого раунда` });
+      if (e.preset === "hex" || e.preset === "huntersMark") tips.push({ text: `${e.name}: если цель упала, перенеси на другую бонусным действием` });
+    }
+    const cond = c.conditions || {};
+    const notes = {
+      prone: "Сбит с ног: встать стоит половину скорости, атаки с помехой",
+      grappled: "Схвачен: скорость 0, вырваться можно действием (Атлетика или Акробатика)",
+      restrained: "Опутан: скорость 0, атаки с помехой",
+      poisoned: "Отравлен: помеха на атаки и проверки",
+      frightened: "Испуган: нельзя приближаться к источнику страха",
+      blinded: "Ослеплён: атаки с помехой, по тебе с преимуществом",
+      incapacitated: "Недееспособен: ни действий, ни реакций",
+      invisible: "Невидим: атаки с преимуществом"
+    };
+    Object.keys(notes).forEach(k => cond[k] && tips.push({ text: notes[k] }));
+    if (c.exhaustion) tips.push({ text: `Истощение ${c.exhaustion}: снимается длинным отдыхом` });
+    if (c.inspiration) tips.push({ text: "Есть вдохновение: можно взять преимущество на бросок" });
+    const bonus = c.spells.filter(sp => sp.action === "bonus").map(sp => sp.name).concat(c.features.filter(f => f.action === "bonus" && (!usesInfo(d, f) || usesInfo(d, f).left > 0)).map(f => f.name));
+    if (bonus.length) tips.push({ text: `Бонусным действием можно: ${bonus.slice(0, 4).join(", ")}${bonus.length > 4 ? "…" : ""}` });
+    return tips;
+  }
+
+  function showReminders(tips) {
+    if (!tips.length) return toast(`${icon("history")} Новый ход`, { timeout: 1500 });
+    const btns = tips.map(t => t.btn || "").join("");
+    toast(`${icon("history")} <b>Новый ход</b><ul class="rest-sum">${tips.map(t => `<li${t.bad ? ' class="bad"' : ""}>${esc(t.text)}</li>`).join("")}</ul>${btns ? `<div class="r-btns">${btns}</div>` : ""}`, { kind: tips.some(t => t.bad) ? "bad" : "info", timeout: 9000 });
+  }
+
+  Object.assign(X, { tipsOn, turnReminders, showReminders, actionMenu, movementMenu, addEffect, effectPicker, editEffect, offerEffect });
 }

@@ -1,4 +1,4 @@
-const VERSION = "v4";
+const VERSION = "v5";
 const SHELL = "dnd-shell-" + VERSION;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -6,6 +6,9 @@ const PRECACHE = [
   "index.html",
   "manifest.webmanifest",
   "favicon.svg",
+  "icon-192.png",
+  "icon-512.png",
+  "apple-touch-icon.png",
   "css/app.css",
   "js/access.js",
   "js/admin.js",
@@ -19,6 +22,8 @@ const PRECACHE = [
   "js/library.js",
   "js/main.js",
   "js/print.js",
+  "js/pwa.js",
+  "js/ref.js",
   "js/rules.js",
   "js/seed.js",
   "js/share.js",
