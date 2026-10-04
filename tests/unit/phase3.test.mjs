@@ -232,3 +232,29 @@ test("weapons and armor from items, combat panel sources without duplicates", as
   assert.equal(R.normalize({ name: "x", items: [{ name: "a", atkAbility: "evil", acBase: "99", acDex: "x" }] }).items[0].atkAbility, "");
   assert.equal(R.normalize({ name: "x", items: [{ name: "a", acBase: "99" }] }).items[0].acBase, 30);
 });
+
+test("coins: pay with change, refuse when short; XP progress; ammo link; accent", () => {
+  const coins = { pp: 0, gp: 15, ep: 0, sp: 8, cp: 0 };
+  assert.deepEqual(R.payCoins(coins, 3, "sp"), { pp: 0, gp: 15, ep: 0, sp: 5, cp: 0 });
+  assert.deepEqual(R.payCoins(coins, 2, "cp"), { pp: 0, gp: 15, ep: 0, sp: 7, cp: 8 });
+  assert.equal(R.payCoins(coins, 16, "gp"), null);
+  assert.equal(R.coinsTotalCp(R.payCoins(coins, 10, "sp")), R.coinsTotalCp(coins) - 100);
+  assert.equal(R.coinsTotalCp(R.payCoins({ pp: 1, gp: 0, ep: 0, sp: 0, cp: 0 }, 1, "cp")), 999);
+  const x = R.xpInfo(R.normalize({ name: "x", info: { level: 5, xp: 10250 } }));
+  assert.equal(x.next, 14000);
+  assert.equal(Math.round(x.pct), 50);
+  assert.equal(x.canLevel, false);
+  assert.equal(R.xpInfo(R.normalize({ name: "x", info: { level: 5, xp: 23000 } })).levelByXp, 7);
+  const c = R.normalize({ name: "x", items: [{ id: "it-b", name: "Арбалетные болты", type: "ammo", qty: 20 }, { id: "it-a", name: "Стрелы", qty: 5 }] });
+  assert.equal(R.ammoFor(c, { name: "Лёгкий арбалет" }).id, "it-b");
+  assert.equal(R.ammoFor(c, { name: "Длинный лук" }).id, "it-a");
+  assert.equal(R.ammoFor(c, { name: "Кинжал" }), null);
+  assert.equal(R.ammoFor(c, { name: "Лёгкий арбалет", ammoId: "none" }), null);
+  assert.equal(R.ammoFor(c, { name: "Кинжал", ammoId: "it-a" }).id, "it-a");
+  assert.equal(R.normalize({ name: "x", accent: "neon" }).accent, "gold");
+  assert.equal(R.normalize({ name: "x", accent: "ice" }).accent, "ice");
+  const cov = R.normalize({ name: "x", effects: [R.presetEffect("cover5")] });
+  assert.equal(R.compute(cov).ac, 15);
+  assert.deepEqual(R.rollContext(cov, "save", "dex").bonus.map(b => b.expr), ["5"]);
+  assert.equal(R.rollContext(cov, "save", "wis").bonus.length, 0);
+});

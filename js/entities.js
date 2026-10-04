@@ -1,6 +1,6 @@
 import {
   ABILITIES, SKILLS, DAMAGE, SCHOOLS, ACTIONS, RECHARGE, RARITY, ITEM_TYPES, FEATURE_CATS, FEATURE_SOURCES,
-  CONDITIONS, CASTER_TYPES, HIT_DICE, ALIGNMENTS, fmt, spellCast, usesInfo, swapType, uid, addDice, effectSummary, weaponStats
+  CONDITIONS, CASTER_TYPES, HIT_DICE, ALIGNMENTS, ACCENTS, fmt, spellCast, usesInfo, swapType, uid, addDice, effectSummary, weaponStats
 } from "./rules.js";
 import { icon, slotMark, actionMark } from "./icons.js";
 import { card, rich, esc, actionFoot, openForm } from "./ui.js";
@@ -453,6 +453,7 @@ export const EDITORS = {
       { key: "duration", label: "Длительность" },
       { key: "save", label: "Спасбросок цели", type: "select", options: SAVE_OPTS },
       { key: "damage", label: "Кубы (урон, лечение, врем. хиты)", type: "dicelist", span: 3 },
+      { key: "combat", label: "Показывать в бою", type: "select", options: [["", "Нет"], ["yes", "Да, закрепить"]] },
       { key: "effect", label: "Строка-итог (жирным)", span: 3 },
       { key: "description", label: "Описание", type: "textarea", rows: 6, span: 3 },
       { key: "icon", label: "Иконка", type: "icon", span: 3 }
@@ -480,11 +481,13 @@ export const EDITORS = {
       { key: "atkAbility", label: "Атака", type: "select", options: [["", "Не оружие"], ["str", "Сила"], ["dex", "Ловкость"], ["finesse", "Сила или Ловкость (фехтовальное)"], ["spell", "Заклинательная"]] },
       { key: "atkProf", label: "Есть владение", type: "checkbox" },
       { key: "atkBonus", label: "Магический бонус", type: "number", hint: "+1 к попаданию и урону у оружия +1" },
-      { key: "range", label: "Дистанция", placeholder: "5 фт / 20/60 фт", span: 3 },
+      { key: "range", label: "Дистанция", placeholder: "5 фт / 20/60 фт", span: 2 },
+      { key: "ammoId", label: "Боеприпасы", type: "select", options: [] },
       { type: "heading", key: "_ha", label: "Если это доспех, щит или кольцо защиты: считается в КД, когда надето", span: 3 },
       { key: "acBase", label: "КД доспеха", type: "number", nullable: true, hint: "Пусто, если не доспех" },
       { key: "acDex", label: "Ловкость", type: "select", options: [["full", "Полностью (лёгкий)"], ["2", "Не больше +2 (средний)"], ["0", "Без Ловкости (тяжёлый)"]] },
       { key: "acBonus", label: "Прибавка к КД", type: "number", hint: "Щит +2, кольцо защиты +1" },
+      { key: "combat", label: "Показывать в бою", type: "select", options: [["", "Нет"], ["yes", "Да, закрепить"]] },
       { key: "effect", label: "Строка-итог (жирным)", span: 3 },
       { key: "description", label: "Описание", type: "textarea", rows: 5, span: 3 },
       { key: "icon", label: "Иконка", type: "icon", span: 3 }
@@ -508,6 +511,7 @@ export const EDITORS = {
       { key: "scaling", label: "Рост заговора", type: "select", options: [["none", "Нет"], ["cantrip-dice", "Больше кубов"], ["cantrip-beams", "Больше лучей"]] },
       { key: "count", label: "Атак / лучей", type: "number" },
       { key: "action", label: "Действие", type: "select", options: actionOpts },
+      { key: "ammoId", label: "Боеприпасы", type: "select", options: [] },
       { key: "notes", label: "Заметки", type: "textarea", rows: 3, span: 3 },
       { key: "icon", label: "Иконка", type: "icon", span: 3 }
     ]
@@ -580,6 +584,7 @@ export function infoFields() {
     { key: "initBonus", label: "Доп. бонус инициативы", type: "number" },
     { key: "hp.maxOverride", label: "Макс. хиты вручную", type: "number", nullable: true, hint: "Пусто = считается автоматически" },
     { key: "hp.bonusPerLevel", label: "Доп. хиты за уровень", type: "number", hint: "Например, черта Крепкий: 2" },
+    { key: "accent", label: "Цвет листа", type: "select", options: Object.entries(ACCENTS).map(([k, v]) => [k, v.name]) },
     { key: "senses", label: "Чувства", placeholder: "Тёмное зрение 60 фт", span: 2 },
     { type: "heading", key: "_h5", label: "Сопротивления, уязвимости, иммунитеты", span: 3 },
     { key: "defenses.resist", label: "Сопротивление (урон пополам)", type: "types", span: 3 },
@@ -610,6 +615,10 @@ export function armorFields() {
 export function openEditor(kind, entity, { onSave, onDelete, makeArg, items = [], value: preset } = {}) {
   const ed = EDITORS[kind];
   const value = entity || preset || ed.make(makeArg);
-  const fields = ed.fields.map(f => (f.key === "itemId" ? { ...f, options: [["", "Не выбран"], ...items.map(it => [it.id, it.name || "Без названия"])] } : f));
+  const fields = ed.fields.map(f => {
+    if (f.key === "itemId") return { ...f, options: [["", "Не выбран"], ...items.map(it => [it.id, it.name || "Без названия"])] };
+    if (f.key === "ammoId") return { ...f, options: [["", "Авто по названию"], ["none", "Не тратит"], ...items.filter(it => !entity || it.id !== entity.id).map(it => [it.id, it.name || "Без названия"])] };
+    return f;
+  });
   return openForm({ title: (entity ? "Изменить: " : "Новое: ") + ed.title.toLowerCase(), fields, value, onSave, onDelete: entity ? onDelete : null });
 }

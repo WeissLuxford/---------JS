@@ -1,4 +1,4 @@
-import { ABILITIES, SKILLS, DAMAGE, DAMAGE_TYPES, DEFENSE_KINDS, compute, normalize, fmt, rollD20, rollDice, spellCast, usesInfo, maxDie, uid, addDice, swapType, importCharacter, NOTE_KEYS, itemCharges, reorderSubset, rollContext, resolveMode, rollReasons, applyDefenses, effectDamage, presetEffect, cleanEffect, EFFECT_PRESETS, weaponStats, STANDARD_ACTIONS, movementInfo, ACTIONS } from "./rules.js";
+import { ABILITIES, SKILLS, DAMAGE, DAMAGE_TYPES, DEFENSE_KINDS, compute, normalize, fmt, rollD20, rollDice, spellCast, usesInfo, maxDie, uid, addDice, swapType, importCharacter, NOTE_KEYS, itemCharges, reorderSubset, rollContext, resolveMode, rollReasons, applyDefenses, effectDamage, presetEffect, cleanEffect, EFFECT_PRESETS, weaponStats, STANDARD_ACTIONS, movementInfo, ACTIONS, ammoFor, payCoins, coinsTotalCp, COIN_NAMES, xpInfo, ACCENTS, CONDITIONS, FEATURE_CATS } from "./rules.js";
 import { icon, actionMark, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import {
   esc, $, $$, toast, openModal, confirmDialog, promptNumber, showD20, showBeams, showDamage, rollLog, enableHoverCards, hideHoverCard,
@@ -6,7 +6,7 @@ import {
 } from "./ui.js";
 import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources, turnBar } from "./tabs.js";
 import { cardFor, findEntity, itemIcon, spellIcon, featureIcon, attackIcon, effectFields, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
-import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
+import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, watchInvite, addRecent, subscribeList, getRecents, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
 import { diffPaths, applyPaths } from "./sync.js";
 import { describeChanges } from "./changes.js";
 import { describeWho, isMe, KIND_ICONS } from "./device.js";
@@ -40,6 +40,26 @@ function loadUiPrefs() {
   }
 }
 
+function rgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
+function accentStyle(key) {
+  if (!key || key === "gold" || !ACCENTS[key]) return "";
+  const [a, b, c] = ACCENTS[key].c;
+  return `--gold:${a};--gold-2:${b};--gold-3:${c};--line:${rgba(a, 0.24)};--line-2:${rgba(a, 0.45)}`;
+}
+
+function loadJson(key) {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) || "{}");
+    return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+  } catch {
+    return {};
+  }
+}
+
 function loadTurn(id) {
   try {
     const t = JSON.parse(localStorage.getItem("dnd.turn." + id) || "{}");
@@ -61,7 +81,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     d: null,
     base: null,
     tab: TABS.some(t => t.key === initialTab) ? initialTab : "char",
-    ui: { ...loadUiPrefs(), turn: loadTurn(id), invFilter: "all", notesSection: "patron", spellFilter: "all", spellQ: "", noteOpen: {}, notesQ: "", noteTag: "", peopleAtt: "all" },
+    ui: { ...loadUiPrefs(), turn: loadTurn(id), ammoSpent: loadJson("dnd.ammo." + id), invFilter: "all", notesSection: "patron", spellFilter: "all", spellQ: "", noteOpen: {}, notesQ: "", noteTag: "", peopleAtt: "all" },
     scroll: {},
     saveTimer: null,
     retry: 0,
@@ -239,7 +259,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     const c = S.c;
     document.title = `${c.name} · Лист персонажа`;
     root.innerHTML = `
-      <div class="sheet ${readOnly() ? "viewer" : ""}">
+      <div class="sheet ${readOnly() ? "viewer" : ""}" style="${accentStyle(c.accent)}">
         <header class="topbar">
           <a class="icon-btn" href="#/" title="Все персонажи">${icon("back")}</a>
           <button class="tb-portrait" data-act="portrait" title="Портрет">${c.portrait ? `<img src="${esc(c.portrait)}" alt="">` : PORTRAIT_PLACEHOLDER}</button>
@@ -247,6 +267,7 @@ export function mountSheet(root, id, initialTab, navigate) {
           <button class="hp-mini" data-act="hp" title="Хиты"><span class="hp-mini-bar"><i data-hpbar></i></span><span><b data-calc="hp"></b>/<span data-calc="hpmax"></span></span></button>
           <button class="roll-mode" data-act="roll-mode" title="Режим следующего броска d20: обычный, с преимуществом, с помехой">${rollModeLabel()}</button>
           <span class="sync" data-sync></span>
+          <button class="icon-btn tb-search" data-act="search-all" title="Поиск по листу" aria-label="Поиск по листу">${icon("search")}</button>
           <button class="icon-btn" data-act="menu" title="Меню">${icon("dots")}</button>
         </header>
         <nav class="tabs" role="tablist">${TABS.map(t => `<button class="tab ${S.tab === t.key ? "on" : ""}" data-tab="${t.key}" role="tab">${icon(t.icon)}<span class="tab-l">${t.name}</span><span class="tab-s">${t.short || t.name}</span></button>`).join("")}</nav>
@@ -582,6 +603,81 @@ export function mountSheet(root, id, initialTab, navigate) {
     saveTurn();
   }
 
+  function restoreFrom(c, before) {
+    const keep = new Set(["id", "ownerUid", "ownerName", "visibility", "createdAt", "updatedAt", "updatedBy"]);
+    for (const k of new Set([...Object.keys(c), ...Object.keys(before)])) {
+      if (keep.has(k)) continue;
+      if (before[k] === undefined) delete c[k];
+      else c[k] = clone(before[k]);
+    }
+  }
+
+  function showUndo(label, before) {
+    if (readOnly()) return;
+    S.undo = { label, before };
+    let bar = document.getElementById("undo-bar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "undo-bar";
+      document.body.appendChild(bar);
+    }
+    bar.innerHTML = `<span>${esc(label)}</span><button class="btn sm" data-undo>${icon("history")}Отменить</button>`;
+    bar.classList.add("in");
+    clearTimeout(S.undoTimer);
+    S.undoTimer = setTimeout(hideUndo, 7000);
+  }
+
+  function hideUndo() {
+    clearTimeout(S.undoTimer);
+    const bar = document.getElementById("undo-bar");
+    if (bar) bar.classList.remove("in");
+  }
+
+  function doUndo() {
+    const u = S.undo;
+    S.undo = null;
+    hideUndo();
+    if (!u || S.disposed) return;
+    mutate(c => restoreFrom(c, u.before), { render: false });
+    renderAll(true);
+    toast(`${icon("history")} Отменено: ${esc(u.label)}`, { timeout: 2200 });
+  }
+
+  function withUndo(label, fn) {
+    if (!S.c || readOnly()) return fn();
+    const before = clone(S.c);
+    const done = () => {
+      if (!S.disposed && S.c && !sameContent(before, S.c)) showUndo(label, before);
+    };
+    const r = fn();
+    if (r && typeof r.then === "function") r.then(done, done);
+    else done();
+    return r;
+  }
+
+  function spendAmmo(holder, n = 1) {
+    if (readOnly()) return;
+    const a = ammoFor(S.c, holder);
+    if (!a) return;
+    const qty = Number(a.qty) || 0;
+    if (qty <= 0) return toast(`${icon("arrow")} «${esc(a.name)}» закончились`, { kind: "bad" });
+    const take = Math.min(qty, n);
+    mutate(c => {
+      const it = findEntity(c, "item", a.id);
+      if (it) it.qty = Math.max(0, (Number(it.qty) || 0) - take);
+    }, { render: false });
+    S.ui.ammoSpent[a.id] = (S.ui.ammoSpent[a.id] || 0) + take;
+    saveAmmo();
+    renderTab();
+    if (qty - take <= 3) toast(`${icon("arrow")} «${esc(a.name)}»: осталось ${qty - take}`, { kind: "info", timeout: 2500 });
+  }
+
+  function saveAmmo() {
+    try {
+      localStorage.setItem("dnd.ammo." + id, JSON.stringify(S.ui.ammoSpent));
+    } catch {}
+  }
+
   function spellReady(sp) {
     const lvl = Number(sp.level) || 0;
     if (sp.cost === "item") {
@@ -595,6 +691,113 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (lvl === 0 || sp.cost === "free") return "";
     if (S.d.pact) return lvl <= S.d.pact.level && pactLeft() > 0 ? `ячейка ${S.d.pact.level} круга` : false;
     return availableSlotLevels(lvl).length ? "" : false;
+  }
+
+  async function coinDialog(pay) {
+    const res = await promptNumber(pay ? "Заплатить" : "Получить", {
+      label: `В кошельке: ${Object.entries(COIN_NAMES).filter(([k]) => Number(S.c.coins[k])).map(([k, n]) => `${S.c.coins[k]} ${n}`).join(", ") || "пусто"}`,
+      value: "",
+      select: { label: "Монеты", options: [["gp", "Золотые (ЗМ)"], ["sp", "Серебряные (СМ)"], ["cp", "Медные (ММ)"], ["pp", "Платиновые (ПМ)"], ["ep", "Электрум (ЭМ)"]], value: S.ui.lastCoin || "gp" },
+      buttons: [{ label: pay ? "Заплатить" : "Получить", value: pay ? "pay" : "get", cls: pay ? "danger" : "heal" }]
+    });
+    if (!res || !res.value || S.disposed) return;
+    const unit = res.type || "gp";
+    S.ui.lastCoin = unit;
+    const n = Math.abs(res.value);
+    if (pay) {
+      const next = payCoins(S.c.coins, n, unit);
+      if (!next) return toast(`Не хватает денег: нужно ${n} ${COIN_NAMES[unit]}`, { kind: "bad" });
+      mutate(c => { c.coins = next; });
+    } else {
+      if (!Number.isInteger(n)) return toast("Получить можно только целое число монет", { kind: "bad" });
+      mutate(c => { c.coins[unit] = (Number(c.coins[unit]) || 0) + n; });
+    }
+    toast(`${icon("coin")} ${pay ? "Заплачено" : "Получено"} ${n} ${COIN_NAMES[unit]}. В кошельке: ${Object.entries(COIN_NAMES).filter(([k]) => Number(S.c.coins[k])).map(([k, nm]) => `${S.c.coins[k]} ${nm}`).join(", ") || "пусто"}`, { kind: "good", timeout: 4000 });
+  }
+
+  function searchAll() {
+    const m = openModal({ title: "Поиск по листу", cls: "library", body: `<label class="search-box">${icon("search")}<input type="search" data-q placeholder="Заклинание, предмет, умение, заметка..." aria-label="Поиск по листу"></label><div class="lib-list search-res" data-list></div>` });
+    const input = m.body.querySelector("[data-q]");
+    const listEl = m.body.querySelector("[data-list]");
+    setTimeout(() => input.focus(), 60);
+    const norm = v => String(v || "").toLowerCase().replace(/ё/g, "е");
+    const draw = () => {
+      const q = norm(input.value.trim());
+      if (!q) {
+        listEl.innerHTML = `<p class="hint">Ищет по названиям и текстам: заклинания, умения, предметы, атаки, заметки, навыки, состояния.</p>`;
+        return;
+      }
+      const hit = (...v) => v.some(x => norm(x).includes(q));
+      const res = [];
+      const add = (group, ref, name, sub, ic) => res.push({ group, ref, name, sub, ic });
+      S.c.spells.forEach(x => hit(x.name, x.nameEn, x.description) && add("Заклинания", "spell:" + x.id, x.name, Number(x.level) ? `${x.level} круг` : "заговор", spellIcon(S.c, x).icon));
+      S.c.features.forEach(x => hit(x.name, x.nameEn, x.description, x.effect) && add("Умения", "feature:" + x.id, x.name, (FEATURE_CATS[x.category] || {}).name || "", featureIcon(x)));
+      S.c.items.forEach(x => hit(x.name, x.description, x.effect) && add("Снаряжение", "item:" + x.id, x.name, x.equipped ? "надето" : "", itemIcon(x)));
+      S.c.attacks.forEach(x => hit(x.name, x.notes) && add("Атаки", "attack:" + x.id, x.name, x.range || "", x.icon || attackIcon(x.name) || "swords"));
+      NOTE_KEYS.forEach(k => S.c.notes[k].forEach(n => hit(n.title, n.subtitle, n.text, n.tags) && add("Заметки", `note:${k}:${n.id}`, n.title || "Без названия", n.subtitle || "", "scroll")));
+      SKILLS.forEach(x => hit(x.name) && add("Навыки", "skill:" + x.key, x.name, fmt(S.d.skills[x.key]), "d20"));
+      CONDITIONS.forEach(x => hit(x.name) && add("Состояния", "condition:" + x.key, x.name, "", "skull"));
+      let group = "";
+      listEl.innerHTML = res.slice(0, 80).map(r => `${r.group !== group ? `<div class="atk-group">${esc((group = r.group))}</div>` : ""}<button class="am-row" data-ref="${esc(r.ref)}" style="--c:var(--gold-2)">${icon(r.ic)}<span><b>${esc(r.name)}</b>${r.sub ? `<small>${esc(r.sub)}</small>` : ""}</span></button>`).join("") || `<p class="empty">Ничего не нашлось</p>`;
+    };
+    draw();
+    input.addEventListener("input", draw);
+    m.body.addEventListener("click", e => {
+      const b = e.target.closest("[data-ref]");
+      if (!b) return;
+      const ref = b.dataset.ref;
+      const q = input.value.trim();
+      m.close();
+      if (ref.startsWith("note:")) {
+        const [, sec, nid] = ref.split(":");
+        S.ui.notesSection = sec;
+        S.ui.notesQ = q;
+        S.ui.noteOpen[nid] = true;
+        S.tab = "notes";
+        history.replaceState(history.state, "", `#/c/${id}/notes`);
+        renderAll();
+        return;
+      }
+      if (ref.startsWith("skill:") || ref.startsWith("condition:")) {
+        const html = cardFor(S.c, S.d, ref);
+        return html && openModal({ body: html, cls: "entity info-card" });
+      }
+      openEntity(ref);
+    });
+  }
+
+  function switchChar() {
+    const m = openModal({ title: "Другой персонаж", cls: "small", body: `<div class="loading small">${icon("hourglass")} Загружаю...</div>` });
+    let mine = [];
+    const draw = () => {
+      const seen = new Set([id]);
+      const rows = [];
+      mine.filter(x => !x.archived).forEach(x => {
+        if (seen.has(x.id)) return;
+        seen.add(x.id);
+        rows.push(`<button class="menu-item" data-go="${esc(x.id)}">${icon("user")}<span><b>${esc(x.name || "Без имени")}</b><small>${esc(subtitle(normalize(x)))}</small></span></button>`);
+      });
+      const rec = getRecents().filter(x => !seen.has(x.id));
+      if (rec.length) rows.push(`<div class="atk-group">Недавно открытые</div>`, ...rec.map(x => `<button class="menu-item" data-go="${esc(x.id)}">${icon("eye")}<span><b>${esc(x.name || "Без имени")}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ""}</span></button>`));
+      m.body.innerHTML = `<div class="menu-list switch-list">${rows.join("") || `<p class="empty">Других персонажей нет</p>`}</div><div class="form-actions"><a class="btn ghost" href="#/">${icon("menu")}Все персонажи</a></div>`;
+    };
+    const off = subscribeList(items => {
+      mine = Array.isArray(items) ? items : [];
+      if (m.el.isConnected) draw();
+    }, "mine");
+    const stop = new MutationObserver(() => {
+      if (!m.el.isConnected) {
+        off();
+        stop.disconnect();
+      }
+    });
+    stop.observe(document.body, { childList: true });
+    m.body.addEventListener("click", e => {
+      const b = e.target.closest("[data-go]");
+      if (!b) return;
+      m.close();
+      navigate(`#/c/${b.dataset.go}`);
+    });
   }
 
   function actionMenu(kind) {
@@ -769,6 +972,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       if (!p) return;
       const kind = AK[k];
       markAction(p.action);
+      if (kind === "item" || kind === "attack") spendAmmo(findEntity(c, kind, a), p.beams);
       if (p.beams > 1) {
         const st = rollSetup("attack", "", takeMode());
         const rs = Array.from({ length: p.beams }, () => rollD20(p.hit, st.mode));
@@ -924,19 +1128,21 @@ export function mountSheet(root, id, initialTab, navigate) {
       m.body.querySelector("[data-hdleft]").textContent = `${S.d.hitDice.left}/${S.d.hitDice.total}`;
     };
     m.body.querySelector("[data-ok]").onclick = () => {
+      const before = clone(S.c);
       mutate(c => {
         c.pactUsed = 0;
         resetUses(c, ["short"]);
         c.effects = (c.effects || []).filter(e => e.rounds == null && e.until !== "short");
       });
       m.close();
-      toast(`${icon("campfire")} Короткий отдых завершён`, { kind: "good" });
+      restSummary("Короткий отдых", "campfire", before);
     };
   }
 
   async function longRest() {
     if (!(await confirmDialog("Длинный отдых: полные хиты, все ячейки и умения восстановлены, вернётся половина костей хитов. Продолжить?", { ok: "Отдохнуть" }))) return;
     if (S.c.hp.deathFail >= 3) return toast("Погибший персонаж не может отдохнуть", { kind: "bad" });
+    const before = clone(S.c);
     mutate(c => {
       const lvl = S.d.level;
       setHp(c, S.d.hpMax);
@@ -949,7 +1155,35 @@ export function mountSheet(root, id, initialTab, navigate) {
       if (c.exhaustion > 0) c.exhaustion -= 1;
       resetUses(c, ["short", "long", "dawn"]);
     });
-    toast(`${icon("moon")} Длинный отдых завершён`, { kind: "good" });
+    restSummary("Длинный отдых", "moon", before);
+  }
+
+  function restSummary(title, ic, before) {
+    const after = S.c;
+    const db = compute(before);
+    const lines = [];
+    const hp0 = Math.min(db.hpMax, Number(before.hp.current) || 0);
+    const hp1 = curHp();
+    if (hp1 > hp0) lines.push(`Хиты: ${hp0} → ${hp1}`);
+    const hd = (Number(before.hp.hitDiceUsed) || 0) - (Number(after.hp.hitDiceUsed) || 0);
+    if (hd > 0) lines.push(`Кости хитов: +${hd}`);
+    if ((Number(before.pactUsed) || 0) > (Number(after.pactUsed) || 0)) lines.push(`Ячейки договора: +${(Number(before.pactUsed) || 0) - (Number(after.pactUsed) || 0)}`);
+    const slots = Object.values(before.slotsUsed || {}).reduce((a, b) => a + (Number(b) || 0), 0) - Object.values(after.slotsUsed || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+    if (slots > 0) lines.push(`Ячейки заклинаний: +${slots}`);
+    const names = [];
+    for (const key of ["features", "items", "spells"]) {
+      for (const e of after[key]) {
+        const was = (before[key].find(x => x.id === e.id) || {}).used;
+        if ((Number(was) || 0) > (Number(e.used) || 0)) names.push(e.name);
+      }
+    }
+    if (names.length) lines.push(`Восстановлено: ${names.join(", ")}`);
+    if (before.exhaustion > after.exhaustion) lines.push(`Истощение: ${before.exhaustion} → ${after.exhaustion}`);
+    const gone = (before.effects || []).filter(e => !(after.effects || []).some(x => x.id === e.id)).map(e => e.name);
+    if (gone.length) lines.push(`Закончилось: ${gone.join(", ")}`);
+    if (before.concentration && !after.concentration) lines.push(`Концентрация на «${before.concentration}» снята`);
+    toast(`${icon(ic)} <b>${esc(title)} завершён</b>${lines.length ? `<ul class="rest-sum">${lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : "<br>Восстанавливать было нечего"}`, { kind: "good", timeout: 9000 });
+    showUndo(title, before);
   }
 
   function spendSlot(c, level) {
@@ -1195,7 +1429,7 @@ export function mountSheet(root, id, initialTab, navigate) {
         m.close();
         return editEntity(kind, e);
       }
-      if (x === "cast") return castSpell(e, Number(btn.dataset.lvl) || null);
+      if (x === "cast") return withUndo(`Каст: ${e.name}`, () => castSpell(e, Number(btn.dataset.lvl) || null));
       if (x === "spell-atk") return d20(`${e.name}: атака`, spellAtk(S.d, e), "attack");
       if (x === "to-item") {
         m.close();
@@ -1223,13 +1457,13 @@ export function mountSheet(root, id, initialTab, navigate) {
         }
         return rollDamage(`${e.name}${cast.level && cast.level !== Number(e.level) ? ` (${cast.level} круг)` : ""}`, lines, x === "spell-crit");
       }
-      if (x === "use") return useEntity(kind, e, 1);
-      if (x === "restore") return useEntity(kind, e, -1);
+      if (x === "use") return withUndo(`Использовано: ${e.name}`, () => useEntity(kind, e, 1));
+      if (x === "restore") return withUndo(`Возвращено: ${e.name}`, () => useEntity(kind, e, -1));
       if (x === "feat-dmg" || x === "item-dmg") {
         const lines = (e.damage || []).map(l => ({ dice: l.addMod ? addDice(l.dice, S.d.spell.mod) : l.dice, type: swapType(S.c, l.type) }));
         return rollDamage(e.name, lines);
       }
-      if (x === "equip") return mutate(c => { const it = findEntity(c, "item", eid); if (it) it.equipped = !it.equipped; });
+      if (x === "equip") return withUndo(e.equipped ? `Снято: ${e.name}` : `Надето: ${e.name}`, () => mutate(c => { const it = findEntity(c, "item", eid); if (it) it.equipped = !it.equipped; }));
       if (x === "attune") {
         if (!e.attuned && S.d.attuned >= 3) return toast("Уже настроено 3 предмета: это максимум", { kind: "bad" });
         return mutate(c => { const it = findEntity(c, "item", eid); if (it) it.attuned = !it.attuned; });
@@ -1448,7 +1682,7 @@ export function mountSheet(root, id, initialTab, navigate) {
           }
           if (!String(c.name || "").trim()) c.name = "Без имени";
           const n = normalize(c);
-          for (const k of ["info", "hp", "speed", "initBonus", "hitDie", "casterType", "spellAbility", "damageSwap", "defenses", "resistances"]) c[k] = n[k];
+          for (const k of ["info", "hp", "speed", "initBonus", "hitDie", "casterType", "spellAbility", "damageSwap", "defenses", "resistances", "accent"]) c[k] = n[k];
           clampHp(c);
         }, { render: false });
         renderAll(true);
@@ -1618,6 +1852,8 @@ export function mountSheet(root, id, initialTab, navigate) {
       ["long-rest", "moon", "Длинный отдых"],
       ["roll-mode", "d20", "Режим броска: " + (S.rollMode === "adv" ? "преимущество" : S.rollMode === "dis" ? "помеха" : "обычный")],
       ["dice", "d20", "Бросить кубы"],
+      ["switch-char", "people", "Другой персонаж"],
+      ["search-all", "search", "Поиск по листу"],
       ["roll-log", "scroll", "Журнал бросков"],
       ["fx-sound", "bell", "Звуки бросков: " + (fxSettings().sound ? "включены" : "выключены")],
       ["fx-anim", "d20", "Анимация кубов: " + (fxSettings().anim ? "включена" : "выключена")],
@@ -1647,9 +1883,39 @@ export function mountSheet(root, id, initialTab, navigate) {
     });
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "dedupe-attacks", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "dedupe-attacks", "cover", "collect-ammo", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
 
-  async function runAction(a, el) {
+  const UNDO = {
+    "hp-quick": el => (Number(el.dataset.n) < 0 ? `Урон ${-Number(el.dataset.n)}` : `Лечение ${el.dataset.n}`),
+    hp: () => "Изменение хитов",
+    "pact-pip": () => "Ячейка договора",
+    "slot-pip": () => "Ячейка заклинаний",
+    "use-pip": () => "Использование",
+    "pin-use": () => "Использование",
+    "toggle-cond": () => "Состояние",
+    exhaustion: () => "Истощение",
+    inspiration: () => "Вдохновение",
+    "remove-effect": () => "Эффект снят",
+    "next-round": () => "Следующий раунд",
+    "end-combat": () => "Бой окончен",
+    "spend-hd": () => "Кость хитов",
+    death: () => "Спасбросок от смерти",
+    "drop-conc": () => "Концентрация снята",
+    cover: () => "Укрытие",
+    "coin-pay": () => "Оплата",
+    "coin-get": () => "Получение денег",
+    "add-xp": () => "Опыт",
+    "toggle-save": () => "Владение спасброском",
+    "cycle-skill": () => "Владение навыком",
+    "collect-ammo": () => "Сбор боеприпасов"
+  };
+
+  function runAction(a, el) {
+    if (UNDO[a] && S.c && !readOnly() && !(MUTATING.has(a) && readOnly())) return withUndo(UNDO[a](el), () => runActionInner(a, el));
+    return runActionInner(a, el);
+  }
+
+  async function runActionInner(a, el) {
     const { c } = S;
     if (!c || S.disposed) return;
     if (MUTATING.has(a) && readOnly()) {
@@ -1783,6 +2049,51 @@ export function mountSheet(root, id, initialTab, navigate) {
         if (!ids.length) return;
         if (!(await confirmDialog(`Удалить ${ids.length} ${ids.length === 1 ? "запись" : ids.length < 5 ? "записи" : "записей"} атак, которые повторяют заклинания или оружие? Старая версия останется в истории.`, { ok: "Удалить" }))) return;
         return mutate(ch => { ch.attacks = ch.attacks.filter(x => !ids.includes(x.id)); });
+      }
+      case "search-all": return searchAll();
+      case "switch-char": return switchChar();
+      case "cover": {
+        const key = el.dataset.k;
+        const has = (c.effects || []).some(x => x.preset === key);
+        return mutate(ch => {
+          ch.effects = (ch.effects || []).filter(x => x.preset !== "cover2" && x.preset !== "cover5");
+          if (!has) ch.effects.push(presetEffect(key));
+        });
+      }
+      case "collect-ammo": {
+        const spent = S.ui.ammoSpent;
+        const back = Object.entries(spent).map(([aid, n]) => [aid, Math.floor(n / 2)]).filter(([, n]) => n > 0);
+        S.ui.ammoSpent = {};
+        saveAmmo();
+        if (back.length) mutate(ch => back.forEach(([aid, n]) => {
+          const it = findEntity(ch, "item", aid);
+          if (it) it.qty = (Number(it.qty) || 0) + n;
+        }));
+        else renderTab();
+        return toast(`${icon("arrow")} Собрано: ${back.reduce((a, [, n]) => a + n, 0)}`, { kind: "good", timeout: 2200 });
+      }
+      case "pin-use": {
+        const [kind, eid] = el.dataset.ref.split(":");
+        const e = findEntity(c, kind, eid);
+        return e && useEntity(kind, e, 1);
+      }
+      case "pin-dmg": {
+        const [kind, eid] = el.dataset.ref.split(":");
+        const e = findEntity(c, kind, eid);
+        if (!e) return;
+        return rollDamage(e.name, (e.damage || []).map(l => ({ dice: l.addMod ? addDice(l.dice, S.d.spell.mod) : l.dice, type: swapType(c, l.type) })));
+      }
+      case "coin-pay":
+      case "coin-get": return coinDialog(a === "coin-pay");
+      case "add-xp": {
+        const res = await promptNumber("Опыт", { label: `Сейчас ${xpInfo(c).xp}. Сколько добавить?`, value: "", buttons: [{ label: "Добавить", value: "add" }] });
+        if (!res || !res.value || S.disposed) return;
+        const n = Math.round(res.value);
+        const was = xpInfo(S.c);
+        mutate(ch => { ch.info.xp = Math.max(0, (Number(ch.info.xp) || 0) + n); }, { render: false });
+        renderAll(true);
+        const now = xpInfo(S.c);
+        return toast(now.canLevel && !was.canLevel ? `${icon("star")} <b>Опыта хватает на ${now.levelByXp} уровень!</b> Повысь уровень в «Основном».` : `${icon("star")} Опыт: ${now.xp}`, { kind: "good", timeout: now.canLevel ? 7000 : 2500 });
       }
       case "turn-open": return el.dataset.k === "move" ? movementMenu() : actionMenu(el.dataset.k);
       case "turn-toggle":
@@ -1948,6 +2259,7 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   const onToastClick = e => {
     if (S.disposed) return;
+    if (e.target.closest("#undo-bar [data-undo]")) return doUndo();
     const hs = e.target.closest("#toasts [data-heal-self]");
     if (hs) applyHp("heal", Number(hs.dataset.healSelf) || 0);
     const tf = e.target.closest("#toasts [data-temp-force]");
@@ -2016,6 +2328,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     offHover();
     offLong();
     offOrder();
+    hideUndo();
     root.removeEventListener("toggle", onToggle, true);
     root.removeEventListener("input", onInput);
     root.removeEventListener("change", onInput);

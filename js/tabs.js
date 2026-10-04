@@ -1,4 +1,4 @@
-import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, fmt, usesInfo, spellCast, effectSummary, spellInCombat } from "./rules.js";
+import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, fmt, usesInfo, spellCast, effectSummary, spellInCombat, xpInfo, ammoFor } from "./rules.js";
 import { icon, actionMark, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, pips, rich, plainPreview } from "./ui.js";
 import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum } from "./entities.js";
@@ -82,6 +82,12 @@ export function hpPanel(ctx) {
     </div>`, { ic: "heart", cls: "hp-panel" });
 }
 
+function xpRow(c) {
+  const x = xpInfo(c);
+  if (!x.next) return "";
+  return `<div class="xp-row ${x.canLevel ? "ready" : ""}"><div class="xp-bar"><i style="width:${x.pct}%"></i></div><span class="xp-t">${x.canLevel ? `Опыта хватает на ${x.levelByXp} уровень!` : `Опыт ${x.xp} / ${x.next} до ${x.level + 1} уровня`}</span><button class="btn ghost sm" data-act="add-xp">${icon("plus")}Опыт</button></div>`;
+}
+
 function inspirationBtn(c) {
   return `<button class="insp ${c.inspiration ? "on" : ""}" data-act="inspiration" data-card="stat:inspiration" aria-pressed="${c.inspiration ? "true" : "false"}">${icon("sun")}<span>${c.inspiration ? "Вдохновение есть" : "Нет вдохновения"}</span></button>`;
 }
@@ -150,6 +156,7 @@ export function tabChar(ctx) {
           <span class="hero-sub dim">${esc([c.info.background, c.info.alignment, c.info.age ? c.info.age + " лет" : ""].filter(Boolean).join(" · "))}</span>
         </button>
       </section>
+      ${xpRow(c)}
       <div class="medals">
         ${statMedal("КД", d.ac, { calc: "ac", act: "edit-armor", ic: "shield", card: "stat:ac" })}
         ${statMedal("Инициатива", fmt(d.init), { calc: "init", roll: "init", ic: "bolt", card: "stat:init" })}
@@ -196,14 +203,14 @@ function attackRow(ctx, at) {
   const hit = s.kind === "save"
     ? `<span class="chip dc">СЛ ${s.dc} ${abShort(s.save)}</span>`
     : `<button class="chip hit" data-roll="attack:${esc(at.id)}">${s.beams > 1 ? `<small>${s.beams}×</small>` : ""}${fmt(s.hit)}</button>`;
-  return combatRow({ rid: at.id, open: "attack:" + at.id, name: at.name, sub: at.range, color: dt.color, ic: at.icon || attackIcon(at.name) || dt.icon, hit, dmg: dmgChip("dmg:" + at.id, s.beams, s.dmg, s.type) });
+  return combatRow({ rid: at.id, open: "attack:" + at.id, name: at.name, sub: (at.range || "") + ammoNote(ctx.c, at), color: dt.color, ic: at.icon || attackIcon(at.name) || dt.icon, hit, dmg: dmgChip("dmg:" + at.id, s.beams, s.dmg, s.type) });
 }
 
 function weaponRow(ctx, it) {
   const w = ctx.d.weapons[it.id];
   const dt = DAMAGE[w.type] || DAMAGE.bludgeoning;
   const hit = `<button class="chip hit" data-roll="iattack:${esc(it.id)}">${fmt(w.hit)}</button>`;
-  return combatRow({ rid: it.id, open: "item:" + it.id, name: it.name, sub: w.range, color: dt.color, ic: itemIcon(it), hit, dmg: dmgChip("idmg:" + it.id, 1, w.dmg + (w.lines.length > 1 ? " + …" : ""), w.type) });
+  return combatRow({ rid: it.id, open: "item:" + it.id, name: it.name, sub: (w.range || "") + ammoNote(ctx.c, it), color: dt.color, ic: itemIcon(it), hit, dmg: dmgChip("idmg:" + it.id, 1, w.dmg + (w.lines.length > 1 ? " + …" : ""), w.type) });
 }
 
 function spellRow(ctx, sp) {
@@ -222,9 +229,26 @@ const nameKey = s => String(s || "").trim().toLowerCase().replace(/ё/g, "е");
 export function combatSources(c, d) {
   const weapons = (c.items || []).filter(it => d.weapons[it.id]);
   const spells = (c.spells || []).filter(spellInCombat);
+  const pinned = [...(c.features || []).filter(f => f.combat === "yes").map(e => ({ kind: "feature", e })), ...(c.items || []).filter(it => it.combat === "yes" && !d.weapons[it.id]).map(e => ({ kind: "item", e }))];
   const taken = new Set([...weapons, ...spells].map(x => nameKey(x.name)));
   const dupes = c.attacks.filter(a => taken.has(nameKey(a.name)));
-  return { weapons, spells, own: c.attacks.filter(a => !dupes.includes(a)), dupes };
+  return { weapons, spells, pinned, own: c.attacks.filter(a => !dupes.includes(a)), dupes };
+}
+
+function ammoNote(c, holder) {
+  const a = ammoFor(c, holder);
+  return a ? ` · ${a.name}: ${a.qty}` : "";
+}
+
+function pinnedRow(ctx, { kind, e }) {
+  const { c, d } = ctx;
+  const u = usesInfo(d, e);
+  const ic = kind === "item" ? itemIcon(e) : featureIcon(e);
+  const color = kind === "item" ? (RARITY[e.rarity] || RARITY.common).color : "#c9a0ff";
+  const hit = u ? `<button class="chip hit pin-use ${u.left ? "" : "off"}" data-act="pin-use" data-ref="${kind}:${esc(e.id)}" title="Использовать">${icon("check")}${u.left}/${u.max}</button>` : `<span></span>`;
+  const first = (e.damage || [])[0];
+  const dmg = first ? `<button class="chip dmg" data-act="pin-dmg" data-ref="${kind}:${esc(e.id)}" style="--c:${(DAMAGE[first.type] || DAMAGE.bludgeoning).color}">${esc(first.dice)} <span>${esc(((DAMAGE[first.type] || {}).name || "").toLowerCase())}</span></button>` : "";
+  return combatRow({ rid: e.id, open: kind + ":" + e.id, name: e.name, sub: (ACTIONS[e.action] || {}).name || "", color, ic, hit, dmg });
 }
 
 function attacksPanel(ctx) {
@@ -233,10 +257,13 @@ function attacksPanel(ctx) {
   const group = (title, key, html) => (html ? `${title ? `<div class="atk-group">${title}</div>` : ""}<div class="atk-list" data-reorder="${key}">${html}</div>` : "");
   const body = group(src.weapons.length && (src.spells.length || src.own.length) ? "Оружие" : "", "items", src.weapons.map(it => weaponRow(ctx, it)).join("")) +
     group(src.spells.length && (src.weapons.length || src.own.length) ? "Заклинания" : "", "spells", src.spells.map(sp => spellRow(ctx, sp)).join("")) +
-    group(src.own.length && (src.weapons.length || src.spells.length) ? "Свои атаки" : "", "attacks", src.own.map(a => attackRow(ctx, a)).join(""));
+    group(src.own.length && (src.weapons.length || src.spells.length) ? "Свои атаки" : "", "attacks", src.own.map(a => attackRow(ctx, a)).join("")) +
+    group(src.pinned.length ? "Закреплено" : "", "pinned", src.pinned.map(p => pinnedRow(ctx, p)).join(""));
+  const spent = Object.values((ctx.ui && ctx.ui.ammoSpent) || {}).reduce((a, b) => a + b, 0);
+  const collect = spent ? `<div class="ammo-bar">${icon("arrow")}<span>Выпущено боеприпасов: ${spent}. После боя можно собрать половину.</span><button class="btn ghost sm" data-act="collect-ammo">Собрать ${Math.floor(spent / 2)}</button></div>` : "";
   const dupes = src.dupes.length ? `<div class="dupe-bar">${icon("info")}<span>${esc(src.dupes.map(a => a.name).join(", "))}: эти записи атак повторяют заклинания или оружие, поэтому спрятаны.</span><button class="btn ghost sm" data-act="dedupe-attacks">${icon("trash")}Удалить копии</button></div>` : "";
-  const hint = `<p class="hint atk-hint">Оружие появляется само, когда оно надето и у него указана атака. Заклинания: атакующие заговоры, остальные по галочке «В панели боя».</p>`;
-  return panel("Атаки", `${dupes}${body || `<p class="empty">Атак пока нет</p>`}${hint}`, { ic: "swords", actions: orderBtn(ctx) + addBtn("add-attack", "Атака"), cls: "p-attacks" });
+  const hint = `<p class="hint atk-hint">Оружие появляется само, когда оно надето и у него указана атака. Заклинания: атакующие заговоры, остальные по галочке «В панели боя». Умения и предметы: «Показывать в бою» в их настройках.</p>`;
+  return panel("Атаки", `${dupes}${body || `<p class="empty">Атак пока нет</p>`}${collect}${hint}`, { ic: "swords", actions: orderBtn(ctx) + addBtn("add-attack", "Атака"), cls: "p-attacks" });
 }
 
 function slotsBlock(ctx) {
@@ -310,7 +337,9 @@ function effectsPanel(ctx) {
     </div>`).join("");
   const timed = list.some(e => e.rounds != null);
   const actions = `${timed ? `<button class="btn ghost sm" data-act="next-round" title="Уменьшить длительность эффектов на 1 раунд">${icon("hourglass")}Раунд</button>` : ""}<button class="btn ghost sm" data-act="add-effect">${icon("plus")}Эффект</button>`;
-  return panel("Эффекты", `${rows ? `<div class="eff-list">${rows}</div>${timed ? `<div class="eff-foot"><button class="btn ghost sm" data-act="end-combat">${icon("check")}Бой окончен: снять эффекты до минуты</button></div>` : ""}` : `<p class="hint eff-empty">Благословение, Сглаз, Щит и другие: прибавляются к броскам, КД и урону сами.</p>`}`, { ic: "sparkle", cls: "effects-panel", actions });
+  const has = k => list.some(e => e.preset === k);
+  const cover = `<div class="cover-row"><span>Укрытие:</span><button class="chip toggle ${has("cover2") ? "on" : ""}" data-act="cover" data-k="cover2" aria-pressed="${has("cover2")}">½ · +2 КД</button><button class="chip toggle ${has("cover5") ? "on" : ""}" data-act="cover" data-k="cover5" aria-pressed="${has("cover5")}">¾ · +5 КД</button></div>`;
+  return panel("Эффекты", `${cover}${rows ? `<div class="eff-list">${rows}</div>${timed ? `<div class="eff-foot"><button class="btn ghost sm" data-act="end-combat">${icon("check")}Бой окончен: снять эффекты до минуты</button></div>` : ""}` : `<p class="hint eff-empty">Благословение, Сглаз, Щит и другие: прибавляются к броскам, КД и урону сами.</p>`}`, { ic: "sparkle", cls: "effects-panel", actions });
 }
 
 function conditionsPanel(ctx) {
@@ -497,6 +526,7 @@ export function tabInventory(ctx) {
   return `
     ${panel("Кошель и вес", `
       <div class="coins">${coins}</div>
+      <div class="coin-acts"><button class="btn ghost sm" data-act="coin-pay">${icon("minus")}Заплатить</button><button class="btn ghost sm" data-act="coin-get">${icon("plus")}Получить</button></div>
       <div class="weight"><span>Вес: <b data-calc="weight">${fmtNum(d.weight)}</b> / <span data-calc="carry">${d.carry}</span> фнт</span><div class="wbar ${d.weight > d.carry ? "over" : ""}" data-wbar><i style="width:${pct}%"></i></div><span>Настройка: <b data-calc="attuned">${d.attuned}</b> / 3</span></div>`, { ic: "coin" })}
     ${panel("Предметы", `
       <div class="chips filter">${INV_FILTERS.map(([k, l]) => `<button class="chip toggle ${f === k ? "on" : ""}" data-act="inv-filter" data-k="${k}">${l}</button>`).join("")}</div>

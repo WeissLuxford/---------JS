@@ -63,6 +63,8 @@ export const EFFECT_PRESETS = {
   enlarge: { name: "Увеличение", dmg: "1d4", adv: ["check:str", "save:str"], rounds: 10, conc: true, note: "+1d4 к урону оружием, преимущество на Силу" },
   reduce: { name: "Уменьшение", dmg: "-1d4", dis: ["check:str", "save:str"], rounds: 10, conc: true, note: "−1d4 к урону оружием, помеха на Силу" },
   rage: { name: "Ярость", dmg: "2", adv: ["check:str", "save:str"], resist: ["bludgeoning", "piercing", "slashing"], rounds: 10, note: "+2 к урону, сопротивление дробящему, колющему, рубящему" },
+  cover2: { name: "Половинное укрытие", ac: 2, dexSave: 2, rounds: 1, note: "+2 к КД и спасброскам Ловкости до следующего хода" },
+  cover5: { name: "Укрытие на три четверти", ac: 5, dexSave: 5, rounds: 1, note: "+5 к КД и спасброскам Ловкости до следующего хода" },
   dodge: { name: "Уклонение", adv: ["save:dex"], rounds: 1, note: "Атаки по тебе с помехой, преимущество на спасброски Ловкости" },
   protection: { name: "Защита от энергии", resist: ["fire"], rounds: 600, conc: true, note: "Сопротивление выбранному типу урона (поменяй в «Изменить»)" }
 };
@@ -102,6 +104,83 @@ export function movementInfo(c, d) {
     { name: "Рывок", value: `ещё ${sp} фт`, desc: "Действие «Рывок» даёт ещё одну скорость перемещения." }
   ];
 }
+
+export const XP_TABLE = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000];
+
+export function xpInfo(c) {
+  const lvl = clampLevel(c.info.level);
+  const xp = Math.max(0, Number(c.info.xp) || 0);
+  const next = lvl < 20 ? XP_TABLE[lvl] : null;
+  const prev = XP_TABLE[lvl - 1];
+  const reach = XP_TABLE.filter(v => xp >= v).length;
+  return { level: lvl, xp, next, prev, canLevel: reach > lvl, levelByXp: Math.min(20, reach), pct: next ? Math.max(0, Math.min(100, ((xp - prev) / (next - prev)) * 100)) : 100 };
+}
+
+export const COIN_CP = { pp: 1000, gp: 100, ep: 50, sp: 10, cp: 1 };
+export const COIN_NAMES = { pp: "ПМ", gp: "ЗМ", ep: "ЭМ", sp: "СМ", cp: "ММ" };
+
+export function coinsTotalCp(coins) {
+  return Object.entries(COIN_CP).reduce((sum, [k, v]) => sum + Math.max(0, Math.floor(Number(coins[k]) || 0)) * v, 0);
+}
+
+export function payCoins(coins, amount, unit) {
+  const cost = Math.round(Math.max(0, Number(amount) || 0) * (COIN_CP[unit] || 100));
+  const out = {};
+  for (const k of Object.keys(COIN_CP)) out[k] = Math.max(0, Math.floor(Number(coins[k]) || 0));
+  if (!cost) return out;
+  if (coinsTotalCp(out) < cost) return null;
+  let left = cost;
+  const order = ["cp", "sp", "ep", "gp", "pp"].filter(k => COIN_CP[k] <= (COIN_CP[unit] || 100));
+  const same = Math.min(out[unit] || 0, Math.floor(left / COIN_CP[unit]));
+  out[unit] -= same;
+  left -= same * COIN_CP[unit];
+  for (const k of order.slice().reverse()) {
+    if (k === unit || !left) continue;
+    const take = Math.min(out[k], Math.floor(left / COIN_CP[k]));
+    out[k] -= take;
+    left -= take * COIN_CP[k];
+  }
+  for (const k of ["cp", "sp", "ep", "gp", "pp"]) {
+    if (!left) break;
+    while (left > 0 && out[k] > 0 && COIN_CP[k] <= left) {
+      out[k] -= 1;
+      left -= COIN_CP[k];
+    }
+  }
+  if (left > 0) {
+    const big = ["cp", "sp", "ep", "gp", "pp"].find(k => out[k] > 0 && COIN_CP[k] > left);
+    if (!big) return null;
+    out[big] -= 1;
+    let change = COIN_CP[big] - left;
+    left = 0;
+    for (const k of ["gp", "sp", "cp"]) {
+      const n = Math.floor(change / COIN_CP[k]);
+      out[k] += n;
+      change -= n * COIN_CP[k];
+    }
+  }
+  return out;
+}
+
+const AMMO_WORDS = [[/арбалет/i, /болт/i], [/лук(?![а-яё])/i, /стрел/i], [/праща/i, /снаряд|пул|камн|камен/i], [/трубк/i, /игл|дротик/i], [/пистол|мушкет|ружь|револьвер/i, /пул|патрон|заряд/i]];
+
+export function ammoFor(c, holder) {
+  if (holder.ammoId) return (c.items || []).find(it => it.id === holder.ammoId) || null;
+  if (holder.ammoId === "none") return null;
+  const pair = AMMO_WORDS.find(([w]) => w.test(holder.name || ""));
+  if (!pair) return null;
+  return (c.items || []).find(it => (it.type === "ammo" || pair[1].test(it.name || "")) && pair[1].test(it.name || "")) || null;
+}
+
+export const ACCENTS = {
+  gold: { name: "Золото", c: ["#c9a35b", "#e9c77a", "#f6e2ae"] },
+  crimson: { name: "Багровый", c: ["#c0504a", "#e57a72", "#f7c1ba"] },
+  emerald: { name: "Изумруд", c: ["#4fa776", "#78cf9c", "#c3efd3"] },
+  ice: { name: "Лёд", c: ["#5aa5c9", "#86cbea", "#cdeefc"] },
+  amethyst: { name: "Аметист", c: ["#9a6fd0", "#bf98ee", "#e6d5fb"] },
+  copper: { name: "Медь", c: ["#c27a46", "#e59f6c", "#f6d0b0"] },
+  steel: { name: "Сталь", c: ["#8d98a6", "#b5c0cc", "#e2e8ef"] }
+};
 
 export const EFFECT_ROLLS = { attack: "атаки", save: "спасброски", check: "проверки" };
 
@@ -384,6 +463,7 @@ export function newCharacter(name = "Новый персонаж") {
     resistances: "",
     defenses: { resist: [], vuln: [], immune: [] },
     inspiration: false,
+    accent: "gold",
     effects: [],
     proficiencies: { armor: "", weapons: "", tools: "", languages: "" },
     attacks: [],
@@ -454,6 +534,7 @@ export function cleanEffect(e, i = 0) {
     dmg: diceOrEmpty(x.dmg),
     dmgType: DAMAGE_TYPES.includes(x.dmgType) ? x.dmgType : "",
     ac: Math.round(num(x.ac)),
+    dexSave: Math.round(num(x.dexSave)),
     speed: Math.round(num(x.speed)),
     speedX2: !!x.speedX2,
     adv: (Array.isArray(x.adv) ? x.adv : []).filter(k => typeof k === "string" && ADV_RE.test(k)),
@@ -506,6 +587,7 @@ export function normalize(c) {
   const def = src.defenses && typeof src.defenses === "object" && !Array.isArray(src.defenses) ? src.defenses : null;
   out.defenses = def ? { resist: cleanTypes(def.resist), vuln: cleanTypes(def.vuln), immune: cleanTypes(def.immune) } : parseDefenses(out.resistances);
   out.inspiration = !!out.inspiration;
+  out.accent = out.accent in ACCENTS ? out.accent : "gold";
   out.effects = (Array.isArray(src.effects) ? src.effects : []).map((e, i) => cleanEffect(e, i));
   out.speed = num(out.speed, 30);
   out.initBonus = num(out.initBonus);
@@ -533,6 +615,8 @@ export function normalize(c) {
     if ("acDex" in x) x.acDex = ["full", "2", "0"].includes(String(x.acDex)) ? String(x.acDex) : "full";
     if ("acBonus" in x) x.acBonus = Math.round(num(x.acBonus));
     if ("range" in x) x.range = String(x.range ?? "").slice(0, 60);
+    if ("ammoId" in x) x.ammoId = String(x.ammoId ?? "").slice(0, 60);
+    if ("combat" in x) x.combat = x.combat === "yes" ? "yes" : "";
     return x;
   });
   out.spells = out.spells.map(sp => ("combat" in sp ? { ...sp, combat: ["yes", "no"].includes(sp.combat) ? sp.combat : "" } : sp));
@@ -542,7 +626,8 @@ export function normalize(c) {
   }
   out.spells = out.spells.map(sp => ({ ...sp, level: Math.max(0, Math.min(9, Math.round(num(sp.level)))), damage: cleanDamage(sp.damage) }));
   out.spells = out.spells.map(sp => (sp.cost === "item" ? { ...sp, itemId: String(sp.itemId ?? ""), charges: Math.max(1, Math.round(num(sp.charges, 1))), maxCharges: Math.max(1, Math.round(num(sp.maxCharges, num(sp.charges, 1)))) } : sp));
-  out.features = out.features.map(f => ({ ...f, damage: cleanDamage(f.damage) }));
+  out.features = out.features.map(f => ({ ...f, damage: cleanDamage(f.damage), ...("combat" in f ? { combat: f.combat === "yes" ? "yes" : "" } : {}) }));
+  out.attacks = out.attacks.map(at => ("ammoId" in at ? { ...at, ammoId: String(at.ammoId ?? "").slice(0, 60) } : at));
   out.items = out.items.map(it => ({ ...it, damage: cleanDamage(it.damage) }));
   out.attacks = out.attacks.map(at => ({ ...at, damage: typeof at.damage === "string" ? at.damage : String(at.damage ?? "") }));
   const misc = out.notes.misc;
@@ -724,6 +809,7 @@ export function rollContext(c, kind, ability) {
     if (hit(e.dis || [])) dis.push(e.name);
     const expr = e[rollKind];
     if (expr && EFFECT_ROLLS[rollKind]) bonus.push({ id: e.id, name: e.name, expr, once: !!e.once });
+    if (rollKind === "save" && ability === "dex" && Number(e.dexSave)) bonus.push({ id: e.id, name: e.name, expr: String(e.dexSave), once: false });
   }
   return { adv, dis, warn, autoFail, bonus };
 }
@@ -736,6 +822,7 @@ export function effectSummary(e) {
   const parts = [];
   for (const [k, l] of Object.entries(EFFECT_ROLLS)) if (e[k]) parts.push(`${/^[-−]/.test(e[k]) ? e[k] : "+" + e[k]} ${l}`);
   if (e.ac) parts.push(`${e.ac > 0 ? "+" : ""}${e.ac} КД`);
+  if (e.dexSave) parts.push(`${e.dexSave > 0 ? "+" : ""}${e.dexSave} спасброски Ловкости`);
   if (e.dmg) parts.push(`${/^[-−]/.test(e.dmg) ? e.dmg : "+" + e.dmg} урон${e.dmgType ? " (" + (DAMAGE[e.dmgType] || {}).name.toLowerCase() + ")" : ""}`);
   if (e.speedX2) parts.push("скорость ×2");
   if (e.speed) parts.push(`${e.speed > 0 ? "+" : ""}${e.speed} фт скорости`);
