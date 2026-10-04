@@ -2,7 +2,7 @@ import { ABILITIES, SKILLS, compute, normalize, fmt, rollD20, rollDice, spellCas
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import {
   esc, $, $$, toast, openModal, confirmDialog, promptNumber, showD20, showDamage, rollLog, enableHoverCards, hideHoverCard,
-  openForm, getPath, setPath, dateTime, timeAgo, resizeImage, download, pickFile
+  openForm, getPath, setPath, dateTime, timeAgo, cropImage, download, pickFile
 } from "./ui.js";
 import { TABS, RENDER, subtitle } from "./tabs.js";
 import { cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS } from "./entities.js";
@@ -744,19 +744,30 @@ export function mountSheet(root, id, initialTab, navigate) {
       title: "Портрет",
       cls: "small",
       body: `<div class="portrait-big">${S.c.portrait ? `<img src="${esc(S.c.portrait)}" alt="">` : PORTRAIT_PLACEHOLDER}</div>
-        <div class="form-actions">${S.c.portrait ? `<button class="btn danger" data-rm>${icon("trash")}Убрать</button>` : ""}<span class="spacer"></span><button class="btn gold" data-up>${icon("upload")}Загрузить картинку</button></div>
-        <p class="hint">Картинка ужмётся до 640 пикселей и сохранится вместе с персонажем.</p>`
+        <div class="form-actions">${S.c.portrait ? `<button class="btn danger" data-rm>${icon("trash")}Убрать</button><span class="spacer"></span><button class="btn" data-crop>${icon("target")}Изменить кадр</button>` : `<span class="spacer"></span>`}<button class="btn gold" data-up>${icon("upload")}Загрузить картинку</button></div>
+        <p class="hint">После выбора картинки можно подвинуть и приблизить нужную часть. Портрет сохранится вместе с персонажем.</p>`
     });
+    const apply = data => {
+      if (!data || S.disposed) return;
+      mutate(c => { c.portrait = data; }, { render: false });
+      m.close();
+      renderAll(true);
+    };
     m.body.querySelector("[data-up]").onclick = async () => {
       const f = await pickFile("image/*");
       if (!f) return;
       try {
-        const data = await resizeImage(f);
-        mutate(c => { c.portrait = data; }, { render: false });
-        m.close();
-        renderAll(true);
+        apply(await cropImage(f));
       } catch {
         toast("Не получилось прочитать картинку", { kind: "bad" });
+      }
+    };
+    const crop = m.body.querySelector("[data-crop]");
+    if (crop) crop.onclick = async () => {
+      try {
+        apply(await cropImage(S.c.portrait));
+      } catch {
+        toast("Не получилось открыть картинку", { kind: "bad" });
       }
     };
     const rm = m.body.querySelector("[data-rm]");

@@ -394,33 +394,149 @@ export function dateTime(ts, seconds = false) {
   return new Date(ts).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}) });
 }
 
-export async function resizeImage(file, max = 640, quality = 0.82) {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise((res, rej) => {
-      const i = new Image();
-      i.onload = () => res(i);
-      i.onerror = rej;
-      i.src = url;
-    });
-    const scale = Math.min(1, max / Math.max(img.width, img.height));
-    const w = Math.round(img.width * scale);
-    const h = Math.round(img.height * scale);
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-    let data = canvas.toDataURL("image/webp", quality);
-    if (!data.startsWith("data:image/webp")) data = canvas.toDataURL("image/jpeg", quality);
-    let q = quality;
-    while (data.length > 300000 && q > 0.4) {
-      q -= 0.1;
-      data = canvas.toDataURL("image/jpeg", q);
-    }
-    return data;
-  } finally {
-    URL.revokeObjectURL(url);
+function loadImage(src) {
+  return new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = rej;
+    i.src = src;
+  });
+}
+
+function encodeCanvas(canvas, quality = 0.85) {
+  let data = canvas.toDataURL("image/webp", quality);
+  if (!data.startsWith("data:image/webp")) data = canvas.toDataURL("image/jpeg", quality);
+  let q = quality;
+  while (data.length > 260000 && q > 0.4) {
+    q -= 0.1;
+    data = canvas.toDataURL("image/jpeg", q);
   }
+  return data;
+}
+
+export async function cropImage(source, { aspect = 5 / 6, outW = 520, title = "Кадр портрета" } = {}) {
+  const owned = typeof source !== "string";
+  const url = owned ? URL.createObjectURL(source) : source;
+  let img;
+  try {
+    img = await loadImage(url);
+  } catch (e) {
+    if (owned) URL.revokeObjectURL(url);
+    throw e;
+  }
+  return new Promise(resolve => {
+    let done = false;
+    const m = openModal({
+      title,
+      cls: "small",
+      onClose: () => {
+        if (owned) setTimeout(() => URL.revokeObjectURL(url), 300);
+        if (!done) resolve(null);
+      },
+      body: `<div class="crop">
+          <div class="crop-frame" style="aspect-ratio:${aspect}"><img alt="" draggable="false"><span class="crop-grid"></span></div>
+          <div class="crop-zoom">${icon("minus")}<input type="range" min="1" max="4" step="0.01" value="1" aria-label="Масштаб">${icon("plus")}</div>
+          <p class="hint">Двигай картинку пальцем или мышью. Масштаб: ползунок, колёсико мыши или два пальца.</p>
+          <div class="form-actions"><button class="btn ghost" data-close>Отмена</button><button class="btn gold" data-ok>${icon("check")}Сохранить</button></div>
+        </div>`
+    });
+    const frame = m.body.querySelector(".crop-frame");
+    const el = frame.querySelector("img");
+    const range = m.body.querySelector("input[type=range]");
+    el.src = img.src;
+    let W = 0, H = 0, base = 1, zoom = 1, x = 0, y = 0;
+    const scale = () => base * zoom;
+    const clamp = () => {
+      const s = scale();
+      x = Math.min(0, Math.max(W - img.naturalWidth * s, x));
+      y = Math.min(0, Math.max(H - img.naturalHeight * s, y));
+    };
+    const paint = () => {
+      const s = scale();
+      el.style.width = img.naturalWidth * s + "px";
+      el.style.height = img.naturalHeight * s + "px";
+      el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    };
+    const measure = () => {
+      const r = frame.getBoundingClientRect();
+      const cx = W ? (W / 2 - x) / scale() : img.naturalWidth / 2;
+      const cy = H ? (H / 2 - y) / scale() : img.naturalHeight / 2;
+      W = r.width;
+      H = r.height;
+      base = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+      x = W / 2 - cx * scale();
+      y = H / 2 - cy * scale();
+      clamp();
+      paint();
+    };
+    const setZoom = (z, px = W / 2, py = H / 2) => {
+      const nz = Math.min(4, Math.max(1, z));
+      const ix = (px - x) / scale();
+      const iy = (py - y) / scale();
+      zoom = nz;
+      x = px - ix * scale();
+      y = py - iy * scale();
+      clamp();
+      paint();
+      range.value = String(zoom);
+    };
+    requestAnimationFrame(measure);
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(frame);
+    const pts = new Map();
+    let pinch = null;
+    frame.addEventListener("pointerdown", e => {
+      frame.setPointerCapture(e.pointerId);
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2) {
+        const [a, b] = [...pts.values()];
+        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: zoom };
+      }
+    });
+    frame.addEventListener("pointermove", e => {
+      const p = pts.get(e.pointerId);
+      if (!p) return;
+      const dx = e.clientX - p.x;
+      const dy = e.clientY - p.y;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size >= 2 && pinch) {
+        const [a, b] = [...pts.values()];
+        const r = frame.getBoundingClientRect();
+        setZoom(pinch.z * (Math.hypot(a.x - b.x, a.y - b.y) / Math.max(1, pinch.d)), (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+        return;
+      }
+      x += dx;
+      y += dy;
+      clamp();
+      paint();
+    });
+    const up = e => {
+      pts.delete(e.pointerId);
+      if (pts.size < 2) pinch = null;
+    };
+    frame.addEventListener("pointerup", up);
+    frame.addEventListener("pointercancel", up);
+    frame.addEventListener("wheel", e => {
+      e.preventDefault();
+      const r = frame.getBoundingClientRect();
+      setZoom(zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08), e.clientX - r.left, e.clientY - r.top);
+    }, { passive: false });
+    range.addEventListener("input", () => setZoom(Number(range.value)));
+    m.body.querySelector("[data-ok]").onclick = () => {
+      const s = scale();
+      const outH = Math.round(outW / aspect);
+      const canvas = document.createElement("canvas");
+      canvas.width = outW;
+      canvas.height = outH;
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, -x / s, -y / s, W / s, H / s, 0, 0, outW, outH);
+      done = true;
+      ro.disconnect();
+      m.close();
+      resolve(encodeCanvas(canvas));
+    };
+  });
 }
 
 export function download(filename, text) {

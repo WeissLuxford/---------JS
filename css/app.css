@@ -674,6 +674,13 @@ button.pip:hover { border-color: #fff; }
 .log-v { font-weight: 600; color: var(--gold-2); }
 .portrait-big { width: 100%; max-width: 300px; aspect-ratio: 5 / 6; margin: 0 auto 14px; border-radius: 12px; overflow: hidden; border: 2px solid var(--gold); }
 .portrait-big img, .portrait-big svg { width: 100%; height: 100%; object-fit: cover; display: block; }
+.crop { display: flex; flex-direction: column; gap: 12px; }
+.crop-frame { position: relative; width: 100%; max-width: 320px; margin: 0 auto; overflow: hidden; border-radius: 12px; border: 2px solid var(--gold); background: #0b0806; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.crop-frame:active { cursor: grabbing; }
+.crop-frame img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; pointer-events: none; will-change: transform; }
+.crop-grid { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, transparent calc(33.3% - .5px), rgba(255, 240, 200, .18) 33.3%, transparent calc(33.3% + .5px), transparent calc(66.6% - .5px), rgba(255, 240, 200, .18) 66.6%, transparent calc(66.6% + .5px)), linear-gradient(0deg, transparent calc(33.3% - .5px), rgba(255, 240, 200, .18) 33.3%, transparent calc(33.3% + .5px), transparent calc(66.6% - .5px), rgba(255, 240, 200, .18) 66.6%, transparent calc(66.6% + .5px)); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .5); }
+.crop-zoom { display: flex; align-items: center; gap: 10px; max-width: 320px; width: 100%; margin: 0 auto; color: var(--gold); }
+.crop-zoom input { flex: 1; accent-color: var(--gold); height: 32px; }
 .rest-hd { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 8px; background: rgba(0, 0, 0, .25); margin-bottom: 8px; flex-wrap: wrap; }
 .qty-ctl { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 0 4px; }
 .qty-ctl b { min-width: 24px; text-align: center; }
