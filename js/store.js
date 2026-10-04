@@ -1,13 +1,16 @@
 import { FIREBASE_CONFIG, FIREBASE_VERSION } from "./config.js";
+import { DELETE, applyPaths } from "./sync.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
 const LS_CHARS = "dnd.chars";
 const LS_HIST = "dnd.hist.";
-const HISTORY_LIMIT = 60;
+const HISTORY_LIMIT = 40;
+const OFFLINE_MSG = "Нет связи: изменения сохранятся, когда появится интернет";
 
 let fs = null;
 let db = null;
 let mode = "local";
+let pending = 0;
 const statusListeners = new Set();
 const localListeners = new Set();
 let status = { mode: "local", state: "idle", error: "" };
@@ -27,11 +30,14 @@ export function getMode() {
   return mode;
 }
 
+export const validId = id => typeof id === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(id);
+
 const clone = v => JSON.parse(JSON.stringify(v ?? null));
 
 function readLocal() {
   try {
-    return JSON.parse(localStorage.getItem(LS_CHARS) || "{}") || {};
+    const v = JSON.parse(localStorage.getItem(LS_CHARS) || "{}");
+    return v && typeof v === "object" ? v : {};
   } catch {
     return {};
   }
@@ -41,10 +47,51 @@ function writeLocal(map) {
   try {
     localStorage.setItem(LS_CHARS, JSON.stringify(map));
   } catch (e) {
-    setStatus({ state: "error", error: "Не удалось сохранить в браузере: " + e.message });
+    pruneLocalHistory();
+    try {
+      localStorage.setItem(LS_CHARS, JSON.stringify(map));
+    } catch {
+      setStatus({ state: "error", error: "Память браузера переполнена: изменения не сохранены. Скачай персонажа в файл или уменьши портрет." });
+      throw e;
+    }
   }
   localListeners.forEach(fn => fn(map));
 }
+
+function pruneLocalHistory() {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(LS_HIST)) localStorage.removeItem(k);
+    }
+  } catch {}
+}
+
+function storageOk() {
+  try {
+    const k = "__dnd_probe";
+    localStorage.setItem(k, "1");
+    localStorage.removeItem(k);
+    return !!window.indexedDB;
+  } catch {
+    return false;
+  }
+}
+
+window.addEventListener("storage", e => {
+  if (mode === "local" && e.key === LS_CHARS) {
+    const map = readLocal();
+    localListeners.forEach(fn => fn(map));
+  }
+});
+
+window.addEventListener("offline", () => {
+  if (mode === "cloud") setStatus({ state: "offline", error: OFFLINE_MSG });
+});
+
+window.addEventListener("online", () => {
+  if (mode === "cloud" && status.state === "offline") setStatus({ state: pending ? "saving" : "saved", error: "" });
+});
 
 export async function initStore() {
   try {
@@ -55,15 +102,17 @@ export async function initStore() {
     const app = appMod.initializeApp(FIREBASE_CONFIG);
     try {
       db = fsMod.initializeFirestore(app, {
-        localCache: fsMod.persistentLocalCache({ tabManager: fsMod.persistentMultipleTabManager() })
+        localCache: storageOk()
+          ? fsMod.persistentLocalCache({ tabManager: fsMod.persistentMultipleTabManager() })
+          : fsMod.memoryLocalCache()
       });
     } catch {
       db = fsMod.getFirestore(app);
     }
     fs = fsMod;
     mode = "cloud";
-    setStatus({ state: "idle", error: "" });
-  } catch (e) {
+    setStatus({ state: navigator.onLine === false ? "offline" : "idle", error: navigator.onLine === false ? OFFLINE_MSG : "" });
+  } catch {
     mode = "local";
     setStatus({ state: "idle", error: "Облако недоступно, данные хранятся только в этом браузере" });
   }
@@ -74,18 +123,19 @@ export function subscribeList(cb) {
   if (mode === "cloud") {
     return fs.onSnapshot(
       fs.collection(db, "characters"),
+      { includeMetadataChanges: true },
       snap => {
         const list = [];
         snap.forEach(d => list.push({ ...d.data(), id: d.id }));
-        cb(list);
+        cb(list, { fromCache: snap.metadata.fromCache });
       },
       err => {
         setStatus({ state: "error", error: humanError(err) });
-        cb(null, err);
+        cb(null, { error: err });
       }
     );
   }
-  const emit = map => cb(Object.entries(map).map(([id, c]) => ({ ...c, id })));
+  const emit = map => cb(Object.entries(map).map(([id, c]) => ({ ...c, id })), {});
   emit(readLocal());
   localListeners.add(emit);
   return () => localListeners.delete(emit);
@@ -93,21 +143,37 @@ export function subscribeList(cb) {
 
 export function subscribeChar(id, cb) {
   if (mode === "cloud") {
-    return fs.onSnapshot(
-      fs.doc(db, "characters", id),
-      snap => {
-        if (!snap.exists()) return cb(null, { local: false });
-        cb({ ...snap.data(), id: snap.id }, { local: snap.metadata.hasPendingWrites });
-      },
-      err => {
-        setStatus({ state: "error", error: humanError(err) });
-        cb(undefined, { error: err });
-      }
-    );
+    try {
+      return fs.onSnapshot(
+        fs.doc(db, "characters", id),
+        { includeMetadataChanges: true },
+        snap => {
+          if (!snap.exists()) {
+            if (snap.metadata.fromCache) return cb(undefined, { offline: true });
+            return cb(null, {});
+          }
+          cb({ ...snap.data(), id: snap.id }, { pendingWrites: snap.metadata.hasPendingWrites, fromCache: snap.metadata.fromCache });
+        },
+        err => {
+          setStatus({ state: "error", error: humanError(err) });
+          cb(undefined, { error: err });
+        }
+      );
+    } catch (e) {
+      cb(null, {});
+      return () => {};
+    }
   }
-  const emit = map => cb(map[id] ? { ...clone(map[id]), id } : null, { local: false });
+  let last = "";
+  const emit = map => {
+    const json = map[id] ? JSON.stringify(map[id]) : "";
+    if (json === last) return;
+    last = json;
+    cb(map[id] ? { ...clone(map[id]), id } : null, {});
+  };
   emit(readLocal());
-  return () => {};
+  localListeners.add(emit);
+  return () => localListeners.delete(emit);
 }
 
 function stripId(c) {
@@ -116,51 +182,96 @@ function stripId(c) {
   return data;
 }
 
-export async function saveChar(c) {
-  const data = stripId(c);
-  data.updatedAt = Date.now();
-  setStatus({ state: "saving" });
-  try {
-    if (mode === "cloud") {
-      await fs.setDoc(fs.doc(db, "characters", c.id), data);
-    } else {
-      const map = readLocal();
-      map[c.id] = data;
-      writeLocal(map);
-    }
+export async function saveChanges(id, changes, full) {
+  const now = Date.now();
+  if (mode === "local") {
+    const map = readLocal();
+    const doc = map[id] ? map[id] : stripId(full);
+    applyPaths(doc, changes);
+    doc.updatedAt = now;
+    map[id] = doc;
+    writeLocal(map);
     setStatus({ state: "saved", error: "" });
+    return;
+  }
+  const ref = fs.doc(db, "characters", id);
+  const args = [];
+  for (const [path, value] of changes) {
+    args.push(new fs.FieldPath(...path), value === DELETE ? fs.deleteField() : value);
+  }
+  args.push("updatedAt", now);
+  pending++;
+  setStatus({ state: navigator.onLine === false ? "offline" : "saving", error: navigator.onLine === false ? OFFLINE_MSG : "" });
+  const slow = setTimeout(() => setStatus({ state: "offline", error: OFFLINE_MSG }), 6000);
+  try {
+    try {
+      await fs.updateDoc(ref, ...args);
+    } catch (e) {
+      if (!String(e && e.code).includes("not-found")) throw e;
+      await fs.setDoc(ref, { ...stripId(full), updatedAt: now });
+    }
+    pending--;
+    if (!pending) setStatus({ state: "saved", error: "" });
   } catch (e) {
+    pending--;
     setStatus({ state: "error", error: humanError(e) });
     throw e;
+  } finally {
+    clearTimeout(slow);
   }
 }
 
 export async function createChar(id, c) {
-  await saveChar({ ...c, id, createdAt: Date.now() });
+  const now = Date.now();
+  const data = { ...stripId(c), createdAt: now, updatedAt: now };
+  if (mode === "local") {
+    const map = readLocal();
+    map[id] = data;
+    writeLocal(map);
+    return id;
+  }
+  await fs.setDoc(fs.doc(db, "characters", id), data);
   return id;
 }
 
-export async function charExists(id) {
-  if (mode === "cloud") {
-    const snap = await fs.getDoc(fs.doc(db, "characters", id));
-    return snap.exists();
+export async function createIfMissing(id, c) {
+  if (mode === "local") {
+    if (!readLocal()[id]) await createChar(id, c);
+    return;
   }
-  return !!readLocal()[id];
+  const ref = fs.doc(db, "characters", id);
+  const snap = await fs.getDoc(ref);
+  if (snap.exists()) return;
+  const now = Date.now();
+  await fs.runTransaction(db, async t => {
+    const cur = await t.get(ref);
+    if (!cur.exists()) t.set(ref, { ...stripId(c), createdAt: now, updatedAt: now });
+  });
 }
 
 export async function addHistory(id, data, reason) {
-  const entry = { at: Date.now(), reason: reason || "", data: stripId(data) };
+  const body = stripId(data);
+  delete body.portrait;
+  const entry = { at: Date.now(), reason: reason || "", data: body };
   try {
     if (mode === "cloud") {
       await fs.addDoc(fs.collection(db, "characters", id, "history"), entry);
     } else {
       const key = LS_HIST + id;
-      const list = JSON.parse(localStorage.getItem(key) || "[]");
+      let list = [];
+      try {
+        list = JSON.parse(localStorage.getItem(key) || "[]");
+      } catch {}
       list.unshift({ ...entry, id: String(entry.at) });
-      localStorage.setItem(key, JSON.stringify(list.slice(0, HISTORY_LIMIT)));
+      list = list.slice(0, HISTORY_LIMIT);
+      try {
+        localStorage.setItem(key, JSON.stringify(list));
+      } catch {
+        localStorage.setItem(key, JSON.stringify(list.slice(0, 5)));
+      }
     }
   } catch (e) {
-    setStatus({ state: "error", error: "История не сохранилась: " + humanError(e) });
+    console.warn("history", e);
   }
 }
 
@@ -179,11 +290,13 @@ export async function listHistory(id) {
   }
 }
 
-function humanError(e) {
-  const code = e && (e.code || e.name || "");
-  if (String(code).includes("permission-denied")) return "Нет доступа к базе: проверь правила Firestore";
-  if (String(code).includes("unavailable")) return "Нет связи с сервером, изменения сохранятся при подключении";
-  if (String(code).includes("resource-exhausted")) return "Превышен бесплатный лимит Firebase на сегодня";
-  if (String(e && e.message || "").includes("exceeds the maximum")) return "Персонаж слишком большой: уменьши портрет";
-  return (e && e.message) || "Неизвестная ошибка";
+export function humanError(e) {
+  const code = String((e && (e.code || e.name)) || "");
+  const msg = String((e && e.message) || "");
+  if (code.includes("permission-denied")) return "Нет доступа к базе: проверь правила Firestore";
+  if (code.includes("unavailable")) return OFFLINE_MSG;
+  if (code.includes("resource-exhausted")) return "Превышен бесплатный лимит Firebase на сегодня";
+  if (code.includes("QuotaExceeded") || msg.includes("quota")) return "Память браузера переполнена";
+  if (msg.includes("exceeds the maximum") || code.includes("invalid-argument")) return "Персонаж слишком большой: уменьши портрет";
+  return msg || "Неизвестная ошибка";
 }

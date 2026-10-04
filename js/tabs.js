@@ -1,14 +1,14 @@
-import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, ITEM_TYPES, RARITY, CONDITIONS, fmt, usesInfo, spellCast } from "./rules.js";
+import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, fmt, usesInfo, spellCast } from "./rules.js";
 import { icon, actionMark, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, pips, rich } from "./ui.js";
 import { spellIcon, itemIcon, fmtNum } from "./entities.js";
 
 export const TABS = [
-  { key: "char", name: "Персонаж", icon: "user" },
+  { key: "char", name: "Персонаж", short: "Герой", icon: "user" },
   { key: "combat", name: "Бой", icon: "swords" },
   { key: "spells", name: "Магия", icon: "book" },
   { key: "features", name: "Умения", icon: "pact" },
-  { key: "inventory", name: "Снаряжение", icon: "bag" },
+  { key: "inventory", name: "Снаряжение", short: "Вещи", icon: "bag" },
   { key: "notes", name: "Заметки", icon: "scroll" },
   { key: "story", name: "История", icon: "feather" }
 ];
@@ -39,10 +39,17 @@ export function hpPanel(ctx) {
   const pct = Math.max(0, Math.min(100, (cur / Math.max(1, d.hpMax)) * 100));
   const tmp = Number(c.hp.temp) || 0;
   const dying = cur <= 0;
+  const dead = c.hp.deathFail >= 3;
+  const stable = !dead && (c.hp.stable || c.hp.deathSuccess >= 3);
+  const deathBtn = dead
+    ? `<span class="death-state bad">${icon("skull")} Персонаж погиб</span>`
+    : stable
+      ? `<span class="death-state ok">${icon("heart")} Стабилизирован, без сознания</span>`
+      : `<button class="btn sm" data-roll="death">${icon("d20")} Спасбросок от смерти</button>`;
   const death = dying ? `<div class="death">
-      <div class="death-row"><span>Успехи</span>${[0, 1, 2].map(i => `<button class="ds ok ${i < c.hp.deathSuccess ? "on" : ""}" data-act="death" data-k="deathSuccess" data-i="${i}"></button>`).join("")}</div>
-      <div class="death-row"><span>Провалы</span>${[0, 1, 2].map(i => `<button class="ds bad ${i < c.hp.deathFail ? "on" : ""}" data-act="death" data-k="deathFail" data-i="${i}"></button>`).join("")}</div>
-      <button class="btn sm" data-roll="death">${icon("d20")} Спасбросок от смерти</button>
+      <div class="death-row"><span>Успехи</span>${[0, 1, 2].map(i => `<button class="ds ok ${i < c.hp.deathSuccess ? "on" : ""}" data-act="death" data-k="deathSuccess" data-i="${i}" aria-label="Успех ${i + 1}"></button>`).join("")}</div>
+      <div class="death-row"><span>Провалы</span>${[0, 1, 2].map(i => `<button class="ds bad ${i < c.hp.deathFail ? "on" : ""}" data-act="death" data-k="deathFail" data-i="${i}" aria-label="Провал ${i + 1}"></button>`).join("")}</div>
+      ${deathBtn}
     </div>` : "";
   return panel("Хиты", `
     <div class="hp-wrap ${dying ? "dying" : ""}">
@@ -66,7 +73,7 @@ export function hpPanel(ctx) {
 
 function statMedal(label, value, { calc, act, roll, ic, card } = {}) {
   const tag = act || roll ? "button" : "div";
-  return `<${tag} class="medal" ${act ? `data-act="${act}"` : ""} ${roll ? `data-roll="${roll}"` : ""} ${card ? `data-card="${card}"` : ""}>${ic ? icon(ic) : ""}<span class="medal-v" ${calc ? `data-calc="${calc}"` : ""}>${value}</span><span class="medal-l">${esc(label)}</span></${tag}>`;
+  return `<${tag} class="medal" ${act ? `data-act="${act}"` : ""} ${roll ? `data-roll="${roll}"` : ""} ${card ? `data-card="${card}"` : ""}>${ic ? icon(ic) : ""}<span class="medal-v" ${calc ? `data-calc="${calc}"` : ""}>${esc(value)}</span><span class="medal-l">${esc(label)}</span></${tag}>`;
 }
 
 function concentrationBar(c) {
@@ -77,7 +84,7 @@ function concentrationBar(c) {
 function activeConditions(c) {
   const list = CONDITIONS.filter(k => c.conditions[k.key]);
   if (!list.length && !c.exhaustion) return "";
-  return `<div class="cond-active">${list.map(k => `<span class="chip bad" data-card="condition:${k.key}">${esc(k.name)}</span>`).join("")}${c.exhaustion ? `<span class="chip bad">Истощение ${c.exhaustion}</span>` : ""}</div>`;
+  return `<div class="cond-active">${list.map(k => `<span class="chip bad" data-card="condition:${k.key}">${esc(k.name)}</span>`).join("")}${c.exhaustion ? `<span class="chip bad">Истощение ${esc(c.exhaustion)}</span>` : ""}</div>`;
 }
 
 export function tabChar(ctx) {
@@ -150,11 +157,11 @@ function attackRow(ctx, at) {
   const dt = DAMAGE[s.type] || DAMAGE.bludgeoning;
   const hit = s.kind === "save"
     ? `<span class="chip dc">СЛ ${s.dc} ${abShort(s.save)}</span>`
-    : `<button class="chip hit" data-roll="attack:${at.id}">${fmt(s.hit)}</button>`;
+    : `<button class="chip hit" data-roll="attack:${esc(at.id)}">${s.beams > 1 ? `<small>${s.beams}×</small>` : ""}${fmt(s.hit)}</button>`;
   return `<div class="atk-row">
-    <button class="atk-name" data-open="attack:${at.id}" data-card="attack:${at.id}" style="--c:${dt.color}">${icon(dt.icon)}<span><b>${esc(at.name)}</b><small>${esc(at.range || "")}</small></span></button>
+    <button class="atk-name" data-open="attack:${esc(at.id)}" data-card="attack:${esc(at.id)}" style="--c:${dt.color}">${icon(dt.icon)}<span><b>${esc(at.name)}</b><small>${esc(at.range || "")}</small></span></button>
     ${hit}
-    <button class="chip dmg" data-roll="dmg:${at.id}" style="--c:${dt.color}">${s.beams > 1 ? s.beams + "× " : ""}${esc(s.dmg)} <span>${esc(dt.name.toLowerCase())}</span></button>
+    <button class="chip dmg" data-roll="dmg:${esc(at.id)}" style="--c:${dt.color}">${s.beams > 1 ? s.beams + "× " : ""}${esc(s.dmg)} <span>${esc(dt.name.toLowerCase())}</span></button>
   </div>`;
 }
 
@@ -178,7 +185,7 @@ function resourceRows(ctx) {
   const push = (kind, e, color) => {
     const u = usesInfo(d, e);
     if (!u || (kind === "spell" && e.cost !== "uses")) return;
-    rows.push(`<div class="res-row"><button class="res-name" data-open="${kind}:${e.id}" data-card="${kind}:${e.id}">${esc(e.name)}<small>${esc(rechargeShort(e.recharge))}</small></button><span class="pips big">${Array.from({ length: Math.min(u.max, 30) }, (_, i) => `<button class="pip ${i < u.left ? "on" : ""}" data-act="use-pip" data-ref="${kind}:${e.id}" data-i="${i}" style="--c:${color}"></button>`).join("")}</span><span class="slot-n">${u.left}/${u.max}</span></div>`);
+    rows.push(`<div class="res-row"><button class="res-name" data-open="${kind}:${esc(e.id)}" data-card="${kind}:${esc(e.id)}">${esc(e.name)}<small>${esc(rechargeShort(e.recharge))}</small></button><span class="pips big">${Array.from({ length: Math.min(u.max, 30) }, (_, i) => `<button class="pip ${i < u.left ? "on" : ""}" data-act="use-pip" data-ref="${kind}:${esc(e.id)}" data-i="${i}" style="--c:${color}"></button>`).join("")}</span><span class="slot-n">${u.left}/${u.max}</span></div>`);
   };
   c.features.forEach(f => push("feature", f, "#e9a54a"));
   c.spells.forEach(s => push("spell", s, "#ff9d5c"));
@@ -223,9 +230,9 @@ function spellTile(ctx, sp) {
   const dmg = cast.lines[0] ? `${cast.beams > 1 ? cast.beams + "× " : ""}${cast.lines[0].dice} ${(DAMAGE[cast.lines[0].type] || {}).name || ""}`.toLowerCase() : "";
   const u = sp.cost === "uses" ? usesInfo(d, sp) : null;
   const flags = [sp.concentration ? `<i class="flag" title="Концентрация">К</i>` : "", sp.ritual ? `<i class="flag" title="Ритуал">Р</i>` : ""].join("");
-  return `<button class="tile" data-open="spell:${sp.id}" data-card="spell:${sp.id}" style="--c:${ic.color}">
+  return `<button class="tile" data-open="spell:${esc(sp.id)}" data-card="spell:${esc(sp.id)}" style="--c:${ic.color}">
     <span class="tile-ic">${icon(ic.icon)}</span>
-    <span class="tile-main"><span class="tile-name">${esc(sp.name)}</span><span class="tile-sub">${actionMark(a.shape, a.color)}${esc(sp.castTime || a.name)}${dmg ? ` · <span class="tile-dmg">${esc(dmg)}</span>` : ""}</span></span>
+    <span class="tile-main"><span class="tile-name">${esc(sp.name)}</span><span class="tile-sub">${actionMark(a.shape, a.color)}<span class="tile-sub-t">${esc(sp.castTime || a.name)}${dmg ? ` · <span class="tile-dmg">${esc(dmg)}</span>` : ""}</span></span></span>
     <span class="tile-side">${flags}${u ? pips(u.max, u.left, "#e9a54a") : ""}</span>
   </button>`;
 }
@@ -261,9 +268,9 @@ function featureTile(ctx, f) {
   const u = usesInfo(d, f);
   const color = f.source === "dm" ? "#f0c46a" : f.source === "own" ? "#6fd3c4" : "#c9a0ff";
   const src = f.source === "dm" ? `<i class="flag gold" title="От Мастера">М</i>` : f.source === "own" ? `<i class="flag teal" title="Своё">С</i>` : "";
-  return `<button class="tile" data-open="feature:${f.id}" data-card="feature:${f.id}" style="--c:${color}">
+  return `<button class="tile" data-open="feature:${esc(f.id)}" data-card="feature:${esc(f.id)}" style="--c:${color}">
     <span class="tile-ic">${icon(cat.icon)}</span>
-    <span class="tile-main"><span class="tile-name">${esc(f.name)}</span><span class="tile-sub">${actionMark(a.shape, a.color)}${esc(a.name)}${f.effect ? ` · ${esc(f.effect)}` : ""}</span></span>
+    <span class="tile-main"><span class="tile-name">${esc(f.name)}</span><span class="tile-sub">${actionMark(a.shape, a.color)}<span class="tile-sub-t">${esc(a.name)}${f.effect ? ` · ${esc(f.effect)}` : ""}</span></span></span>
     <span class="tile-side">${src}${u ? pips(u.max, u.left, "#e9a54a") : ""}</span>
   </button>`;
 }
@@ -297,7 +304,7 @@ export function tabInventory(ctx) {
     <label class="coin" style="--c:${col}">${icon("coin")}<input type="number" inputmode="numeric" min="0" data-path="coins.${k}" data-num value="${esc(c.coins[k])}"><span>${l}</span></label>`).join("");
   const grid = items.map(it => {
     const r = RARITY[it.rarity] || RARITY.common;
-    return `<button class="slot ${it.equipped ? "eq" : ""}" data-open="item:${it.id}" data-card="item:${it.id}" style="--c:${r.color}">
+    return `<button class="slot ${it.equipped ? "eq" : ""}" data-open="item:${esc(it.id)}" data-card="item:${esc(it.id)}" style="--c:${r.color}">
       <span class="slot-ic">${icon(itemIcon(it))}</span>
       ${Number(it.qty) > 1 ? `<span class="slot-qty">${it.qty}</span>` : ""}
       ${it.attuned ? `<span class="slot-att" title="Настроено">${icon("sparkle")}</span>` : ""}
@@ -307,7 +314,7 @@ export function tabInventory(ctx) {
   return `
     ${panel("Кошель и вес", `
       <div class="coins">${coins}</div>
-      <div class="weight"><span>Вес: <b data-calc="weight">${fmtNum(d.weight)}</b> / ${d.carry} фнт</span><div class="wbar ${d.weight > d.carry ? "over" : ""}"><i style="width:${pct}%"></i></div><span>Настройка: <b>${d.attuned}</b> / 3</span></div>`, { ic: "coin" })}
+      <div class="weight"><span>Вес: <b data-calc="weight">${fmtNum(d.weight)}</b> / <span data-calc="carry">${d.carry}</span> фнт</span><div class="wbar ${d.weight > d.carry ? "over" : ""}" data-wbar><i style="width:${pct}%"></i></div><span>Настройка: <b data-calc="attuned">${d.attuned}</b> / 3</span></div>`, { ic: "coin" })}
     ${panel("Предметы", `
       <div class="chips filter">${INV_FILTERS.map(([k, l]) => `<button class="chip toggle ${f === k ? "on" : ""}" data-act="inv-filter" data-k="${k}">${l}</button>`).join("")}</div>
       <div class="inv-grid">${grid || `<p class="empty">Пусто</p>`}</div>`, { ic: "bag", actions: addBtn("add-item", "Предмет") })}`;
@@ -332,7 +339,7 @@ export function tabNotes(ctx) {
   const cards = list.map(n => {
     const st = s === "quests" ? STATUS[n.status] : s === "people" ? ATTITUDE[n.attitude] : null;
     return `<article class="note ${n.status === "done" || n.status === "failed" ? "dim" : ""}">
-      <header><div><h4>${esc(n.title || "Без названия")}</h4>${n.subtitle ? `<div class="note-sub">${esc(n.subtitle)}</div>` : ""}</div><span class="spacer"></span>${st ? `<span class="badge" style="--c:${st[1]}">${st[0]}</span>` : ""}<button class="icon-btn" data-act="edit-note" data-sec="${s}" data-id="${n.id}" title="Изменить">${icon("edit")}</button></header>
+      <header><div><h4>${esc(n.title || "Без названия")}</h4>${n.subtitle ? `<div class="note-sub">${esc(n.subtitle)}</div>` : ""}</div><span class="spacer"></span>${st ? `<span class="badge" style="--c:${st[1]}">${st[0]}</span>` : ""}<button class="icon-btn" data-act="edit-note" data-sec="${s}" data-id="${esc(n.id)}" title="Изменить">${icon("edit")}</button></header>
       <div class="note-text">${rich(n.text)}</div>
     </article>`;
   }).join("");

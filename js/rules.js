@@ -220,10 +220,10 @@ export function diceToString(p) {
   return out || "0";
 }
 
-export function scaleDice(expr, times) {
+export function scaleDice(expr, times, { scaleFlat = true } = {}) {
   const p = parseDice(expr);
   if (!p) return expr;
-  return diceToString({ dice: p.dice.map(d => ({ n: d.n * times, f: d.f })), flat: p.flat * times });
+  return diceToString({ dice: p.dice.map(d => ({ n: d.n * times, f: d.f })), flat: scaleFlat ? p.flat * times : p.flat });
 }
 
 export function addDice(...exprs) {
@@ -314,7 +314,7 @@ export function newCharacter(name = "Новый персонаж") {
     speed: 30,
     initBonus: 0,
     senses: "",
-    hp: { current: 8, temp: 0, maxOverride: null, bonusPerLevel: 0, hitDiceUsed: 0, deathSuccess: 0, deathFail: 0 },
+    hp: { current: 8, temp: 0, maxOverride: null, bonusPerLevel: 0, hitDiceUsed: 0, deathSuccess: 0, deathFail: 0, stable: false },
     slotsUsed: {},
     pactUsed: 0,
     conditions: {},
@@ -333,20 +333,63 @@ export function newCharacter(name = "Новый персонаж") {
   };
 }
 
+const num = (v, def = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : def;
+};
+
+const cleanId = (v, prefix) => {
+  const s = String(v ?? "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60);
+  return s || prefix + "-" + uid();
+};
+
+const NUMERIC_HP = ["current", "temp", "bonusPerLevel", "hitDiceUsed", "deathSuccess", "deathFail"];
+
 export function normalize(c) {
+  const src = c && typeof c === "object" && !Array.isArray(c) ? c : {};
   const base = newCharacter();
-  const out = { ...base, ...c };
+  const out = { ...base, ...src };
   for (const k of ["info", "abilities", "armor", "hp", "damageSwap", "proficiencies", "coins", "personality", "notes"]) {
-    out[k] = { ...base[k], ...(c && c[k]) };
+    const v = src[k];
+    out[k] = { ...base[k], ...(v && typeof v === "object" && !Array.isArray(v) ? v : {}) };
   }
+  out.name = String(out.name ?? "");
+  out.portrait = typeof out.portrait === "string" && out.portrait.startsWith("data:image/") ? out.portrait : "";
+  for (const k of ABILITY_KEYS) out.abilities[k] = Math.max(1, Math.min(30, Math.round(num(out.abilities[k], 10))));
+  out.info.level = clampLevel(out.info.level);
+  out.info.xp = num(out.info.xp);
+  for (const k of NUMERIC_HP) out.hp[k] = num(out.hp[k]);
+  out.hp.deathSuccess = Math.max(0, Math.min(3, out.hp.deathSuccess));
+  out.hp.deathFail = Math.max(0, Math.min(3, out.hp.deathFail));
+  out.hp.maxOverride = out.hp.maxOverride === null || out.hp.maxOverride === "" || out.hp.maxOverride === undefined ? null : num(out.hp.maxOverride, null);
+  out.hp.stable = !!out.hp.stable;
+  for (const k of Object.keys(base.coins)) out.coins[k] = Math.max(0, num(out.coins[k]));
+  out.armor.base = num(out.armor.base, 10);
+  out.armor.bonus = num(out.armor.bonus);
+  out.armor.dexCap = ["full", "2", "0"].includes(String(out.armor.dexCap)) ? String(out.armor.dexCap) : "full";
+  out.speed = num(out.speed, 30);
+  out.initBonus = num(out.initBonus);
+  out.exhaustion = Math.max(0, Math.min(6, Math.round(num(out.exhaustion))));
+  out.pactUsed = Math.max(0, num(out.pactUsed));
+  out.hitDie = HIT_DICE.includes(out.hitDie) ? out.hitDie : "d8";
+  out.casterType = out.casterType in CASTER_TYPES ? out.casterType : "none";
+  out.spellAbility = ABILITY_KEYS.includes(out.spellAbility) ? out.spellAbility : "int";
+  out.concentration = String(out.concentration ?? "");
+  const prefixes = { attacks: "at", spells: "sp", features: "ft", items: "it" };
+  for (const k of Object.keys(prefixes)) {
+    out[k] = (Array.isArray(out[k]) ? out[k] : []).filter(x => x && typeof x === "object").map(x => ({ ...x, id: cleanId(x.id, prefixes[k]), name: String(x.name ?? "") }));
+  }
+  out.items = out.items.map(it => ({ ...it, qty: Math.max(0, num(it.qty, 1)), weight: Math.max(0, num(it.weight)) }));
   for (const k of ["attacks", "spells", "features", "items"]) {
-    out[k] = Array.isArray(out[k]) ? out[k] : [];
+    out[k] = out[k].map(x => ({ ...x, used: Math.max(0, num(x.used)) }));
   }
+  out.spells = out.spells.map(sp => ({ ...sp, level: Math.max(0, Math.min(9, Math.round(num(sp.level)))) }));
   for (const k of ["patron", "quests", "people"]) {
-    out.notes[k] = Array.isArray(out.notes[k]) ? out.notes[k] : [];
+    out.notes[k] = (Array.isArray(out.notes[k]) ? out.notes[k] : []).filter(x => x && typeof x === "object").map(x => ({ ...x, id: cleanId(x.id, "nt") }));
   }
+  out.notes.misc = String(out.notes.misc ?? "");
   for (const k of ["saves", "skills", "slotsUsed", "conditions"]) {
-    out[k] = out[k] && typeof out[k] === "object" ? out[k] : {};
+    out[k] = out[k] && typeof out[k] === "object" && !Array.isArray(out[k]) ? out[k] : {};
   }
   return out;
 }
@@ -412,7 +455,7 @@ export function attackStats(c, d, at) {
   const bonus = Number(at.bonus) || 0;
   const times = at.scaling === "cantrip-dice" ? d.tier : 1;
   const beams = at.scaling === "cantrip-beams" ? d.tier : Math.max(1, Number(at.count) || 1);
-  let dmg = scaleDice(at.damage || "", times);
+  let dmg = scaleDice(at.damage || "", times, { scaleFlat: false });
   if (at.addMod) dmg = addDice(dmg, abMod);
   if (Number(at.dmgBonus)) dmg = addDice(dmg, Number(at.dmgBonus));
   const type = swapType(c, at.damageType);
@@ -429,11 +472,11 @@ export function spellCast(c, d, sp, slotLevel) {
   if (base > 0) {
     if (slotLevel) level = slotLevel;
     else if (sp.castAt) level = Number(sp.castAt);
-    else if (d.pact && sp.cost === "slot") level = d.pact.level;
+    else if (d.pact && sp.cost === "slot") level = Math.max(base, d.pact.level);
   }
   const lines = (sp.damage || []).map(x => {
     let dice = x.dice || "";
-    if (base === 0 && sp.scaling === "cantrip-dice") dice = scaleDice(dice, d.tier);
+    if (base === 0 && sp.scaling === "cantrip-dice") dice = scaleDice(dice, d.tier, { scaleFlat: false });
     if (base > 0 && sp.upcast && level > base) dice = addDice(dice, scaleDice(sp.upcast, level - base));
     if (x.addMod) dice = addDice(dice, d.spell.mod);
     return { dice, type: swapType(c, x.type), swapped: swapType(c, x.type) !== x.type, origType: x.type };
@@ -447,4 +490,17 @@ export function usesInfo(d, entity) {
   if (max == null) return null;
   const used = Math.min(max, Number(entity.used) || 0);
   return { max, used, left: max - used };
+}
+
+export function importCharacter(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const raw = data.format === "dnd-sheet" ? data.character : data;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw) || typeof raw.name !== "string" || !raw.abilities || typeof raw.abilities !== "object") return null;
+  const c = normalize(raw);
+  delete c.id;
+  delete c.updatedAt;
+  delete c.createdAt;
+  c.archived = false;
+  if (!raw.hp || raw.hp.current == null) c.hp.current = compute(c).hpMax;
+  return c;
 }

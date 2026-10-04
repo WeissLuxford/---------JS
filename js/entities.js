@@ -1,6 +1,6 @@
 import {
   ABILITIES, SKILLS, DAMAGE, SCHOOLS, ACTIONS, RECHARGE, RARITY, ITEM_TYPES, FEATURE_CATS, FEATURE_SOURCES,
-  CONDITIONS, CASTER_TYPES, HIT_DICE, fmt, spellCast, usesInfo, swapType, uid
+  CONDITIONS, CASTER_TYPES, HIT_DICE, ALIGNMENTS, fmt, spellCast, usesInfo, swapType, uid, addDice
 } from "./rules.js";
 import { icon, slotMark, actionMark } from "./icons.js";
 import { card, rich, esc, actionFoot, openForm } from "./ui.js";
@@ -61,8 +61,8 @@ export function spellCostText(c, d, sp, cast) {
   return { mark: slotMark("#5fc7ff"), text: `Ячейка ${cast.level} круга` };
 }
 
-export function spellModel(c, d, sp) {
-  const cast = spellCast(c, d, sp);
+export function spellModel(c, d, sp, slotLevel) {
+  const cast = spellCast(c, d, sp, slotLevel);
   const lines = cast.lines.map((l, i) => ({ ...l, prefix: cast.beams > 1 && i === 0 ? cast.beams + " × " : "" }));
   const meta = [
     { icon: "range", text: sp.range },
@@ -98,7 +98,7 @@ export function spellModel(c, d, sp) {
 export function featureModel(c, d, f) {
   const cat = FEATURE_CATS[f.category] || FEATURE_CATS.other;
   const u = usesInfo(d, f);
-  const lines = (f.damage || []).map(x => ({ dice: x.addMod ? x.dice + "+" + d.spell.mod : x.dice, type: swapType(c, x.type), swapped: swapType(c, x.type) !== x.type, origType: x.type }));
+  const lines = (f.damage || []).map(x => ({ dice: x.addMod ? addDice(x.dice, d.spell.mod) : x.dice, type: swapType(c, x.type), swapped: swapType(c, x.type) !== x.type, origType: x.type }));
   const src = FEATURE_SOURCES[f.source];
   const footer = [actionFoot(f.action || "passive")];
   if (u) footer.push({ mark: slotMark("#e9a54a"), text: rechargeText(f, u) });
@@ -185,7 +185,7 @@ export function abilityModel(c, d, key) {
     title: a.name,
     subtitle: "Характеристика",
     art: { icon: "star", color: "#e9c77a" },
-    stats: `<span class="big-num">${c.abilities[key]}</span><span>Модификатор ${fmt(d.mods[key])} · Спасбросок ${fmt(d.saves[key])}${c.saves[key] ? " (владение)" : ""}</span>`,
+    stats: `<span class="big-num">${esc(c.abilities[key])}</span><span>Модификатор ${fmt(d.mods[key])} · Спасбросок ${fmt(d.saves[key])}${c.saves[key] ? " (владение)" : ""}</span>`,
     body: rich(a.desc)
   };
 }
@@ -195,22 +195,22 @@ export function conditionModel(key) {
   return { title: k.name, subtitle: "Состояние", art: { icon: "skull", color: "#e5533d" }, body: rich(k.desc) };
 }
 
-export function modelFor(c, d, ref) {
+export function modelFor(c, d, ref, opts = {}) {
   const [kind, id] = ref.split(":");
   if (kind === "skill") return skillModel(c, d, id);
   if (kind === "ability") return abilityModel(c, d, id);
   if (kind === "condition") return conditionModel(id);
   const e = findEntity(c, kind, id);
   if (!e) return null;
-  if (kind === "spell") return spellModel(c, d, e);
+  if (kind === "spell") return spellModel(c, d, e, opts.slotLevel);
   if (kind === "feature") return featureModel(c, d, e);
   if (kind === "item") return itemModel(c, d, e);
   if (kind === "attack") return attackModel(c, d, e);
   return null;
 }
 
-export function cardFor(c, d, ref) {
-  const m = modelFor(c, d, ref);
+export function cardFor(c, d, ref, opts) {
+  const m = modelFor(c, d, ref, opts);
   return m ? card(m) : "";
 }
 
@@ -358,7 +358,7 @@ export function infoFields() {
     { key: "info.subclass", label: "Подкласс" },
     { key: "info.level", label: "Уровень", type: "number" },
     { key: "info.background", label: "Предыстория" },
-    { key: "info.alignment", label: "Мировоззрение" },
+    { key: "info.alignment", label: "Мировоззрение", suggest: ALIGNMENTS },
     { key: "info.xp", label: "Опыт", type: "number" },
     { key: "info.patron", label: "Покровитель / божество" },
     { key: "info.pactBoon", label: "Дар договора / путь" },

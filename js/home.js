@@ -1,4 +1,4 @@
-import { normalize, newCharacter, uid } from "./rules.js";
+import { normalize, newCharacter, uid, compute, importCharacter } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, timeAgo, toast, openForm, pickFile } from "./ui.js";
 import { subscribeList, createChar, getMode, onStatus } from "./store.js";
@@ -7,21 +7,28 @@ import { subtitle } from "./tabs.js";
 export function mountHome(root, navigate) {
   document.title = "Листы персонажей";
   let list = null;
+  let fromCache = false;
   let showArchived = false;
   let statusText = "";
+  let disposed = false;
 
   const offStatus = onStatus(st => {
-    statusText = st.mode === "local" ? st.error || "Только в этом браузере" : st.state === "error" ? st.error : "";
-    paint();
+    const next = st.mode === "local" ? st.error || "Только в этом браузере" : st.state === "error" || st.state === "offline" ? st.error : "";
+    if (next !== statusText) {
+      statusText = next;
+      paint();
+    }
   });
 
-  const unsub = subscribeList((items, err) => {
-    if (err) {
+  const unsub = subscribeList((items, meta = {}) => {
+    if (disposed) return;
+    if (!items) {
       list = list || [];
       paint();
       return;
     }
-    list = items.map(x => ({ ...normalize(x), id: x.id, updatedAt: x.updatedAt || 0 }));
+    fromCache = !!meta.fromCache;
+    list = items.map(x => ({ ...normalize(x), id: x.id, updatedAt: Number(x.updatedAt) || 0 }));
     paint();
   });
 
@@ -38,17 +45,20 @@ export function mountHome(root, navigate) {
   }
 
   function paint() {
-    if (!list) {
+    if (disposed) return;
+    if (!list || (fromCache && !list.length && navigator.onLine !== false)) {
       root.innerHTML = `<div class="loading">${icon("d20")}<span>Открываю архивы...</span></div>`;
       return;
     }
     const active = list.filter(c => !c.archived).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     const archived = list.filter(c => c.archived);
+    const offlineEmpty = fromCache && !list.length;
     root.innerHTML = `
       <div class="home">
         <header class="home-head">
           <div class="home-title">${icon("d20")}<div><h1>Листы персонажей</h1><p>D&amp;D 5e · все, у кого есть ссылка, могут смотреть и править</p></div></div>
           ${statusText ? `<div class="home-status">${icon("cloudOff")}${esc(statusText)}</div>` : ""}
+          ${offlineEmpty ? `<div class="home-status">${icon("cloudOff")}Нет связи с облаком: список появится, когда будет интернет</div>` : ""}
         </header>
         <div class="ch-grid">
           ${active.map(charCard).join("")}
@@ -77,6 +87,7 @@ export function mountHome(root, navigate) {
           c.info.race = val.info.race;
           c.info.cls = val.info.cls;
           c.info.level = Math.max(1, Math.min(20, Number(val.info.level) || 1));
+          c.hp.current = compute(normalize(c)).hpMax;
           const id = uid();
           createChar(id, c).then(() => navigate(`#/c/${id}`)).catch(() => toast("Не удалось создать персонажа", { kind: "bad" }));
         }
@@ -89,14 +100,17 @@ export function mountHome(root, navigate) {
     if (e.target.closest("[data-import]")) {
       const f = await pickFile("application/json,.json");
       if (!f) return;
+      let c = null;
       try {
-        const data = JSON.parse(await f.text());
-        const c = normalize(data.character || data);
+        c = importCharacter(JSON.parse(await f.text()));
+      } catch {}
+      if (!c) return toast("Файл не похож на лист персонажа", { kind: "bad" });
+      try {
         const id = uid();
-        await createChar(id, { ...c, archived: false });
+        await createChar(id, c);
         navigate(`#/c/${id}`);
       } catch {
-        toast("Файл не похож на лист персонажа", { kind: "bad" });
+        toast("Не удалось создать персонажа", { kind: "bad" });
       }
     }
   };
@@ -105,6 +119,7 @@ export function mountHome(root, navigate) {
   paint();
 
   return () => {
+    disposed = true;
     unsub && unsub();
     offStatus();
     root.removeEventListener("click", onClick);

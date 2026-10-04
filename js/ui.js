@@ -69,7 +69,8 @@ export function showDamage(label, lines, crit = false) {
     if (!r) continue;
     total += r.total;
     const dt = DAMAGE[line.type] || DAMAGE.bludgeoning;
-    parts.push(`<div class="r-line" style="--c:${dt.color}"><span>${esc(expr)}</span><span class="r-rolls">[${r.rolls.map(x => (x.sign < 0 ? "−" : "") + x.r).join(", ")}]</span><b>${r.total}</b> ${icon(dt.icon)} ${esc(dt.name)}</div>`);
+    const rolls = r.rolls.length ? `<span class="r-rolls">[${r.rolls.map(x => (x.sign < 0 ? "−" : "") + x.r).join(", ")}]</span>` : "";
+    parts.push(`<div class="r-line" style="--c:${dt.color}"><span>${esc(expr)}</span>${rolls}<b>${r.total}</b> ${icon(dt.icon)} ${esc(dt.name)}</div>`);
   }
   if (!parts.length) return;
   logRoll({ label, text: String(total) });
@@ -134,6 +135,10 @@ export function openModal({ title = "", body = "", wide = false, cls = "", onClo
 document.addEventListener("keydown", e => {
   if (e.key === "Escape" && modalStack.length) modalStack[modalStack.length - 1].close();
 });
+
+export function closeAllModals() {
+  modalStack.slice().forEach(m => m.close());
+}
 
 export function confirmDialog(text, { ok = "Да", danger = false } = {}) {
   return new Promise(resolve => {
@@ -226,8 +231,8 @@ export function hideHoverCard() {
 }
 
 export function enableHoverCards(root, resolve) {
-  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-  root.addEventListener("mouseover", e => {
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return () => {};
+  const over = e => {
     const t = e.target.closest("[data-card]");
     if (!t || t === hoverTarget) return;
     if (document.querySelector(".modal-back")) return;
@@ -253,12 +258,20 @@ export function enableHoverCards(root, resolve) {
     let top = r.top;
     if (top + h > window.innerHeight - 12) top = Math.max(12, window.innerHeight - h - 12);
     hoverEl.style.top = top + "px";
-  });
-  root.addEventListener("mouseout", e => {
+  };
+  const out = e => {
     const t = e.target.closest("[data-card]");
     if (t && !t.contains(e.relatedTarget)) hideHoverCard();
-  });
+  };
+  root.addEventListener("mouseover", over);
+  root.addEventListener("mouseout", out);
   window.addEventListener("scroll", hideHoverCard, { passive: true });
+  return () => {
+    root.removeEventListener("mouseover", over);
+    root.removeEventListener("mouseout", out);
+    window.removeEventListener("scroll", hideHoverCard);
+    hideHoverCard();
+  };
 }
 
 function optionList(options) {
@@ -270,7 +283,7 @@ function fieldHtml(f, v) {
   const id = "f_" + f.key.replace(/\W/g, "_");
   const span = f.span ? ` style="grid-column: span ${f.span}"` : "";
   const hint = f.hint ? `<small>${esc(f.hint)}</small>` : "";
-  if (f.type === "heading") return `<div class="fld-heading"${span}>${esc(f.label)}</div>`;
+  if (f.type === "heading") return `<div class="fld-heading">${esc(f.label)}</div>`;
   if (f.type === "checkbox") {
     return `<label class="fld chk"${span}><input type="checkbox" data-k="${esc(f.key)}" ${v ? "checked" : ""}><span>${esc(f.label)}</span>${hint}</label>`;
   }
@@ -286,7 +299,8 @@ function fieldHtml(f, v) {
     return `<div class="fld dicelist"${span} data-k="${esc(f.key)}" data-dl><span>${esc(f.label)}</span><div class="dl-rows">${rows}</div><button type="button" class="btn ghost sm" data-dl-add>${icon("plus")} Добавить кубы</button>${hint}</div>`;
   }
   const type = f.type === "number" ? "number" : "text";
-  return `<label class="fld"${span} for="${id}"><span>${esc(f.label)}</span><input id="${id}" type="${type}" ${type === "number" ? 'inputmode="decimal" step="any"' : ""} data-k="${esc(f.key)}" value="${esc(v ?? "")}" placeholder="${esc(f.placeholder || "")}">${hint}</label>`;
+  const list = f.suggest ? `<datalist id="${id}_dl">${f.suggest.map(o => `<option value="${esc(o)}"></option>`).join("")}</datalist>` : "";
+  return `<label class="fld"${span} for="${id}"><span>${esc(f.label)}</span><input id="${id}" type="${type}" ${type === "number" ? 'inputmode="decimal" step="any"' : ""} ${list ? `list="${id}_dl"` : ""} data-k="${esc(f.key)}" value="${esc(v ?? "")}" placeholder="${esc(f.placeholder || "")}">${list}${hint}</label>`;
 }
 
 function diceRow(d = {}) {
@@ -306,8 +320,10 @@ export function openForm({ title, fields, value = {}, onSave, onDelete, saveLabe
     }
     if (e.target.closest("[data-dl-rm]")) e.target.closest(".dl-row").remove();
   });
+  let submitted = false;
   form.addEventListener("submit", e => {
     e.preventDefault();
+    if (submitted) return;
     const out = JSON.parse(JSON.stringify(value));
     for (const f of fields) {
       if (f.type === "heading") continue;
@@ -330,7 +346,10 @@ export function openForm({ title, fields, value = {}, onSave, onDelete, saveLabe
       setPath(out, f.key, v);
     }
     const res = onSave(out);
-    if (res !== false) m.close();
+    if (res !== false) {
+      submitted = true;
+      m.close();
+    }
   });
   const del = form.querySelector("[data-del]");
   if (del) {
@@ -371,8 +390,8 @@ export function timeAgo(ts) {
   return new Date(ts).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
 }
 
-export function dateTime(ts) {
-  return new Date(ts).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+export function dateTime(ts, seconds = false) {
+  return new Date(ts).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}) });
 }
 
 export async function resizeImage(file, max = 640, quality = 0.82) {

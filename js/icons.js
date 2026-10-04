@@ -88,10 +88,6 @@ export function icon(name, cls = "") {
   return `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
 
-export function hasIcon(name) {
-  return name in P;
-}
-
 const DIE_SHAPES = {
   4: { poly: "20,4 37,34 3,34", lines: "", ty: 28 },
   6: { poly: "6,6 34,6 34,34 6,34", lines: "M6 6l5 5h18l5-5M11 11v18l-5 5M29 11v18l5 5M11 29h18", ty: 25 },

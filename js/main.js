@@ -1,6 +1,7 @@
-import { initStore, charExists, createChar } from "./store.js";
+import { initStore, createIfMissing, getMode, validId } from "./store.js";
 import { mountHome } from "./home.js";
 import { mountSheet } from "./sheet.js";
+import { closeAllModals } from "./ui.js";
 
 const root = document.getElementById("app");
 let unmount = null;
@@ -12,12 +13,21 @@ function navigate(hash) {
 
 function route() {
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  closeAllModals();
   if (unmount) unmount();
   unmount = null;
   window.scrollTo(0, 0);
+  let id = null;
   if (parts[0] === "c" && parts[1]) {
-    unmount = mountSheet(root, decodeURIComponent(parts[1]), parts[2], navigate);
-  } else {
+    try {
+      id = decodeURIComponent(parts[1]);
+    } catch {
+      id = null;
+    }
+  }
+  if (id && validId(id)) unmount = mountSheet(root, id, parts[2], navigate);
+  else {
+    if (parts.length) history.replaceState(null, "", "#/");
     unmount = mountHome(root, navigate);
   }
 }
@@ -25,7 +35,7 @@ function route() {
 async function ensureSeed() {
   try {
     const { SEED_ID, kirion } = await import("./seed.js");
-    if (!(await charExists(SEED_ID))) await createChar(SEED_ID, kirion());
+    await createIfMissing(SEED_ID, kirion());
   } catch (e) {
     console.warn("seed", e);
   }
@@ -33,9 +43,10 @@ async function ensureSeed() {
 
 async function start() {
   await initStore();
+  if (getMode() === "local") await ensureSeed();
   window.addEventListener("hashchange", route);
   route();
-  ensureSeed();
+  if (getMode() === "cloud") ensureSeed();
 }
 
 start();
