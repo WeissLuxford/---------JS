@@ -387,6 +387,10 @@ export function normalize(c) {
   out.casterType = out.casterType in CASTER_TYPES ? out.casterType : "none";
   out.spellAbility = ABILITY_KEYS.includes(out.spellAbility) ? out.spellAbility : "int";
   out.concentration = String(out.concentration ?? "");
+  out.damageSwap.enabled = !!out.damageSwap.enabled;
+  if (!(out.damageSwap.from in DAMAGE)) out.damageSwap.from = "fire";
+  if (!(out.damageSwap.to in DAMAGE)) out.damageSwap.to = "cold";
+  out.damageSwap.label = String(out.damageSwap.label ?? "").slice(0, 60);
   const prefixes = { attacks: "at", spells: "sp", features: "ft", items: "it" };
   for (const k of Object.keys(prefixes)) {
     out[k] = (Array.isArray(out[k]) ? out[k] : []).filter(x => x && typeof x === "object").map((x, i) => ({ ...x, id: cleanId(x.id, prefixes[k], i), name: String(x.name ?? "") }));
