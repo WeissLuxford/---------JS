@@ -481,6 +481,7 @@ export async function cropImage(source, { aspect = 5 / 6, outW = 520, title = "Ğ
       clamp();
       paint();
       range.value = String(zoom);
+      range.style.setProperty("--p", ((zoom - 1) / 3) * 100 + "%");
     };
     requestAnimationFrame(measure);
     const ro = new ResizeObserver(() => measure());
