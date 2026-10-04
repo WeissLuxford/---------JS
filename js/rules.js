@@ -649,6 +649,8 @@ export function swapType(c, type) {
   return s && s.enabled && s.from === type ? s.to : type;
 }
 
+const SHIELD_RE = /(^|[^а-яё])щит|\bshield\b/i;
+
 export function compute(c) {
   const level = clampLevel(c.info.level);
   const pb = profBonus(level);
@@ -668,12 +670,18 @@ export function compute(c) {
   };
   const a = c.armor;
   const worn = (c.items || []).filter(it => it.equipped && (!it.requiresAttunement || it.attuned));
-  const armorItem = worn.filter(it => Number(it.acBase) > 0).sort((x, y) => Number(y.acBase) - Number(x.acBase))[0] || null;
+  const dexBy = cap => (cap === "0" ? 0 : cap === "2" ? Math.min(mods.dex, 2) : mods.dex);
+  const armorTotal = it => Number(it.acBase) + dexBy(String(it.acDex || "full"));
+  const armorItem = worn.filter(it => Number(it.acBase) > 0).sort((x, y) => armorTotal(y) - armorTotal(x))[0] || null;
   const armorBase = armorItem ? Number(armorItem.acBase) : Number(a.base) || 10;
   const dexCap = armorItem ? String(armorItem.acDex || "full") : a.dexCap;
-  const dexPart = dexCap === "0" ? 0 : dexCap === "2" ? Math.min(mods.dex, 2) : mods.dex;
+  const dexPart = dexBy(dexCap);
   const itemAc = worn.reduce((sum, it) => sum + (Number(it.acBonus) || 0), 0);
-  const ac = armorBase + dexPart + (a.addAbility ? mods[a.addAbility] || 0 : 0) + (a.shield ? 2 : 0) + (Number(a.bonus) || 0) + itemAc;
+  const shieldItem = worn.some(it => !(Number(it.acBase) > 0) && Number(it.acBonus) > 0 && SHIELD_RE.test(`${it.name || ""} ${it.nameEn || ""}`));
+  const hasShield = !!a.shield || shieldItem;
+  const armored = !!armorItem || a.dexCap !== "full" || (Number(a.base) || 10) > 10;
+  const addOn = !!a.addAbility && (a.addAbility === "int" ? dexCap === "full" && !hasShield : !armored && (a.addAbility === "con" || !hasShield));
+  const ac = armorBase + dexPart + (addOn ? mods[a.addAbility] || 0 : 0) + (a.shield && !shieldItem ? 2 : 0) + (Number(a.bonus) || 0) + itemAc;
   const cond = c.conditions || {};
   const ex = Number(c.exhaustion) || 0;
   const die = maxDie(c.hitDie);
@@ -712,6 +720,8 @@ export function compute(c) {
     }
   }
   d.armorItem = armorItem ? armorItem.id : "";
+  d.addAbilityOn = addOn;
+  d.shieldItem = shieldItem;
   d.attacks = {};
   for (const at of c.attacks) d.attacks[at.id] = attackStats(c, d, at);
   d.weapons = {};

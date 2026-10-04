@@ -324,8 +324,9 @@ export function statModel(c, d, key) {
     const parts = [ai ? `${esc(ai.name)} ${Number(ai.acBase)}` : `${esc(a.name || "Доспех")} ${Number(a.base) || 10}`];
     if (cap !== "0") parts.push(line("Ловкость", dex) + (cap === "2" && d.mods.dex > 2 ? " (не больше +2)" : ""));
     (c.items || []).filter(x => x.equipped && Number(x.acBonus) && (!x.requiresAttunement || x.attuned)).forEach(x => parts.push(`${esc(x.name)} ${Number(x.acBonus) > 0 ? "+" : "−"}${Math.abs(Number(x.acBonus))}`));
-    if (a.addAbility) parts.push(line(abName(a.addAbility), d.mods[a.addAbility]));
-    if (a.shield) parts.push("Щит +2");
+    if (a.addAbility && d.addAbilityOn) parts.push(line(abName(a.addAbility), d.mods[a.addAbility]));
+    if (a.addAbility && !d.addAbilityOn) parts.push(`${esc(abName(a.addAbility))} не считается: ${a.addAbility === "int" ? "средний или тяжёлый доспех или щит" : a.addAbility === "con" ? "надет доспех" : "надет доспех или щит"}`);
+    if (a.shield && !d.shieldItem) parts.push("Щит +2");
     if (Number(a.bonus)) parts.push(line("Прочее", Number(a.bonus)));
     (c.effects || []).filter(e => e.ac).forEach(e => parts.push(`${esc(e.name)} ${e.ac > 0 ? "+" : "−"}${Math.abs(e.ac)}`));
     return { title: "Класс доспеха", subtitle: "Насколько сложно попасть", art: { icon: "shield", color: "#e9c77a" }, stats: `<span class="big-num">${d.ac}</span><span>${parts.join(" · ")}</span>`, body: rich("Атака попадает, если результат броска не меньше КД. Нажми на медаль, чтобы поменять доспех вручную, или надень доспех с указанным КД в снаряжении: тогда он считается сам.") };
