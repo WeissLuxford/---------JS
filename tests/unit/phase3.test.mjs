@@ -126,3 +126,34 @@ test("notes search finds across sections and tags filter", async () => {
   assert.ok(tagged.includes("Рэй") && tagged.includes("#должник"));
   assert.ok(!notesList({ c, d, ui: { notesSection: "people", peopleAtt: "hostile" } }).includes("Рэй"));
 });
+
+test("inventory sorting and prices", async () => {
+  const { priceGp, sortItems } = await import(P + "tabs.js");
+  assert.equal(priceGp("2000з"), 2000);
+  assert.equal(priceGp("25 зм"), 25);
+  assert.equal(priceGp("5 см"), 0.5);
+  assert.equal(priceGp("1,5 пм"), 15);
+  assert.equal(priceGp("3 мм"), 0.03);
+  assert.equal(priceGp(""), -1);
+  const items = [{ name: "Б", value: "5 зм", rarity: "common" }, { name: "А", value: "2000з", rarity: "rare", equipped: true }, { name: "В", value: "1 пм", rarity: "uncommon" }];
+  assert.deepEqual(sortItems(items, "price", false).map(x => x.name), ["А", "В", "Б"]);
+  assert.deepEqual(sortItems(items, "recent", false).map(x => x.name), ["В", "А", "Б"]);
+  assert.deepEqual(sortItems(items, "name", true).map(x => x.name), ["А", "Б", "В"]);
+  assert.deepEqual(sortItems(items, "added", true).map(x => x.name), ["А", "Б", "В"]);
+  assert.deepEqual(sortItems(items, "rarity", false).map(x => x.name), ["А", "В", "Б"]);
+});
+
+test("library spell bound to an item gets sensible charges", async () => {
+  const { toSpell, itemCharges } = await import(P + "library.js");
+  const lib = JSON.parse((await import("node:fs")).readFileSync(new URL("../../data/spells-srd.json", import.meta.url), "utf8"));
+  const get = n => lib.find(x => x.nameEn === n);
+  assert.deepEqual(itemCharges(get("Ray of Frost")), { charges: 1, maxCharges: 3, upcast: "1d8" });
+  assert.deepEqual(itemCharges(get("Sleet Storm")), { charges: 2, maxCharges: 2, upcast: "" });
+  assert.deepEqual(itemCharges(get("Ice Storm")), { charges: 3, maxCharges: 5, upcast: "1d8" });
+  const sp = toSpell(get("Ray of Frost"), { id: "it-w", name: "Палочка холода" });
+  assert.equal(sp.cost, "item");
+  assert.equal(sp.itemId, "it-w");
+  assert.equal(sp.scaling, "none");
+  const c = R.normalize({ name: "x", info: { level: 5 }, items: [{ id: "it-w", name: "П", uses: "7" }], spells: [sp] });
+  assert.equal(R.spellCast(c, R.compute(c), c.spells[0], null, 2).lines[0].dice, "3d8");
+});

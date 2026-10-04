@@ -29,13 +29,30 @@ function sameContent(a, b) {
   return strip(a) === strip(b);
 }
 
+const UI_PREFS = "dnd.ui";
+
+function loadUiPrefs() {
+  try {
+    const p = JSON.parse(localStorage.getItem(UI_PREFS) || "{}");
+    return { invSort: typeof p.invSort === "string" ? p.invSort : "added", invEqFirst: p.invEqFirst !== false };
+  } catch {
+    return { invSort: "added", invEqFirst: true };
+  }
+}
+
+function saveUiPrefs(ui) {
+  try {
+    localStorage.setItem(UI_PREFS, JSON.stringify({ invSort: ui.invSort, invEqFirst: ui.invEqFirst }));
+  } catch {}
+}
+
 export function mountSheet(root, id, initialTab, navigate) {
   const S = {
     c: null,
     d: null,
     base: null,
     tab: TABS.some(t => t.key === initialTab) ? initialTab : "char",
-    ui: { invFilter: "all", notesSection: "patron", spellFilter: "all", spellQ: "", noteOpen: {}, notesQ: "", noteTag: "", peopleAtt: "all" },
+    ui: { ...loadUiPrefs(), invFilter: "all", notesSection: "patron", spellFilter: "all", spellQ: "", noteOpen: {}, notesQ: "", noteTag: "", peopleAtt: "all" },
     scroll: {},
     saveTimer: null,
     retry: 0,
@@ -240,7 +257,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     body.dataset.tab = S.tab;
     $$(".tab", root).forEach(b => b.classList.toggle("on", b.dataset.tab === S.tab));
     $$("textarea.autogrow", body).forEach(grow);
-    if (readOnly()) $$("input:not([data-ui]), textarea, select", body).forEach(el => (el.disabled = true));
+    if (readOnly()) $$("input:not([data-ui]), textarea, select:not([data-ui])", body).forEach(el => (el.disabled = true));
     if (S.tab === "spells" && S.ui.spellQ) filterSpells(S.ui.spellQ);
     updateCalcs();
   }
@@ -413,6 +430,15 @@ export function mountSheet(root, id, initialTab, navigate) {
   }
 
   const onUiInput = e => {
+    const so = e.target.closest("[data-ui=inv-sort]");
+    if (so && root.contains(so)) {
+      if (e.type === "change") {
+        S.ui.invSort = so.value;
+        saveUiPrefs(S.ui);
+        renderTab();
+      }
+      return true;
+    }
     const nq = e.target.closest("[data-ui=notes-q]");
     if (nq && root.contains(nq)) {
       S.ui.notesQ = nq.value;
@@ -878,6 +904,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       }
       if ((e.damage || []).length) b.push(`<button class="btn" data-x="item-dmg">${icon("d20")}Бросить кубы</button>`);
       S.c.spells.filter(sp => sp.cost === "item" && sp.itemId === e.id).forEach(sp => b.push(`<button class="btn" data-x="open-spell" data-sid="${esc(sp.id)}">${icon("sparkle")}${esc(sp.name)}</button>`));
+      if (u) b.push(`<button class="btn ghost" data-x="item-add-spell">${icon("plus")}Добавить заклинание</button>`);
       b.push(`<button class="btn" data-x="equip">${e.equipped ? "Снять" : "Экипировать"}</button>`);
       if (e.requiresAttunement) b.push(`<button class="btn" data-x="attune">${e.attuned ? "Снять настройку" : "Настроиться"}</button>`);
       b.push(`<span class="qty-ctl"><button class="icon-btn" data-x="qty-" title="Меньше">${icon("minus")}</button><b>${esc(e.qty)}</b><button class="icon-btn" data-x="qty+" title="Больше">${icon("plus")}</button></span>`);
@@ -936,6 +963,10 @@ export function mountSheet(root, id, initialTab, navigate) {
       }
       if (x === "cast") return castSpell(e, Number(btn.dataset.lvl) || null);
       if (x === "spell-atk") return d20(`${e.name}: атака`, spellAtk(S.d, e), "attack");
+      if (x === "item-add-spell") {
+        m.close();
+        return openLibrary(e);
+      }
       if (x === "open-spell") {
         m.close();
         return openEntity("spell:" + btn.dataset.sid);
@@ -961,6 +992,19 @@ export function mountSheet(root, id, initialTab, navigate) {
       if (x === "atk") return doRoll("attack:" + eid);
       if (x === "dmg") return doRoll("dmg:" + eid);
       if (x === "crit") return doRoll("crit:" + eid);
+    });
+  }
+
+  async function openLibrary(item) {
+    if (readOnly()) return toast(`${icon("eye")} ${esc(roText())}`, { kind: "bad" });
+    const { openSpellLibrary } = await import("./library.js");
+    return openSpellLibrary({
+      item,
+      get: () => ({ c: S.c, d: S.d }),
+      onAdd: sp => mutate(ch => {
+        ch.spells.push(sp);
+        ch.spells = normalize(ch).spells;
+      })
     });
   }
 
@@ -1374,16 +1418,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "portrait": return portraitDialog();
       case "add-attack": return editEntity("attack", null);
       case "add-spell": return editEntity("spell", null);
-      case "spell-library": {
-        const { openSpellLibrary } = await import("./library.js");
-        return openSpellLibrary({
-          get: () => ({ c: S.c, d: S.d }),
-          onAdd: sp => mutate(ch => {
-            ch.spells.push(sp);
-            ch.spells = normalize(ch).spells;
-          })
-        });
-      }
+      case "spell-library": return openLibrary(null);
       case "add-feature": return editEntity("feature", null, el.dataset.cat);
       case "add-item": return editEntity("item", null, S.ui.invFilter && !["all", "equipped", "other"].includes(S.ui.invFilter) ? S.ui.invFilter : "gear");
       case "add-note": return editNote(el.dataset.sec, null);
@@ -1406,6 +1441,10 @@ export function mountSheet(root, id, initialTab, navigate) {
         return renderTab();
       case "people-att": S.ui.peopleAtt = el.dataset.k; return renderTab();
       case "inv-filter": S.ui.invFilter = el.dataset.k; return renderTab();
+      case "inv-eq-first":
+        S.ui.invEqFirst = S.ui.invEqFirst === false;
+        saveUiPrefs(S.ui);
+        return renderTab();
       case "pact-pip": {
         const i = Number(el.dataset.i);
         const left = pactLeft();

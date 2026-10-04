@@ -1124,6 +1124,10 @@ li:has(> .rt-todo) { list-style: none; margin-left: -18px; }
 .lib-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
 .lib-src { margin-top: 12px; font-size: 13px; }
 
+.inv-sort { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin: 0 0 12px; }
+.inv-sort .fld { margin: 0; min-width: 190px; }
+.inv-sort .chip { min-height: 38px; }
+
 @media (max-width: 1180px) {
   .char-grid { grid-template-columns: 250px minmax(0, 1fr); }
   .col-right { grid-column: 1 / -1; }

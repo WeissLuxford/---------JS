@@ -346,17 +346,45 @@ export function tabFeatures(ctx) {
     ${sections || `<p class="empty">Умений пока нет</p>`}`;
 }
 
+const RARITY_ORDER = ["common", "uncommon", "rare", "veryRare", "legendary", "artifact", "story"];
+const COIN_GP = { пм: 10, pp: 10, зм: 1, з: 1, gp: 1, эм: 0.5, ep: 0.5, см: 0.1, с: 0.1, sp: 0.1, мм: 0.01, м: 0.01, cp: 0.01 };
+
+export function priceGp(value) {
+  const m = String(value || "").toLowerCase().replace(/\s+/g, "").replace(",", ".").match(/(\d+(?:\.\d+)?)([а-яa-z]*)/);
+  if (!m) return -1;
+  const unit = Object.keys(COIN_GP).find(k => m[2].startsWith(k) && (m[2].length === k.length || k.length === 2)) || "зм";
+  return Number(m[1]) * COIN_GP[unit];
+}
+
+export const INV_SORTS = [["added", "Как добавлено"], ["recent", "Сначала новые"], ["name", "По названию"], ["price", "Дороже выше"], ["rarity", "Редкие выше"], ["weight", "Тяжёлые выше"], ["type", "По типу"]];
+
+export function sortItems(items, sort, equippedFirst) {
+  const list = items.map((it, i) => ({ it, i }));
+  const by = {
+    added: (a, b) => a.i - b.i,
+    recent: (a, b) => b.i - a.i,
+    name: (a, b) => a.it.name.localeCompare(b.it.name, "ru"),
+    price: (a, b) => priceGp(b.it.value) - priceGp(a.it.value) || a.i - b.i,
+    rarity: (a, b) => RARITY_ORDER.indexOf(b.it.rarity) - RARITY_ORDER.indexOf(a.it.rarity) || a.i - b.i,
+    weight: (a, b) => (Number(b.it.weight) || 0) * (Number(b.it.qty) || 0) - (Number(a.it.weight) || 0) * (Number(a.it.qty) || 0) || a.i - b.i,
+    type: (a, b) => String(a.it.type).localeCompare(String(b.it.type)) || a.it.name.localeCompare(b.it.name, "ru")
+  }[sort] || ((a, b) => a.i - b.i);
+  list.sort((a, b) => (equippedFirst ? (b.it.equipped ? 1 : 0) - (a.it.equipped ? 1 : 0) : 0) || by(a, b));
+  return list.map(x => x.it);
+}
+
 const INV_FILTERS = [["all", "Все"], ["equipped", "Надето"], ["artifact", "Артефакты"], ["weapon", "Оружие"], ["armor", "Броня"], ["consumable", "Расходники"], ["other", "Прочее"]];
 
 export function tabInventory(ctx) {
   const { c, d, ui } = ctx;
   const f = ui.invFilter || "all";
-  const items = c.items.filter(it => {
+  const filtered = c.items.filter(it => {
     if (f === "all") return true;
     if (f === "equipped") return it.equipped;
     if (f === "other") return !["artifact", "weapon", "armor", "consumable"].includes(it.type);
     return it.type === f;
   });
+  const items = sortItems(filtered, ui.invSort || "added", ui.invEqFirst !== false);
   const pct = Math.min(100, (d.weight / Math.max(1, d.carry)) * 100);
   const coins = [["pp", "ПМ", "#d7e3ef"], ["gp", "ЗМ", "#e9c77a"], ["ep", "ЭМ", "#bfd0d6"], ["sp", "СМ", "#c9c9c9"], ["cp", "ММ", "#c7864f"]].map(([k, l, col]) => `
     <label class="coin" style="--c:${col}">${icon("coin")}<input type="number" inputmode="numeric" min="0" data-path="coins.${k}" data-num value="${esc(c.coins[k])}"><span>${l}</span></label>`).join("");
@@ -375,6 +403,7 @@ export function tabInventory(ctx) {
       <div class="weight"><span>Вес: <b data-calc="weight">${fmtNum(d.weight)}</b> / <span data-calc="carry">${d.carry}</span> фнт</span><div class="wbar ${d.weight > d.carry ? "over" : ""}" data-wbar><i style="width:${pct}%"></i></div><span>Настройка: <b data-calc="attuned">${d.attuned}</b> / 3</span></div>`, { ic: "coin" })}
     ${panel("Предметы", `
       <div class="chips filter">${INV_FILTERS.map(([k, l]) => `<button class="chip toggle ${f === k ? "on" : ""}" data-act="inv-filter" data-k="${k}">${l}</button>`).join("")}</div>
+      <div class="inv-sort"><label class="fld compact"><span>Сортировка</span><select data-ui="inv-sort">${INV_SORTS.map(([k, l]) => `<option value="${k}" ${(ui.invSort || "added") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label><button class="chip toggle ${ui.invEqFirst !== false ? "on" : ""}" data-act="inv-eq-first" aria-pressed="${ui.invEqFirst !== false ? "true" : "false"}">Надетое сначала</button></div>
       <div class="inv-grid">${grid || `<p class="empty">Пусто</p>`}</div>`, { ic: "bag", actions: addBtn("add-item", "Предмет") })}`;
 }
 
