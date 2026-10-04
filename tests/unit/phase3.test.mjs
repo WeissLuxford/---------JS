@@ -104,3 +104,25 @@ test("history: folding a note is not a change, defenses are", () => {
   b.notes.misc[0].text = "новый";
   assert.ok(describeChanges(a, b).some(t => t.startsWith("Прочие заметки: изменено")));
 });
+
+test("spells paid with item charges: more charges, more dice", () => {
+  const c = R.normalize({ name: "W", items: [{ id: "it-w", name: "Палочка холода", uses: "7", used: 0, breakOn: "20" }], spells: [{ id: "sp-c", name: "Луч", level: 1, cost: "item", itemId: "it-w", charges: 1, maxCharges: 3, upcast: "1d8", damage: [{ dice: "1d8", type: "cold" }] }] });
+  const d = R.compute(c);
+  assert.equal(R.spellCast(c, d, c.spells[0], null, 0).lines[0].dice, "1d8");
+  assert.equal(R.spellCast(c, d, c.spells[0], null, 2).lines[0].dice, "3d8");
+  assert.equal(c.items[0].breakOn, 20);
+  assert.equal(R.normalize({ name: "x", items: [{ name: "a", breakOn: "" }] }).items[0].breakOn, null);
+  assert.equal(R.normalize({ name: "x", items: [{ name: "a" }] }).items[0].breakOn, undefined);
+  assert.equal(R.normalize({ name: "x", spells: [{ name: "s", cost: "item", charges: "0", maxCharges: "x" }] }).spells[0].charges, 1);
+});
+
+test("notes search finds across sections and tags filter", async () => {
+  const { notesList } = await import(P + "tabs.js");
+  const c = R.normalize({ name: "N", notes: { patron: [{ id: "a", title: "Голос", text: "лицензия на магию", tags: "закон" }], people: [{ id: "b", title: "Рэй", attitude: "ally", text: "", tags: "должник, порт" }], misc: [{ id: "c", title: "Законы", text: "**Лицензия** до 2 круга" }] } });
+  const d = R.compute(c);
+  const found = notesList({ c, d, ui: { notesQ: "лиценз", notesSection: "people" } });
+  assert.ok(found.includes("Голос") && found.includes("Законы") && !found.includes("Рэй"));
+  const tagged = notesList({ c, d, ui: { notesSection: "people", noteTag: "порт" } });
+  assert.ok(tagged.includes("Рэй") && tagged.includes("#должник"));
+  assert.ok(!notesList({ c, d, ui: { notesSection: "people", peopleAtt: "hostile" } }).includes("Рэй"));
+});

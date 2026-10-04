@@ -94,6 +94,7 @@ export const RARITY = {
 
 export const ITEM_TYPES = {
   weapon: { name: "Оружие", icon: "sword" },
+  wand: { name: "Палочка, жезл, посох", icon: "wand" },
   armor: { name: "Броня", icon: "armor" },
   artifact: { name: "Артефакт", icon: "gem" },
   tool: { name: "Инструменты", icon: "wrench" },
@@ -427,10 +428,12 @@ export function normalize(c) {
     out[k] = (Array.isArray(out[k]) ? out[k] : []).filter(x => x && typeof x === "object").map((x, i) => ({ ...x, id: cleanId(x.id, prefixes[k], i), name: String(x.name ?? "") }));
   }
   out.items = out.items.map(it => ({ ...it, qty: Math.max(0, num(it.qty, 1)), weight: Math.max(0, num(it.weight)) }));
+  out.items = out.items.map(it => ("breakOn" in it ? { ...it, breakOn: it.breakOn == null || it.breakOn === "" ? null : Math.max(1, Math.min(20, Math.round(num(it.breakOn, 1)))) } : it));
   for (const k of ["attacks", "spells", "features", "items"]) {
     out[k] = out[k].map(x => ({ ...x, used: Math.max(0, num(x.used)) }));
   }
   out.spells = out.spells.map(sp => ({ ...sp, level: Math.max(0, Math.min(9, Math.round(num(sp.level)))), damage: cleanDamage(sp.damage) }));
+  out.spells = out.spells.map(sp => (sp.cost === "item" ? { ...sp, itemId: String(sp.itemId ?? ""), charges: Math.max(1, Math.round(num(sp.charges, 1))), maxCharges: Math.max(1, Math.round(num(sp.maxCharges, num(sp.charges, 1)))) } : sp));
   out.features = out.features.map(f => ({ ...f, damage: cleanDamage(f.damage) }));
   out.items = out.items.map(it => ({ ...it, damage: cleanDamage(it.damage) }));
   out.attacks = out.attacks.map(at => ({ ...at, damage: typeof at.damage === "string" ? at.damage : String(at.damage ?? "") }));
@@ -528,7 +531,7 @@ export function attackStats(c, d, at) {
   return { kind: "attack", hit: abMod + prof + bonus, dmg, type, beams };
 }
 
-export function spellCast(c, d, sp, slotLevel) {
+export function spellCast(c, d, sp, slotLevel, extra = 0) {
   const base = Number(sp.level) || 0;
   let level = base;
   if (base > 0) {
@@ -540,6 +543,7 @@ export function spellCast(c, d, sp, slotLevel) {
     let dice = x.dice || "";
     if (base === 0 && sp.scaling === "cantrip-dice") dice = scaleDice(dice, d.tier, { scaleFlat: false });
     if (base > 0 && sp.upcast && level > base) dice = addDice(dice, scaleDice(sp.upcast, level - base));
+    if (sp.cost === "item" && sp.upcast && extra > 0) dice = addDice(dice, scaleDice(sp.upcast, extra));
     if (x.addMod) dice = addDice(dice, d.spell.mod);
     return { dice, type: swapType(c, x.type), swapped: swapType(c, x.type) !== x.type, origType: x.type };
   });

@@ -50,8 +50,31 @@ export function spellIcon(c, sp) {
   return { icon: map[sp.school] || "sparkle", color: sc.color };
 }
 
+export function itemSpellInfo(c, d, sp) {
+  const it = sp.cost === "item" ? (c.items || []).find(x => x.id === sp.itemId) : null;
+  if (!it) return null;
+  const u = usesInfo(d, it);
+  const min = Math.max(1, Number(sp.charges) || 1);
+  const max = Math.max(min, Number(sp.maxCharges) || min);
+  return { item: it, uses: u, min, max, left: u ? u.left : 0 };
+}
+
+export function spellDc(d, sp) {
+  return sp.dcOverride != null && sp.dcOverride !== "" ? Number(sp.dcOverride) : d.spell.dc;
+}
+
+export function spellAtk(d, sp) {
+  return sp.atkOverride != null && sp.atkOverride !== "" ? Number(sp.atkOverride) : d.spell.atk;
+}
+
 export function spellCostText(c, d, sp, cast) {
   const lvl = Number(sp.level) || 0;
+  if (sp.cost === "item") {
+    const info = itemSpellInfo(c, d, sp);
+    if (!info) return { mark: slotMark("#8d8577"), text: "Заряды предмета: предмет не выбран" };
+    const n = info.min === info.max ? `${info.min} ${chargeWord(info.min)}` : `${info.min}-${info.max} ${chargeWord(info.max)}`;
+    return { mark: slotMark("#4fcf6a"), text: `${n} · ${info.item.name}${info.uses ? ` (${info.left}/${info.uses.max})` : ""}` };
+  }
   if (lvl === 0 || sp.cost === "free") return { mark: slotMark("#8d8577"), text: lvl === 0 ? "Заговор, без ячейки" : "Без ячейки" };
   if (sp.cost === "uses") {
     const u = usesInfo(d, sp);
@@ -61,15 +84,21 @@ export function spellCostText(c, d, sp, cast) {
   return { mark: slotMark("#5fc7ff"), text: `Ячейка ${cast.level} круга` };
 }
 
-export function spellModel(c, d, sp, slotLevel) {
-  const cast = spellCast(c, d, sp, slotLevel);
+export function chargeWord(n) {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  return m10 === 1 && m100 !== 11 ? "заряд" : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? "заряда" : "зарядов";
+}
+
+export function spellModel(c, d, sp, slotLevel, extra = 0) {
+  const cast = spellCast(c, d, sp, slotLevel, extra);
   const lines = cast.lines.map((l, i) => ({ ...l, prefix: cast.beams > 1 && i === 0 ? cast.beams + " × " : "" }));
   const meta = [
     { icon: "range", text: sp.range },
     { icon: "area", text: sp.area },
     { icon: "timer", text: sp.duration },
-    sp.save ? { icon: "drop", text: `Спасбросок ${abShort(sp.save)} · СЛ ${d.spell.dc}` } : null,
-    sp.attack ? { icon: "target", text: `Атака ${fmt(d.spell.atk)}` } : null,
+    sp.save ? { icon: "drop", text: `Спасбросок ${abShort(sp.save)} · СЛ ${spellDc(d, sp)}` } : null,
+    sp.attack ? { icon: "target", text: `Атака ${fmt(spellAtk(d, sp))}` } : null,
     sp.concentration ? { icon: "spiral", text: "Концентрация" } : null,
     sp.ritual ? { icon: "candle", text: "Ритуал" } : null,
     sp.components ? { icon: "hand", text: sp.components } : null
@@ -78,7 +107,7 @@ export function spellModel(c, d, sp, slotLevel) {
     (cast.lines.some(l => l.swapped) && c.damageSwap.label ? `<p class="swap-p">${icon("snow")} ${esc(c.damageSwap.label)}: ${esc(DAMAGE[c.damageSwap.from].name.toLowerCase())} → ${esc(DAMAGE[c.damageSwap.to].name.toLowerCase())}</p>` : "");
   const action = ACTIONS[sp.action] || ACTIONS.action;
   const castTime = sp.castTime && sp.castTime !== action.name ? sp.castTime : action.name;
-  const castLvlNote = Number(sp.level) > 0 && cast.level !== Number(sp.level) ? `Накладывается на ${cast.level} круге` : "";
+  const castLvlNote = extra > 0 ? `Ещё ${extra} ${chargeWord(extra)}` : sp.cost !== "item" && Number(sp.level) > 0 && cast.level !== Number(sp.level) ? `Накладывается на ${cast.level} круге` : "";
   const u = sp.cost === "uses" ? usesInfo(d, sp) : null;
   return {
     title: sp.name,
@@ -125,13 +154,15 @@ export function itemModel(c, d, it) {
   const u = usesInfo(d, it);
   const lines = (it.damage || []).map(x => ({ dice: x.dice, type: swapType(c, x.type), swapped: swapType(c, x.type) !== x.type, origType: x.type }));
   const stats = [
-    `<span>${icon("hourglass")}Вес: ${fmtNum(it.weight)} фнт${Number(it.qty) > 1 ? ` × ${it.qty}` : ""}</span>`,
+    Number(it.weight) ? `<span>${icon("hourglass")}Вес: ${fmtNum(it.weight)} фнт${Number(it.qty) > 1 ? ` × ${it.qty}` : ""}</span>` : "",
     it.value ? `<span>${icon("coin")}${esc(it.value)}</span>` : "",
     Number(it.qty) > 1 ? `<span>${icon("bag")}Количество: ${it.qty}</span>` : ""
   ].join("");
   const footer = [];
   if (it.action) footer.push(actionFoot(it.action));
   if (u) footer.push({ mark: slotMark("#e9a54a"), text: rechargeText(it, u) });
+  const linked = (c.spells || []).filter(sp => sp.cost === "item" && sp.itemId === it.id);
+  const breakNote = it.breakOn ? `После последнего заряда бросок d20: на ${it.breakOn} предмет разрушается.` : "";
   return {
     title: it.name,
     subtitle: `${t.name} · ${r.name}`,
@@ -140,7 +171,7 @@ export function itemModel(c, d, it) {
     badges: [it.equipped ? { text: "Экипировано", color: "#e9c77a" } : null, it.requiresAttunement ? { text: it.attuned ? "Настроено" : "Требует настройки", color: it.attuned ? "#b46bff" : "#8d8577" } : null],
     dice: lines,
     stats,
-    body: rich(it.description),
+    body: rich(it.description) + (linked.length ? `<p class="item-spells"><b>Заклинания:</b> ${linked.map(sp => esc(sp.name)).join(", ")}</p>` : "") + (breakNote ? `<p class="higher">${esc(breakNote)}</p>` : ""),
     effect: it.effect,
     uses: u,
     usesColor: "#e9a54a",
@@ -252,7 +283,7 @@ export function modelFor(c, d, ref, opts = {}) {
   if (kind === "stat") return statModel(c, d, id);
   const e = findEntity(c, kind, id);
   if (!e) return null;
-  if (kind === "spell") return spellModel(c, d, e, opts.slotLevel);
+  if (kind === "spell") return spellModel(c, d, e, opts.slotLevel, opts.extra || 0);
   if (kind === "feature") return featureModel(c, d, e);
   if (kind === "item") return itemModel(c, d, e);
   if (kind === "attack") return attackModel(c, d, e);
@@ -269,7 +300,7 @@ export function itemIcon(it) {
   const guess = [
     ["монокл", "monocle"], ["компас", "compass"], ["конденсатор", "battery"], ["перо", "feather"], ["кружк", "mug"],
     ["верёвк", "rope"], ["веревк", "rope"], ["фонар", "lantern"], ["рацион", "bread"], ["блокнот", "notebook"],
-    ["целител", "medkit"], ["арбалет", "arrow"], ["кинжал", "dagger"], ["книга", "book"], ["рюкзак", "bag"], ["масло", "potion"]
+    ["целител", "medkit"], ["палочк", "wand"], ["жезл", "wand"], ["посох", "wand"], ["арбалет", "arrow"], ["кинжал", "dagger"], ["книга", "book"], ["рюкзак", "bag"], ["масло", "potion"]
   ].find(([k]) => n.includes(k));
   if (it.icon) return it.icon;
   if (guess) return guess[1];
@@ -308,9 +339,14 @@ export const EDITORS = {
       { key: "save", label: "Спасбросок цели", type: "select", options: SAVE_OPTS },
       { key: "damage", label: "Урон / эффект", type: "dicelist", span: 3 },
       { key: "scaling", label: "Рост заговора", type: "select", options: [["none", "Нет"], ["cantrip-dice", "Больше кубов на 5/11/17 ур."], ["cantrip-beams", "Больше лучей на 5/11/17 ур."]] },
-      { key: "upcast", label: "Кубы за круг выше", placeholder: "1d6" },
+      { key: "upcast", label: "Кубы за круг выше (или за доп. заряд)", placeholder: "1d6" },
       { key: "castAt", label: "Всегда на круге", type: "number", nullable: true, hint: "Для врождённых заклинаний" },
-      { key: "cost", label: "Чем платишь", type: "select", options: [["slot", "Ячейка заклинаний"], ["uses", "Свои использования"], ["free", "Бесплатно"]] },
+      { key: "cost", label: "Чем платишь", type: "select", options: [["slot", "Ячейка заклинаний"], ["uses", "Свои использования"], ["item", "Заряды предмета"], ["free", "Бесплатно"]] },
+      { key: "itemId", label: "Предмет с зарядами", type: "select", options: [["", "Не выбран"]], hint: "Только для «Заряды предмета»" },
+      { key: "charges", label: "Зарядов за каст", type: "number", placeholder: "1" },
+      { key: "maxCharges", label: "Можно потратить до", type: "number", placeholder: "1", hint: "Каждый заряд сверх минимума добавляет «Кубы за круг выше»" },
+      { key: "dcOverride", label: "Своя СЛ", type: "number", nullable: true, hint: "Пусто = СЛ персонажа" },
+      { key: "atkOverride", label: "Своя атака", type: "number", nullable: true, hint: "Пусто = атака персонажа" },
       { key: "uses", label: "Использований", placeholder: "1", hint: usesHint },
       { key: "recharge", label: "Восстановление", type: "select", options: rechargeOpts },
       { key: "onSave", label: "Строка-итог (жирным)", placeholder: "При успехе: половина урона", span: 3 },
@@ -354,6 +390,7 @@ export const EDITORS = {
       { key: "action", label: "Применение", type: "select", options: [["", "Нет"], ...actionOpts] },
       { key: "uses", label: "Заряды / использования", hint: usesHint },
       { key: "recharge", label: "Восстановление", type: "select", options: rechargeOpts },
+      { key: "breakOn", label: "Ломается на d20", type: "number", nullable: true, hint: "После последнего заряда бросок d20; пусто = не ломается" },
       { key: "damage", label: "Кубы", type: "dicelist", span: 3 },
       { key: "effect", label: "Строка-итог (жирным)", span: 3 },
       { key: "description", label: "Описание", type: "textarea", rows: 5, span: 3 }
@@ -393,6 +430,7 @@ export function noteFields(section) {
   ];
   if (section === "quests") f.push({ key: "status", label: "Статус", type: "select", options: [["active", "Активно"], ["done", "Выполнено"], ["failed", "Провалено"], ["", "Без статуса"]] });
   if (section === "people") f.push({ key: "attitude", label: "Отношение", type: "select", options: [["ally", "Союзник"], ["neutral", "Нейтрально"], ["hostile", "Враг"], ["", "Неизвестно"]] });
+  f.push({ key: "tags", label: "Метки через запятую", span: 3, placeholder: "Нижний город, гильдия, должник" });
   f.push({ key: "text", label: "Текст", type: "richtext", rows: 12, span: 3, hint: "**жирный**, *курсив*, ## заголовок, - список, > цитата, ==маркер==. Кнопка «Просмотр» показывает, как будет выглядеть" });
   f.push({ key: "collapsed", label: "Показывать свёрнутой (только название)", type: "checkbox", span: 3 });
   return f;
@@ -450,8 +488,9 @@ export function armorFields() {
   ];
 }
 
-export function openEditor(kind, entity, { onSave, onDelete, makeArg } = {}) {
+export function openEditor(kind, entity, { onSave, onDelete, makeArg, items = [], value: preset } = {}) {
   const ed = EDITORS[kind];
-  const value = entity || ed.make(makeArg);
-  return openForm({ title: (entity ? "Изменить: " : "Новое: ") + ed.title.toLowerCase(), fields: ed.fields, value, onSave, onDelete: entity ? onDelete : null });
+  const value = entity || preset || ed.make(makeArg);
+  const fields = ed.fields.map(f => (f.key === "itemId" ? { ...f, options: [["", "Не выбран"], ...items.map(it => [it.id, it.name || "Без названия"])] } : f));
+  return openForm({ title: (entity ? "Изменить: " : "Новое: ") + ed.title.toLowerCase(), fields, value, onSave, onDelete: entity ? onDelete : null });
 }

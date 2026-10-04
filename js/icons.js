@@ -51,6 +51,7 @@ const P = {
   brain: '<path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 3 3h3V4z"/><path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-3 3h-3"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
   wave: '<path d="M2 10c2-4 4-4 6 0s4 4 6 0 4-4 6 0"/><path d="M2 16c2-4 4-4 6 0s4 4 6 0 4-4 6 0"/>',
+  wand: '<path d="M4 20L15 9"/><path d="M14 8l2 2"/><path d="M18 2v3M16.5 3.5h3M21 6v2M20 7h2M19 10.5l1 1"/><path d="M15.5 4.5l.5-.5M12 5l1 1"/>',
   sword: '<path d="M20 3l-1 4L8 18l-2-2L17 5z"/><path d="M5 13l6 6M4 20l2.5-2.5"/>',
   armor: '<path d="M8 3l4 2 4-2 4 3-2 4v10H6V10L4 6z"/><path d="M12 5v15M8 13h8"/>',
   gem: '<path d="M6 3h12l3 6-9 12L3 9z"/><path d="M3 9h18M9 3l3 6 3-6M12 9v12"/>',

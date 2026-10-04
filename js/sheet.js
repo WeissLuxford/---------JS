@@ -1,11 +1,11 @@
-import { ABILITIES, SKILLS, DAMAGE, DAMAGE_TYPES, DEFENSE_KINDS, compute, normalize, fmt, rollD20, rollDice, spellCast, usesInfo, maxDie, uid, addDice, swapType, importCharacter, rollContext, resolveMode, rollReasons, applyDefenses } from "./rules.js";
+import { ABILITIES, SKILLS, DAMAGE, DAMAGE_TYPES, DEFENSE_KINDS, compute, normalize, fmt, rollD20, rollDice, spellCast, usesInfo, maxDie, uid, addDice, swapType, importCharacter, NOTE_KEYS, rollContext, resolveMode, rollReasons, applyDefenses } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import {
   esc, $, $$, toast, openModal, confirmDialog, promptNumber, showD20, showBeams, showDamage, rollLog, enableHoverCards, hideHoverCard,
   enableLongPress, openForm, getPath, setPath, dateTime, timeAgo, cropImage, download, pickFile
 } from "./ui.js";
-import { TABS, RENDER, subtitle, hpState } from "./tabs.js";
-import { cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS } from "./entities.js";
+import { TABS, RENDER, subtitle, hpState, notesList, noteTags } from "./tabs.js";
+import { cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
 import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
 import { diffPaths, applyPaths } from "./sync.js";
 import { describeChanges } from "./changes.js";
@@ -35,7 +35,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     d: null,
     base: null,
     tab: TABS.some(t => t.key === initialTab) ? initialTab : "char",
-    ui: { invFilter: "all", notesSection: "patron", spellFilter: "all", spellQ: "", noteOpen: {} },
+    ui: { invFilter: "all", notesSection: "patron", spellFilter: "all", spellQ: "", noteOpen: {}, notesQ: "", noteTag: "", peopleAtt: "all" },
     scroll: {},
     saveTimer: null,
     retry: 0,
@@ -44,6 +44,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     openRef: null,
     openModalApi: null,
     lastCast: {},
+    lastExtra: {},
     disposed: false,
     access: getAccess(),
     isEditor: false,
@@ -412,6 +413,17 @@ export function mountSheet(root, id, initialTab, navigate) {
   }
 
   const onUiInput = e => {
+    const nq = e.target.closest("[data-ui=notes-q]");
+    if (nq && root.contains(nq)) {
+      S.ui.notesQ = nq.value;
+      const body = $("[data-body]", root);
+      const list = body && $("[data-notes-list]", body);
+      if (list) list.innerHTML = notesList({ c: S.c, d: S.d, ui: S.ui });
+      const on = !!nq.value.trim();
+      $$(".note-filters, .notes-head", body).forEach(el => (el.hidden = on));
+      $$(".subtab", body).forEach(el => el.classList.toggle("on", !on && el.dataset.k === S.ui.notesSection));
+      return true;
+    }
     const q = e.target.closest("[data-ui=spell-q]");
     if (!q || !root.contains(q)) return false;
     S.ui.spellQ = q.value;
@@ -721,9 +733,39 @@ export function mountSheet(root, id, initialTab, navigate) {
     return S.d.pact ? Math.max(0, S.d.pact.count - (Number(S.c.pactUsed) || 0)) : 0;
   }
 
+  function castFromItem(sp, chosen) {
+    const info = itemSpellInfo(S.c, S.d, sp);
+    if (!info) return toast("Выбери в заклинании предмет с зарядами (кнопка «Изменить»)", { kind: "bad" });
+    if (!info.uses) return toast(`У предмета «${esc(info.item.name)}» не указаны заряды`, { kind: "bad" });
+    const n = Math.max(info.min, Math.min(info.max, chosen || info.min));
+    if (info.left < n) return toast(`Не хватает зарядов: нужно ${n}, осталось ${info.left}`, { kind: "bad" });
+    S.lastExtra[sp.id] = n - info.min;
+    let concNote = "";
+    let emptied = false;
+    mutate(c => {
+      const it = findEntity(c, "item", info.item.id);
+      const e = findEntity(c, "spell", sp.id);
+      if (!it || !e) return;
+      it.used = Math.min(info.uses.max, (Number(it.used) || 0) + n);
+      emptied = it.used >= info.uses.max;
+      if (e.concentration) {
+        if (c.concentration && c.concentration !== e.name) concNote = ` Концентрация на «${c.concentration}» прервана.`;
+        c.concentration = e.name;
+      }
+    });
+    toast(`${icon("wand")} <b>${esc(sp.name)}</b>: ${n} ${chargeWord(n)} из «${esc(info.item.name)}», осталось ${Math.max(0, info.left - n)}.${esc(concNote)}`, { kind: "info" });
+    const brk = Number(info.item.breakOn);
+    if (emptied && brk) {
+      const r = rollDice("1d20");
+      const broke = r.total === brk;
+      toast(`${icon("d20")} Последний заряд, d20: <b>${r.total}</b>. ${broke ? `«${esc(info.item.name)}» разрушается!` : "Предмет уцелел."}`, { kind: broke ? "bad" : "good", timeout: 9000 });
+    }
+  }
+
   function castSpell(sp, chosenLevel) {
     const { d } = S;
     if (readOnly()) return;
+    if (sp.cost === "item") return castFromItem(sp, chosenLevel);
     const lvl = Number(sp.level) || 0;
     let castLevel = null;
     if (lvl > 0 && sp.cost === "slot") {
@@ -788,7 +830,13 @@ export function mountSheet(root, id, initialTab, navigate) {
       }
       return b.join("");
     }
-    if (kind === "spell") {
+    if (kind === "spell" && e.cost === "item") {
+      const info = itemSpellInfo(S.c, d, e);
+      if (!info || !info.uses) b.push(`<button class="btn" disabled>Не выбран предмет с зарядами</button>`);
+      else if (info.left < info.min) b.push(`<button class="btn" disabled>Не хватает зарядов (${info.left})</button>`);
+      else for (let n = info.min; n <= Math.min(info.max, info.left); n++) b.push(`<button class="btn gold" data-x="cast" data-lvl="${n}">${icon("wand")}${n} ${chargeWord(n)}</button>`);
+    }
+    if (kind === "spell" && e.cost !== "item") {
       const lvl = Number(e.level) || 0;
       if (lvl > 0 || e.concentration) {
         if (lvl > 0 && e.cost === "slot" && d.pact) {
@@ -805,13 +853,16 @@ export function mountSheet(root, id, initialTab, navigate) {
           b.push(`<button class="btn gold" data-x="cast">${icon("sparkle")}Сотворить</button>`);
         }
       }
-      if (e.attack) b.push(`<button class="btn" data-x="spell-atk">${icon("d20")}Атака ${fmt(d.spell.atk)}</button>`);
+      if (e.cost === "uses" && usesInfo(d, e)) b.push(`<button class="btn ghost" data-x="restore">${icon("history")}Вернуть использование</button>`);
+    }
+    if (kind === "spell") {
+      if (e.attack) b.push(`<button class="btn" data-x="spell-atk">${icon("d20")}Атака ${fmt(spellAtk(d, e))}</button>`);
       if ((e.damage || []).length) {
         const lv = S.lastCast[e.id];
-        b.push(`<button class="btn" data-x="spell-dmg">${icon("force")}Бросить кубы${lv && lv !== Number(e.level) ? ` (${lv} круг)` : ""}</button>`);
+        const ex = e.cost === "item" ? S.lastExtra[e.id] || 0 : 0;
+        b.push(`<button class="btn" data-x="spell-dmg">${icon("force")}Бросить кубы${ex ? ` (+${ex} ${chargeWord(ex)})` : lv && lv !== Number(e.level) && e.cost !== "item" ? ` (${lv} круг)` : ""}</button>`);
         if (e.attack) b.push(`<button class="btn ghost" data-x="spell-crit">Крит</button>`);
       }
-      if (e.cost === "uses" && usesInfo(d, e)) b.push(`<button class="btn ghost" data-x="restore">${icon("history")}Вернуть использование</button>`);
     }
     if (kind === "feature") {
       const u = usesInfo(d, e);
@@ -826,6 +877,7 @@ export function mountSheet(root, id, initialTab, navigate) {
         b.push(`<button class="btn ghost" data-x="restore">${icon("history")}Вернуть</button>`);
       }
       if ((e.damage || []).length) b.push(`<button class="btn" data-x="item-dmg">${icon("d20")}Бросить кубы</button>`);
+      S.c.spells.filter(sp => sp.cost === "item" && sp.itemId === e.id).forEach(sp => b.push(`<button class="btn" data-x="open-spell" data-sid="${esc(sp.id)}">${icon("sparkle")}${esc(sp.name)}</button>`));
       b.push(`<button class="btn" data-x="equip">${e.equipped ? "Снять" : "Экипировать"}</button>`);
       if (e.requiresAttunement) b.push(`<button class="btn" data-x="attune">${e.attuned ? "Снять настройку" : "Настроиться"}</button>`);
       b.push(`<span class="qty-ctl"><button class="icon-btn" data-x="qty-" title="Меньше">${icon("minus")}</button><b>${esc(e.qty)}</b><button class="icon-btn" data-x="qty+" title="Больше">${icon("plus")}</button></span>`);
@@ -844,7 +896,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     const [kind, eid] = ref.split(":");
     const e = findEntity(S.c, kind, eid);
     if (!e) return null;
-    return `${cardFor(S.c, S.d, ref, { slotLevel: kind === "spell" ? S.lastCast[eid] : null })}<div class="entity-actions">${entityButtons(kind, e)}</div>`;
+    return `${cardFor(S.c, S.d, ref, { slotLevel: kind === "spell" ? S.lastCast[eid] : null, extra: kind === "spell" ? S.lastExtra[eid] || 0 : 0 })}<div class="entity-actions">${entityButtons(kind, e)}</div>`;
   }
 
   function refreshEntityModal() {
@@ -883,9 +935,13 @@ export function mountSheet(root, id, initialTab, navigate) {
         return editEntity(kind, e);
       }
       if (x === "cast") return castSpell(e, Number(btn.dataset.lvl) || null);
-      if (x === "spell-atk") return d20(`${e.name}: атака`, S.d.spell.atk, "attack");
+      if (x === "spell-atk") return d20(`${e.name}: атака`, spellAtk(S.d, e), "attack");
+      if (x === "open-spell") {
+        m.close();
+        return openEntity("spell:" + btn.dataset.sid);
+      }
       if (x === "spell-dmg" || x === "spell-crit") {
-        const cast = spellCast(S.c, S.d, e, S.lastCast[e.id] || null);
+        const cast = spellCast(S.c, S.d, e, S.lastCast[e.id] || null, e.cost === "item" ? S.lastExtra[e.id] || 0 : 0);
         const lines = [];
         for (let i = 0; i < cast.beams; i++) lines.push(...cast.lines);
         return showDamage(`${e.name}${cast.level && cast.level !== Number(e.level) ? ` (${cast.level} круг)` : ""}`, lines, x === "spell-crit");
@@ -918,6 +974,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     const initial = e ? clone(e) : null;
     openEditor(kind, e, {
       makeArg,
+      items: S.c.items,
       onSave: val => {
         if (!String(val.name || "").trim()) {
           toast("Нужно название", { kind: "bad" });
@@ -948,7 +1005,7 @@ export function mountSheet(root, id, initialTab, navigate) {
   }
 
   function editNote(section, n) {
-    const value = n || EDITORS.note.make();
+    const value = n || { ...EDITORS.note.make(), tags: S.ui.noteTag || "" };
     const initial = clone(value);
     openForm({
       title: n ? "Изменить запись" : "Новая запись",
@@ -1324,7 +1381,20 @@ export function mountSheet(root, id, initialTab, navigate) {
         const n = (c.notes[el.dataset.sec] || []).find(x => x.id === el.dataset.id);
         return n && editNote(el.dataset.sec, n);
       }
-      case "notes-section": S.ui.notesSection = el.dataset.k; return renderTab();
+      case "notes-section":
+        S.ui.notesSection = el.dataset.k;
+        S.ui.noteTag = "";
+        S.ui.notesQ = "";
+        return renderTab();
+      case "note-tag":
+        S.ui.noteTag = S.ui.noteTag === el.dataset.k ? "" : el.dataset.k;
+        if (S.ui.notesQ) {
+          const sec = NOTE_KEYS.find(k => (c.notes[k] || []).some(n => noteTags(n).includes(el.dataset.k)));
+          if (sec) S.ui.notesSection = sec;
+          S.ui.notesQ = "";
+        }
+        return renderTab();
+      case "people-att": S.ui.peopleAtt = el.dataset.k; return renderTab();
       case "inv-filter": S.ui.invFilter = el.dataset.k; return renderTab();
       case "pact-pip": {
         const i = Number(el.dataset.i);
