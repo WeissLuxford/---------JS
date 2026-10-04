@@ -271,6 +271,17 @@ function rechargeShort(r) {
   return { short: "кор. отдых", long: "длин. отдых", dawn: "рассвет", none: "не восст.", always: "" }[r] || "";
 }
 
+const TURN = [["action", "Действие"], ["bonus", "Бонусное"], ["reaction", "Реакция"]];
+
+export function turnBar(ctx) {
+  const t = (ctx.ui && ctx.ui.turn) || {};
+  return `<div class="turn-bar" data-turn>${TURN.map(([k, l]) => {
+    const a = ACTIONS[k];
+    const used = !!t[k];
+    return `<button class="turn-slot ${used ? "used" : ""}" data-act="turn-toggle" data-k="${k}" style="--c:${a.color}" aria-pressed="${used ? "true" : "false"}" title="${used ? "Потрачено. Нажми, чтобы вернуть" : "Доступно. Нажми, чтобы отметить"}"><span class="turn-mark">${actionMark(a.shape, a.color)}</span><span>${l}</span></button>`;
+  }).join("")}<button class="btn sm turn-new" data-act="new-turn" title="Вернуть действия и отсчитать раунд у эффектов">${icon("history")}Новый ход</button></div>`;
+}
+
 function combatStrip(ctx) {
   const { c, d } = ctx;
   const caster = c.casterType !== "none" || c.spells.length;
@@ -321,6 +332,7 @@ export function tabCombat(ctx) {
   const res = resourceRows(ctx);
   return `
   ${combatStrip(ctx)}
+  ${turnBar(ctx)}
   <div class="combat-grid">
     <div class="col">
       <div class="rest-row">

@@ -122,7 +122,142 @@ export function toast(html, { kind = "", timeout = 3200 } = {}) {
   };
   el.addEventListener("click", close);
   if (timeout) setTimeout(close, timeout);
+  close.el = el;
   return close;
+}
+
+const FX_KEY = "dnd.fx";
+
+export function fxSettings() {
+  try {
+    const v = JSON.parse(localStorage.getItem(FX_KEY) || "{}");
+    return { sound: v.sound !== false, anim: v.anim !== false };
+  } catch {
+    return { sound: true, anim: true };
+  }
+}
+
+export function setFx(key, value) {
+  const v = { ...fxSettings(), [key]: !!value };
+  try {
+    localStorage.setItem(FX_KEY, JSON.stringify(v));
+  } catch {}
+  return v;
+}
+
+let actx = null;
+let noiseBuf = null;
+
+function audio() {
+  if (!fxSettings().sound) return null;
+  try {
+    if (!actx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      actx = new AC();
+    }
+    if (actx.state === "suspended") actx.resume();
+    if (!noiseBuf) {
+      noiseBuf = actx.createBuffer(1, actx.sampleRate * 0.3, actx.sampleRate);
+      const data = noiseBuf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    }
+    return actx;
+  } catch {
+    return null;
+  }
+}
+
+function tone(a, { type = "sine", from, to = from, at = 0, dur = 0.3, vol = 0.1, filter = 0 }) {
+  const t = a.currentTime + at;
+  const o = a.createOscillator();
+  const g = a.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(from, t);
+  if (to !== from) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  let node = o;
+  if (filter) {
+    const f = a.createBiquadFilter();
+    f.type = "lowpass";
+    f.frequency.value = filter;
+    o.connect(f);
+    node = f;
+  }
+  node.connect(g);
+  g.connect(a.destination);
+  o.start(t);
+  o.stop(t + dur + 0.05);
+}
+
+function noise(a, { at = 0, dur = 0.05, vol = 0.12, freq = 3000, q = 1.2, type = "bandpass" }) {
+  const t = a.currentTime + at;
+  const src = a.createBufferSource();
+  src.buffer = noiseBuf;
+  const f = a.createBiquadFilter();
+  f.type = type;
+  f.frequency.value = freq;
+  f.Q.value = q;
+  const g = a.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f);
+  f.connect(g);
+  g.connect(a.destination);
+  src.start(t);
+  src.stop(t + dur + 0.02);
+}
+
+export function playSound(kind) {
+  const a = audio();
+  if (!a) return;
+  if (kind === "roll") {
+    [0, 0.07, 0.15, 0.26].forEach((at, i) => noise(a, { at: at + Math.random() * 0.02, dur: 0.045, vol: 0.09 - i * 0.015, freq: 2200 + Math.random() * 2200 }));
+  } else if (kind === "crit") {
+    [880, 1108.7, 1318.5, 1760].forEach((f, i) => tone(a, { type: "triangle", from: f, at: i * 0.07, dur: 0.9, vol: 0.07 }));
+    tone(a, { type: "sine", from: 2637, at: 0.3, dur: 1.1, vol: 0.03 });
+    noise(a, { at: 0.28, dur: 0.6, vol: 0.025, freq: 7000, q: 0.7 });
+  } else if (kind === "fumble") {
+    tone(a, { type: "sawtooth", from: 170, to: 48, dur: 0.55, vol: 0.09, filter: 700 });
+    noise(a, { dur: 0.18, vol: 0.14, freq: 160, q: 0.8, type: "lowpass" });
+  }
+}
+
+function reduced() {
+  return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function rollFx(el, { finals = [], crit = false, fumble = false, ms = 620 } = {}) {
+  const fx = fxSettings();
+  const totals = Array.from(el.querySelectorAll("[data-final]"));
+  const land = () => {
+    el.classList.remove("rolling");
+    totals.forEach(t => (t.textContent = t.dataset.final));
+    if (crit) {
+      el.classList.add("crit-fx");
+      playSound("crit");
+    } else if (fumble) {
+      el.classList.add("fumble-fx");
+      playSound("fumble");
+    }
+  };
+  if (!fx.anim || reduced() || !totals.length) return land();
+  playSound("roll");
+  el.classList.add("rolling");
+  const start = Date.now();
+  const tick = () => {
+    if (!el.isConnected) return;
+    if (Date.now() - start >= ms) return land();
+    totals.forEach(t => {
+      const f = Number(t.dataset.final);
+      const span = Math.max(4, Math.abs(f));
+      t.textContent = String(Math.max(0, Math.round(f - span / 2 + Math.random() * span)));
+    });
+    setTimeout(tick, 55);
+  };
+  tick();
 }
 
 export const rollLog = [];
@@ -141,23 +276,25 @@ export function showD20(label, modifier, result, mode, { why = [], fail = "", ex
   const both = result.b != null ? `<span class="r-both">${result.a} / ${result.b} ${mode === "adv" ? "преим." : "помеха"}</span>` : "";
   const note = result.nat20 ? "Естественная 20!" : result.nat1 ? "Естественная 1" : "";
   logRoll({ label, text: `${fail ? "провал" : result.total} (${result.pick}${fmt(modifier)})` });
-  toast(
-    `<div class="roll ${cls} ${fail ? "failed" : ""}">${die(20, result.nat20 ? "#f4d66d" : result.nat1 ? "#e5533d" : "#cbbfa8", result.pick)}<div class="r-body"><div class="r-label">${esc(label)}</div><div class="r-calc">${result.pick} ${fmt(modifier).replace(/^([+−])/, "$1 ")} ${both}</div>${note ? `<div class="r-note">${note}</div>` : ""}${whyHtml(why, fail)}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div><div class="r-total">${fail ? "✕" : result.total}</div></div>`,
+  const t = toast(
+    `<div class="roll ${cls} ${fail ? "failed" : ""}">${die(20, result.nat20 ? "#f4d66d" : result.nat1 ? "#e5533d" : "#cbbfa8", result.pick)}<div class="r-body"><div class="r-label">${esc(label)}</div><div class="r-calc">${result.pick} ${fmt(modifier).replace(/^([+−])/, "$1 ")} ${both}</div>${note ? `<div class="r-note">${note}</div>` : ""}${whyHtml(why, fail)}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div><div class="r-total" ${fail ? "" : `data-final="${result.total}"`}>${fail ? "✕" : result.total}</div></div>`,
     { timeout: extra ? 9000 : why.length || fail ? 6500 : 4500 }
   );
+  rollFx(t.el, { crit: result.nat20, fumble: result.nat1 });
 }
 
 export function showBeams(label, modifier, results, mode, { why = [], extra = "" } = {}) {
   const rows = results.map((r, i) => {
     const both = r.b != null ? `<span class="r-both">${r.a} / ${r.b}</span>` : "";
-    return `<div class="r-beam ${r.nat20 ? "crit" : r.nat1 ? "fumble" : ""}"><span>Луч ${i + 1}</span><span class="r-calc">${r.pick} ${fmt(modifier).replace(/^([+−])/, "$1 ")} ${both}</span><b>${r.total}</b>${r.nat20 ? `<em>крит</em>` : r.nat1 ? `<em>промах</em>` : ""}</div>`;
+    return `<div class="r-beam ${r.nat20 ? "crit" : r.nat1 ? "fumble" : ""}"><span>Луч ${i + 1}</span><span class="r-calc">${r.pick} ${fmt(modifier).replace(/^([+−])/, "$1 ")} ${both}</span><b data-final="${r.total}">${r.total}</b>${r.nat20 ? `<em>крит</em>` : r.nat1 ? `<em>промах</em>` : ""}</div>`;
   }).join("");
   results.forEach((r, i) => logRoll({ label: `${label} (луч ${i + 1})`, text: `${r.total} (${r.pick}${fmt(modifier)})` }));
   const top = results.some(r => r.nat20) ? "#f4d66d" : "#cbbfa8";
-  toast(
+  const t = toast(
     `<div class="roll beams">${die(20, top, results.length + "×")}<div class="r-body"><div class="r-label">${esc(label)}${mode !== "normal" ? ` · ${mode === "adv" ? "преимущество" : "помеха"}` : ""}</div>${rows}${whyHtml(why, "")}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div></div>`,
     { timeout: 12000 }
   );
+  rollFx(t.el, { crit: results.some(r => r.nat20), fumble: results.every(r => r.nat1) });
 }
 
 export function showDamage(label, lines, crit = false) {
@@ -175,10 +312,11 @@ export function showDamage(label, lines, crit = false) {
   if (!parts.length) return;
   logRoll({ label, text: String(total) });
   const firstType = DAMAGE[lines[0].type] || DAMAGE.bludgeoning;
-  toast(
-    `<div class="roll dmg">${die(maxFace(lines[0].dice), firstType.color, "")}<div class="r-body"><div class="r-label">${esc(label)}${crit ? " · крит" : ""}</div>${parts.join("")}</div><div class="r-total">${total}</div></div>`,
+  const t = toast(
+    `<div class="roll dmg">${die(maxFace(lines[0].dice), firstType.color, "")}<div class="r-body"><div class="r-label">${esc(label)}${crit ? " · крит" : ""}</div>${parts.join("")}</div><div class="r-total" data-final="${total}">${total}</div></div>`,
     { timeout: 5500 }
   );
+  rollFx(t.el, { ms: 420 });
   return total;
 }
 
@@ -188,7 +326,8 @@ export function showRoll(expr) {
   const rolls = r.rolls.length ? `<span class="r-rolls">[${r.rolls.map(x => (x.sign < 0 ? "−" : "") + x.r + (r.rolls.some(y => y.f !== x.f) ? `<sub>d${x.f}</sub>` : "")).join(", ")}]</span>` : "";
   logRoll({ label: "Бросок " + expr, text: String(r.total) });
   const top = r.rolls.length === 1 && r.rolls[0].f === 20 ? r.rolls[0].r : null;
-  toast(`<div class="roll ${top === 20 ? "crit" : top === 1 ? "fumble" : ""}">${die(maxFace(expr), "#e9c77a", "")}<div class="r-body"><div class="r-label">Бросок</div><div class="r-line" style="--c:#e9c77a"><span>${esc(expr)}</span>${rolls}</div></div><div class="r-total">${r.total}</div></div>`, { timeout: 6000 });
+  const t = toast(`<div class="roll ${top === 20 ? "crit" : top === 1 ? "fumble" : ""}">${die(maxFace(expr), "#e9c77a", "")}<div class="r-body"><div class="r-label">Бросок</div><div class="r-line" style="--c:#e9c77a"><span>${esc(expr)}</span>${rolls}</div></div><div class="r-total" data-final="${r.total}">${r.total}</div></div>`, { timeout: 6000 });
+  rollFx(t.el, { crit: top === 20, fumble: top === 1 });
   return r;
 }
 

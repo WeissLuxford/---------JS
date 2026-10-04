@@ -14,7 +14,7 @@ function poison(o) {
   if (o && typeof o === "object") return Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === "string" && !ENUM.has(k) ? v + PAY : poison(v)]));
   return o;
 }
-test("no user string reaches HTML unescaped (all tabs + all cards)", () => {
+test("no user string reaches HTML unescaped (all tabs + all cards)", async () => {
   const c = normalize(poison(kirion()));
   const d = compute(c);
   const ui = { invFilter: "all", notesSection: "patron" };
@@ -22,6 +22,8 @@ test("no user string reaches HTML unescaped (all tabs + all cards)", () => {
   for (const t of TABS) out.push([t.key, RENDER[t.key]({ c, d, ui })]);
   for (const sec of ["quests", "people", "misc"]) out.push(["notes:" + sec, RENDER.notes({ c, d, ui: { ...ui, notesSection: sec } })]);
   for (const [kind, list] of [["spell", c.spells], ["feature", c.features], ["item", c.items], ["attack", c.attacks]]) for (const e of list) out.push([kind + ":" + e.id, cardFor(c, d, `${kind}:${e.id}`)]);
+  const { printHtml } = await import(P + "print.js");
+  out.push(["print", printHtml(c, d, ["main", "spells", "features", "items", "story", "notes", "portrait"])]);
   const bad = out.filter(([, h]) => h.includes("<x-xss>")).map(([k]) => k);
   console.log(`  checked ${out.length} renders, unescaped in: ${bad.length ? bad.join(", ") : "none"}`);
   assert.deepEqual(bad, []);

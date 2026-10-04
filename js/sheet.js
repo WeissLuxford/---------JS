@@ -2,9 +2,9 @@ import { ABILITIES, SKILLS, DAMAGE, DAMAGE_TYPES, DEFENSE_KINDS, compute, normal
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import {
   esc, $, $$, toast, openModal, confirmDialog, promptNumber, showD20, showBeams, showDamage, rollLog, enableHoverCards, hideHoverCard,
-  enableLongPress, enableReorder, openDiceRoller, openForm, getPath, setPath, dateTime, timeAgo, cropImage, download, pickFile
+  enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, openForm, getPath, setPath, dateTime, timeAgo, cropImage, download, pickFile
 } from "./ui.js";
-import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources } from "./tabs.js";
+import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources, turnBar } from "./tabs.js";
 import { cardFor, findEntity, itemIcon, effectFields, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
 import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
 import { diffPaths, applyPaths } from "./sync.js";
@@ -40,6 +40,15 @@ function loadUiPrefs() {
   }
 }
 
+function loadTurn(id) {
+  try {
+    const t = JSON.parse(localStorage.getItem("dnd.turn." + id) || "{}");
+    return { action: !!t.action, bonus: !!t.bonus, reaction: !!t.reaction };
+  } catch {
+    return { action: false, bonus: false, reaction: false };
+  }
+}
+
 function saveUiPrefs(ui) {
   try {
     localStorage.setItem(UI_PREFS, JSON.stringify({ invSort: ui.invSort, invEqFirst: ui.invEqFirst }));
@@ -52,7 +61,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     d: null,
     base: null,
     tab: TABS.some(t => t.key === initialTab) ? initialTab : "char",
-    ui: { ...loadUiPrefs(), invFilter: "all", notesSection: "patron", spellFilter: "all", spellQ: "", noteOpen: {}, notesQ: "", noteTag: "", peopleAtt: "all" },
+    ui: { ...loadUiPrefs(), turn: loadTurn(id), invFilter: "all", notesSection: "patron", spellFilter: "all", spellQ: "", noteOpen: {}, notesQ: "", noteTag: "", peopleAtt: "all" },
     scroll: {},
     saveTimer: null,
     retry: 0,
@@ -559,23 +568,37 @@ export function mountSheet(root, id, initialTab, navigate) {
     return r;
   }
 
+  function saveTurn() {
+    try {
+      localStorage.setItem("dnd.turn." + id, JSON.stringify(S.ui.turn));
+    } catch {}
+    const bar = $("[data-turn]", root);
+    if (bar) bar.outerHTML = turnBar({ ui: S.ui });
+  }
+
+  function markAction(kind) {
+    if (!["action", "bonus", "reaction"].includes(kind) || S.ui.turn[kind]) return;
+    S.ui.turn[kind] = true;
+    saveTurn();
+  }
+
   function attackProfile(kind, id) {
     const { c, d } = S;
     if (kind === "attack") {
       const at = findEntity(c, "attack", id);
       const s = d.attacks[id];
-      return at && s ? { name: at.name, hit: s.hit, beams: s.beams, lines: [{ dice: s.dmg, type: s.type }], attack: s.kind === "attack" } : null;
+      return at && s ? { name: at.name, hit: s.hit, beams: s.beams, lines: [{ dice: s.dmg, type: s.type }], attack: s.kind === "attack", action: at.action || "action" } : null;
     }
     if (kind === "item") {
       const it = findEntity(c, "item", id);
       const w = it && it.atkAbility ? d.weapons[id] || weaponStats(c, d, it) : null;
-      return w ? { name: it.name, hit: w.hit, beams: 1, lines: w.lines, attack: true } : null;
+      return w ? { name: it.name, hit: w.hit, beams: 1, lines: w.lines, attack: true, action: it.action || "action" } : null;
     }
     if (kind === "spell") {
       const sp = findEntity(c, "spell", id);
       if (!sp) return null;
       const cast = spellCast(c, d, sp, S.lastCast[id] || null, sp.cost === "item" ? S.lastExtra[id] || 0 : 0);
-      return { name: sp.name, hit: spellAtk(d, sp), beams: cast.beams, lines: cast.lines.map(l => ({ dice: l.dice, type: l.type })), attack: !!sp.attack };
+      return { name: sp.name, hit: spellAtk(d, sp), beams: cast.beams, lines: cast.lines.map(l => ({ dice: l.dice, type: l.type })), attack: !!sp.attack, action: sp.action || "action" };
     }
     return null;
   }
@@ -624,6 +647,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       const p = attackProfile(AK[k], a);
       if (!p) return;
       const kind = AK[k];
+      markAction(p.action);
       if (p.beams > 1) {
         const st = rollSetup("attack", "", takeMode());
         const rs = Array.from({ length: p.beams }, () => rollD20(p.hit, st.mode));
@@ -836,6 +860,7 @@ export function mountSheet(root, id, initialTab, navigate) {
   }
 
   function castFromItem(sp, chosen) {
+    markAction(sp.action || "action");
     const info = itemSpellInfo(S.c, S.d, sp);
     if (!info) return toast("Выбери в заклинании предмет с зарядами (кнопка «Изменить»)", { kind: "bad" });
     if (!info.uses) return toast(`У предмета «${esc(info.item.name)}» не указаны заряды`, { kind: "bad" });
@@ -869,6 +894,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     const { d } = S;
     if (readOnly()) return;
     if (sp.cost === "item") return castFromItem(sp, chosenLevel);
+    markAction(sp.action || "action");
     const lvl = Number(sp.level) || 0;
     let castLevel = null;
     if (lvl > 0 && sp.cost === "slot") {
@@ -909,6 +935,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (!u && !pactCost) return;
     if (delta > 0 && u && u.left <= 0) return toast("Использования закончились", { kind: "bad" });
     if (pactCost && delta > 0 && S.d.pact && !pactLeft()) return toast("Нет свободных ячеек договора", { kind: "bad" });
+    if (delta > 0) markAction(e.action);
     mutate(c => {
       const x = findEntity(c, kind, e.id);
       if (!x) return;
@@ -1470,8 +1497,11 @@ export function mountSheet(root, id, initialTab, navigate) {
       ["roll-mode", "d20", "Режим броска: " + (S.rollMode === "adv" ? "преимущество" : S.rollMode === "dis" ? "помеха" : "обычный")],
       ["dice", "d20", "Бросить кубы"],
       ["roll-log", "scroll", "Журнал бросков"],
+      ["fx-sound", "bell", "Звуки бросков: " + (fxSettings().sound ? "включены" : "выключены")],
+      ["fx-anim", "d20", "Анимация кубов: " + (fxSettings().anim ? "включена" : "выключена")],
       ...(r.canEdit ? [["history", "history", "История изменений"]] : []),
       ["share", "link", manage && cloud && a.enforced ? "Поделиться и доступ" : "Поделиться"],
+      ["print", "scroll", "Печать и PDF"],
       ["export", "download", "Скачать файл персонажа"],
       ...(r.canEdit ? [["import", "upload", "Заменить из файла"]] : []),
       ...(!cloud || a.canCreate ? [["duplicate", "copy", r.canEdit ? "Сделать копию" : "Копия себе"]] : []),
@@ -1509,6 +1539,19 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "long-rest": return longRest();
       case "roll-log": return rollLogDialog();
       case "dice": return openDiceRoller();
+      case "print": {
+        const { openPrint } = await import("./print.js");
+        return openPrint(c, S.d);
+      }
+      case "fx-sound": {
+        const v = setFx("sound", !fxSettings().sound);
+        if (v.sound) playSound("crit");
+        return toast(v.sound ? "Звуки бросков включены" : "Звуки бросков выключены", { timeout: 1800 });
+      }
+      case "fx-anim": {
+        const v = setFx("anim", !fxSettings().anim);
+        return toast(v.anim ? "Анимация кубов включена" : "Анимация кубов выключена", { timeout: 1800 });
+      }
       case "history": return historyDialog();
       case "accounts": return openAccounts();
       case "share": return openShare({ ...c, id });
@@ -1618,6 +1661,16 @@ export function mountSheet(root, id, initialTab, navigate) {
         if (!ids.length) return;
         if (!(await confirmDialog(`Удалить ${ids.length} ${ids.length === 1 ? "запись" : ids.length < 5 ? "записи" : "записей"} атак, которые повторяют заклинания или оружие? Старая версия останется в истории.`, { ok: "Удалить" }))) return;
         return mutate(ch => { ch.attacks = ch.attacks.filter(x => !ids.includes(x.id)); });
+      }
+      case "turn-toggle":
+        S.ui.turn[el.dataset.k] = !S.ui.turn[el.dataset.k];
+        return saveTurn();
+      case "new-turn": {
+        S.ui.turn = { action: false, bonus: false, reaction: false };
+        saveTurn();
+        const timed = (c.effects || []).some(x => x.rounds != null);
+        if (timed && !readOnly()) return runAction("next-round", el);
+        return toast(`${icon("history")} Новый ход`, { timeout: 1500 });
       }
       case "add-effect": return effectPicker();
       case "edit-effect": {
