@@ -12,8 +12,8 @@ export function installRolls(X) {
     return { mode: resolveMode(manual, ctx), why: rollReasons(manual, ctx), fail: ctx.autoFail, bonus: ctx.bonus };
   }
 
-  function addBonus(r, st) {
-    const parts = st.bonus.map(b => {
+  function addBonus(r, st, skipOnce = false) {
+    const parts = st.bonus.filter(b => !(skipOnce && b.once)).map(b => {
       const x = rollDice(b.expr);
       return { ...b, value: x ? x.total : 0 };
     });
@@ -120,12 +120,12 @@ export function installRolls(X) {
     if (kind === "attack") {
       const at = findEntity(c, "attack", id);
       const s = d.attacks[id];
-      return at && s ? { name: at.name, hit: s.hit, beams: s.beams, lines: [{ dice: s.dmg, type: s.type }], attack: s.kind === "attack", action: at.action || "action" } : null;
+      return at && s ? { name: at.name, hit: s.hit, beams: s.beams, lines: [{ dice: s.dmg, type: s.type }], attack: s.kind === "attack", weapon: at.ability !== "spell", ability: at.ability, action: at.action || "action" } : null;
     }
     if (kind === "item") {
       const it = findEntity(c, "item", id);
       const w = it && it.atkAbility ? d.weapons[id] || weaponStats(c, d, it) : null;
-      return w ? { name: it.name, hit: w.hit, beams: 1, lines: w.lines, attack: true, action: it.action || "action" } : null;
+      return w ? { name: it.name, hit: w.hit, beams: 1, lines: w.lines, attack: true, weapon: true, ability: w.ability, action: it.action || "action" } : null;
     }
     if (kind === "spell") {
       const sp = findEntity(c, "spell", id);
@@ -148,10 +148,8 @@ export function installRolls(X) {
     return b.join("");
   }
 
-  function hitDamage(kind, aid, n, crits) {
-    const p = attackProfile(kind, aid);
-    if (!p) return;
-    const extra = p.attack ? effectDamage(S.c) : [];
+  function profileLines(p, n, crits) {
+    const extra = p.attack ? effectDamage(S.c, { weapon: p.weapon, ability: p.ability }) : [];
     const lines = [];
     for (let i = 0; i < n; i++) {
       const crit = i < crits;
@@ -159,7 +157,13 @@ export function installRolls(X) {
       p.lines.forEach(l => lines.push({ dice: l.dice, type: l.type, crit, tag }));
       extra.forEach(x => lines.push({ dice: x.dice, type: x.type || (p.lines[0] || {}).type || "bludgeoning", crit, tag: (tag ? tag + " · " : "") + x.name }));
     }
-    rollDamage(`${p.name}: урон${n > 1 ? ` (${n} ${n < 5 ? "луча" : "лучей"})` : ""}`, lines, false);
+    return lines;
+  }
+
+  function hitDamage(kind, aid, n, crits) {
+    const p = attackProfile(kind, aid);
+    if (!p) return;
+    rollDamage(`${p.name}: урон${n > 1 ? ` (${n} ${n < 5 ? "луча" : "лучей"})` : ""}`, profileLines(p, n, crits), false);
   }
 
   function doRoll(spec) {
@@ -175,7 +179,7 @@ export function installRolls(X) {
     if (k === "init") return d20("Инициатива", d.init, "check", "dex");
     if (k === "spellatk") return d20("Атака заклинанием", d.spell.atk, "attack");
     const AK = { attack: "attack", iattack: "item", sattack: "spell" };
-    const DK = { dmg: "attack", idmg: "item", sdmg: "spell", crit: "attack" };
+    const DK = { dmg: "attack", idmg: "item", sdmg: "spell", crit: "attack", icrit: "item" };
     if (AK[k]) {
       const p = attackProfile(AK[k], a);
       if (!p) return;
@@ -185,7 +189,7 @@ export function installRolls(X) {
       if (p.beams > 1) {
         const st = rollSetup("attack", "", X.takeMode());
         const rs = Array.from({ length: p.beams }, () => rollD20(p.hit, st.mode));
-        const parts = rs.flatMap(r => addBonus(r, st));
+        const parts = rs.flatMap((r, i) => addBonus(r, st, i > 0));
         const crits = rs.filter(r => r.nat20).length;
         showBeams(`${p.name}: ${p.beams} ${p.beams < 5 ? "луча" : "лучей"}`, p.hit, rs, st.mode, { why: [...bonusLines(parts), ...st.why], extra: dmgButtons(kind, a, p.beams, crits, rs.every(r => r.nat1)) });
         consumeOnce(st);
@@ -196,10 +200,9 @@ export function installRolls(X) {
     if (DK[k]) {
       const p = attackProfile(DK[k], a);
       if (!p) return;
-      const n = k === "crit" ? 1 : p.beams;
-      const lines = [];
-      for (let i = 0; i < n; i++) p.lines.forEach(l => lines.push({ dice: l.dice, type: l.type, tag: n > 1 ? `Луч ${i + 1}` : "" }));
-      return rollDamage(`${p.name}: урон${n > 1 ? ` (${n} ${n < 5 ? "луча" : "лучей"})` : ""}`, lines, k === "crit");
+      const crit = k === "crit" || k === "icrit";
+      const n = crit ? 1 : p.beams;
+      return rollDamage(`${p.name}: урон${n > 1 ? ` (${n} ${n < 5 ? "луча" : "лучей"})` : ""}`, profileLines(p, n, crit ? 1 : 0), crit);
     }
     if (k === "death") {
       if (c.hp.deathFail >= 3) return toast("Персонаж погиб: спасброски больше не нужны", { kind: "bad" });
@@ -238,9 +241,10 @@ export function installRolls(X) {
     return [["", "Без типа"], ...DAMAGE_TYPES.map(t => [t, DAMAGE[t].name + mark(t)])];
   }
 
-  function applyHp(action, value, type = "") {
+  function applyHp(action, value, type = "", { crit = false } = {}) {
     const raw = Math.abs(Math.floor(Number(value) || 0));
     if (!raw && action !== "set") return;
+    if ((action === "heal" || action === "temp") && (Number(S.c.hp.deathFail) || 0) >= 3) return toast(`${icon("skull")} Погибшего не вылечить обычным лечением. Если персонажа воскресили, задай хиты кнопкой «Задать».`, { kind: "bad", timeout: 6000 });
     let n = raw;
     let note = "";
     if (action === "dmg" && type) {
@@ -254,6 +258,7 @@ export function installRolls(X) {
     }
     let concDc = 0;
     let concLost = "";
+    let killed = "";
     const ok = X.mutate(c => {
       const hp = c.hp;
       hp.current = X.curHp(c);
@@ -264,9 +269,15 @@ export function installRolls(X) {
         if (hp.current <= 0 && rest > 0) {
           if (hp.stable) hp.deathSuccess = 0;
           hp.stable = false;
-          hp.deathFail = Math.min(3, hp.deathFail + 1);
+          if (rest >= S.d.hpMax) killed = `урон ${rest} не меньше максимума хитов (${S.d.hpMax})`;
+          hp.deathFail = killed ? 3 : Math.min(3, hp.deathFail + (crit ? 2 : 1));
         } else {
+          const over = rest - hp.current;
           X.setHp(c, hp.current - rest);
+          if (over > 0 && over >= S.d.hpMax) {
+            killed = `после 0 хитов осталось ${over} урона, это не меньше максимума хитов (${S.d.hpMax})`;
+            hp.deathFail = 3;
+          }
         }
         if (c.concentration && n > 0) {
           if (hp.current <= 0) {
@@ -283,6 +294,7 @@ export function installRolls(X) {
       }
     });
     if (ok === false) return;
+    if (killed) toast(`${icon("skull")} <b>Мгновенная смерть:</b> ${esc(killed)}.`, { kind: "bad", timeout: 9000 });
     if (action === "dmg" && X.curHp() <= 0 && !S.c.hp.stable && S.c.hp.deathFail < 3 && X.tipsOn()) toast(`${icon("skull")} <b>0 хитов: ты без сознания.</b> В начале каждого хода спасбросок от смерти. Лечение сразу поднимает.`, { kind: "bad", timeout: 8000 });
     if (note) toast(`${icon("shield")} ${esc(note)}`, { kind: "info" });
     if (concLost) toast(`${icon("spiral")} Концентрация на «${esc(concLost)}» прервана: персонаж без сознания`, { kind: "bad" });
@@ -292,17 +304,20 @@ export function installRolls(X) {
   async function hpDialog(mode) {
     const titles = { dmg: "Урон", heal: "Лечение", temp: "Временные хиты" };
     const withType = !mode || mode === "dmg";
+    const down = X.curHp() <= 0 && (Number(S.c.hp.deathFail) || 0) < 3;
     const res = await promptNumber(mode ? titles[mode] : "Хиты", {
       label: `Сейчас: ${X.curHp()} / ${S.d.hpMax}${S.c.hp.temp ? ` (+${S.c.hp.temp} врем.)` : ""}`,
       value: "",
       select: withType ? { label: "Тип урона", options: typeOptions(), value: S.ui.lastDmgType || "", hint: "Сопротивления и уязвимости учтутся сами" } : null,
       buttons: mode
-        ? [{ label: titles[mode], value: mode, cls: mode === "dmg" ? "danger" : mode === "heal" ? "heal" : "gold" }]
-        : [{ label: "Урон", value: "dmg", cls: "danger" }, { label: "Лечение", value: "heal", cls: "heal" }, { label: "Врем.", value: "temp", cls: "ghost" }, { label: "Задать", value: "set", cls: "ghost" }]
+        ? [{ label: titles[mode], value: mode, cls: mode === "dmg" ? "danger" : mode === "heal" ? "heal" : "gold" }, ...(mode === "dmg" && down ? [{ label: "Крит. удар", value: "crit", cls: "danger" }] : [])]
+        : [{ label: "Урон", value: "dmg", cls: "danger" }, ...(down ? [{ label: "Крит. удар", value: "crit", cls: "danger" }] : []), { label: "Лечение", value: "heal", cls: "heal" }, { label: "Врем.", value: "temp", cls: "ghost" }, { label: "Задать", value: "set", cls: "ghost" }]
     });
     if (!res || S.disposed) return;
     if (withType) S.ui.lastDmgType = res.type;
-    applyHp(res.action, res.value, res.action === "dmg" ? res.type : "");
+    const crit = res.action === "crit";
+    const action = crit ? "dmg" : res.action;
+    applyHp(action, res.value, action === "dmg" ? res.type : "", { crit });
   }
 
   function spendHitDie() {

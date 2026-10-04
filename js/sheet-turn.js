@@ -68,7 +68,7 @@ export function installTurn(X) {
       if (!x) return;
       X.markAction(kind);
       if (x.roll) return X.doRoll(x.roll);
-      if (x.effect && !X.readOnly()) return addEffect(presetEffect(x.effect));
+      if (x.effect && !X.readOnly()) return addEffect(presetEffect(x.effect, {}, S.d.level));
       if (x.key === "dash") return toast(`${icon("boot")} Рывок: ещё ${d.speed} фт перемещения в этом ходу`, { kind: "good" });
       toast(`${icon("check")} ${esc(x.name)}`, { timeout: 2000 });
     });
@@ -102,7 +102,7 @@ export function installTurn(X) {
       if (!b) return;
       m.close();
       if (!b.dataset.pre) return editEffect(null);
-      addEffect(presetEffect(b.dataset.pre));
+      addEffect(presetEffect(b.dataset.pre, {}, S.d.level));
     });
   }
 

@@ -537,6 +537,7 @@ export function effectFields() {
     { key: "speedX2", label: "Скорость вдвое", type: "checkbox" },
     { key: "dmg", label: "К урону атак", placeholder: "1d6" },
     { key: "dmgType", label: "Тип доп. урона", type: "select", options: [["", "Как у атаки"], ...Object.entries(DAMAGE).filter(([k]) => k !== "healing" && k !== "temp").map(([k, t]) => [k, t.name])] },
+    { key: "dmgOn", label: "Урон добавляется", type: "select", options: [["", "К любой атаке"], ["weapon", "Только к атакам оружием"], ["str", "Только к атакам оружием на Силе"]] },
     { key: "until", label: "Снимается отдыхом", type: "select", options: [["", "Длинным"], ["short", "Коротким"]] },
     { key: "adv", label: "Преимущество на", type: "flags", options: ROLL_FLAGS, span: 3 },
     { key: "dis", label: "Помеха на", type: "flags", options: ROLL_FLAGS, span: 3 },

@@ -682,7 +682,7 @@ export function mountSheet(root, id, initialTab, navigate) {
         const has = (c.effects || []).some(x => x.preset === key);
         return mutate(ch => {
           ch.effects = (ch.effects || []).filter(x => x.preset !== "cover2" && x.preset !== "cover5");
-          if (!has) ch.effects.push(presetEffect(key));
+          if (!has) ch.effects.push(presetEffect(key, {}, S.d.level));
         });
       }
       case "collect-ammo": {
@@ -912,7 +912,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     const tf = e.target.closest("#toasts [data-temp-force]");
     if (tf) X.giveTemp(Number(tf.dataset.tempForce) || 0, true);
     const ae = e.target.closest("#toasts [data-add-effect]");
-    if (ae) X.addEffect(presetEffect(ae.dataset.addEffect, { mine: ae.dataset.mine === "1", concName: ae.dataset.mine === "1" ? ae.dataset.conc : "" }));
+    if (ae) X.addEffect(presetEffect(ae.dataset.addEffect, { mine: ae.dataset.mine === "1", concName: ae.dataset.mine === "1" ? ae.dataset.conc : "" }, S.d.level));
     const hit = e.target.closest("#toasts [data-hit-dmg]");
     if (hit) X.hitDamage(hit.dataset.kind || "attack", hit.dataset.hitDmg, Number(hit.dataset.n) || 1, Number(hit.dataset.c) || 0);
     const crit = e.target.closest("#toasts [data-crit]");

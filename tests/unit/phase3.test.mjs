@@ -191,7 +191,9 @@ test("effects: bonuses, AC, speed, resistances and cleaning", () => {
   assert.equal(R.rollContext(c, "death").bonus[0].name, "Благословение");
   assert.equal(R.resolveMode("normal", R.rollContext(c, "save", "dex")), "adv");
   assert.equal(R.resolveMode("normal", R.rollContext(c, "save", "wis")), "normal");
-  assert.deepEqual(R.effectDamage(c).map(x => x.dice + x.type), ["1d6necrotic", "2"]);
+  assert.deepEqual(R.effectDamage(c, { weapon: true, ability: "str" }).map(x => x.dice + x.type), ["1d6necrotic", "2"]);
+  assert.deepEqual(R.effectDamage(c, { weapon: true, ability: "dex" }).map(x => x.dice + x.type), ["1d6necrotic"]);
+  assert.deepEqual(R.effectDamage(c).map(x => x.dice + x.type), ["1d6necrotic"]);
   const dirty = R.normalize({ name: "x", effects: [{ name: "<b>", attack: "abc", ac: "3", adv: ["attack", "evil", "save:dex"], resist: ["fire", "nope"], rounds: "-5", dmgType: "zzz" }, "junk"] }).effects;
   assert.equal(dirty.length, 2);
   assert.equal(dirty[0].attack, "");

@@ -59,10 +59,10 @@ export const EFFECT_PRESETS = {
   shield: { name: "Щит", ac: 5, rounds: 1, note: "+5 к КД до начала твоего хода" },
   haste: { name: "Ускорение", ac: 2, speedX2: true, adv: ["save:dex"], rounds: 10, conc: true, note: "+2 КД, скорость вдвое, преимущество на спасброски Ловкости" },
   hex: { name: "Сглаз", dmg: "1d6", dmgType: "necrotic", rounds: 600, conc: true, note: "+1d6 некротического урона по цели" },
-  huntersMark: { name: "Метка охотника", dmg: "1d6", rounds: 600, conc: true, note: "+1d6 урона по цели" },
-  enlarge: { name: "Увеличение", dmg: "1d4", adv: ["check:str", "save:str"], rounds: 10, conc: true, note: "+1d4 к урону оружием, преимущество на Силу" },
-  reduce: { name: "Уменьшение", dmg: "-1d4", dis: ["check:str", "save:str"], rounds: 10, conc: true, note: "−1d4 к урону оружием, помеха на Силу" },
-  rage: { name: "Ярость", dmg: "2", adv: ["check:str", "save:str"], resist: ["bludgeoning", "piercing", "slashing"], rounds: 10, note: "+2 к урону, сопротивление дробящему, колющему, рубящему" },
+  huntersMark: { name: "Метка охотника", dmg: "1d6", dmgOn: "weapon", rounds: 600, conc: true, note: "+1d6 урона по цели" },
+  enlarge: { name: "Увеличение", dmg: "1d4", dmgOn: "weapon", adv: ["check:str", "save:str"], rounds: 10, conc: true, note: "+1d4 к урону оружием, преимущество на Силу" },
+  reduce: { name: "Уменьшение", dmg: "-1d4", dmgOn: "weapon", dis: ["check:str", "save:str"], rounds: 10, conc: true, note: "−1d4 к урону оружием, помеха на Силу" },
+  rage: { name: "Ярость", dmg: "2", dmgOn: "str", adv: ["check:str", "save:str"], resist: ["bludgeoning", "piercing", "slashing"], rounds: 10, note: "+2 к урону рукопашным оружием на Силе (+3 с 9 уровня, +4 с 16), сопротивление дробящему, колющему, рубящему" },
   cover2: { name: "Половинное укрытие", ac: 2, dexSave: 2, rounds: 1, note: "+2 к КД и спасброскам Ловкости до следующего хода" },
   cover5: { name: "Укрытие на три четверти", ac: 5, dexSave: 5, rounds: 1, note: "+5 к КД и спасброскам Ловкости до следующего хода" },
   dodge: { name: "Уклонение", adv: ["save:dex"], rounds: 1, note: "Атаки по тебе с помехой, преимущество на спасброски Ловкости" },
@@ -339,7 +339,7 @@ export function parseDice(expr) {
     const body = p.replace(/^[+-]/, "");
     const m = body.match(/^(\d*)d(\d+)$/);
     if (m) {
-      dice.push({ n: (Number(m[1]) || 1) * sign, f: Number(m[2]) });
+      dice.push({ n: (m[1] === "" ? 1 : Number(m[1])) * sign, f: Number(m[2]) });
     } else if (/^\d+$/.test(body)) {
       flat += sign * Number(body);
     } else {
@@ -533,6 +533,7 @@ export function cleanEffect(e, i = 0) {
     check: diceOrEmpty(x.check),
     dmg: diceOrEmpty(x.dmg),
     dmgType: DAMAGE_TYPES.includes(x.dmgType) ? x.dmgType : "",
+    dmgOn: ["weapon", "str"].includes(x.dmgOn) ? x.dmgOn : "",
     ac: Math.round(num(x.ac)),
     dexSave: Math.round(num(x.dexSave)),
     speed: Math.round(num(x.speed)),
@@ -549,10 +550,16 @@ export function cleanEffect(e, i = 0) {
   };
 }
 
-export function presetEffect(key, extra = {}) {
+export function rageDamage(level) {
+  const l = Number(level) || 1;
+  return l >= 16 ? 4 : l >= 9 ? 3 : 2;
+}
+
+export function presetEffect(key, extra = {}, level = 0) {
   const p = EFFECT_PRESETS[key];
   if (!p) return null;
-  return cleanEffect({ ...p, preset: key, id: "ef-" + uid(), ...extra });
+  const scaled = key === "rage" && level ? { dmg: String(rageDamage(level)), note: `+${rageDamage(level)} к урону рукопашным оружием на Силе, сопротивление дробящему, колющему, рубящему` } : {};
+  return cleanEffect({ ...p, ...scaled, preset: key, id: "ef-" + uid(), ...extra });
 }
 
 export const NOTE_KEYS = ["patron", "quests", "people", "misc"];
@@ -824,8 +831,9 @@ export function rollContext(c, kind, ability) {
   return { adv, dis, warn, autoFail, bonus };
 }
 
-export function effectDamage(c) {
-  return (Array.isArray(c.effects) ? c.effects : []).filter(e => e.dmg).map(e => ({ dice: e.dmg, type: e.dmgType, name: e.name }));
+export function effectDamage(c, on = {}) {
+  const fits = e => !e.dmgOn || (e.dmgOn === "weapon" ? !!on.weapon : !!on.weapon && on.ability === "str");
+  return (Array.isArray(c.effects) ? c.effects : []).filter(e => e.dmg && fits(e)).map(e => ({ dice: e.dmg, type: e.dmgType, name: e.name }));
 }
 
 export function effectSummary(e) {

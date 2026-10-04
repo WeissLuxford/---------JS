@@ -137,7 +137,7 @@ export function installDialogs(X) {
       X.mutate(c => {
         c.pactUsed = 0;
         X.resetUses(c, ["short"]);
-        c.effects = (c.effects || []).filter(e => e.rounds == null && e.until !== "short");
+        c.effects = (c.effects || []).filter(e => e.until !== "short" && (e.rounds == null || e.rounds > 600)).map(e => (e.rounds == null ? e : { ...e, rounds: e.rounds - 600 }));
       });
       m.close();
       restSummary("Короткий отдых", "campfire", before);
@@ -145,19 +145,23 @@ export function installDialogs(X) {
   }
 
   async function longRest() {
-    if (!(await confirmDialog("Длинный отдых: полные хиты, все ячейки и умения восстановлены, вернётся половина костей хитов. Продолжить?", { ok: "Отдохнуть" }))) return;
     if (S.c.hp.deathFail >= 3) return toast("Погибший персонаж не может отдохнуть", { kind: "bad" });
+    if (X.curHp() <= 0) return toast("Длинный отдых не даёт пользы, если в его начале у персонажа 0 хитов. Сначала стабилизируйся и получи хотя бы 1 хит (лечение или 1d4 часа после стабилизации).", { kind: "bad", timeout: 8000 });
+    if (!(await confirmDialog("Длинный отдых: полные хиты, все ячейки и умения восстановлены, вернётся половина костей хитов. Продолжить?", { ok: "Отдохнуть" }))) return;
     const before = clone(S.c);
     X.mutate(c => {
       const lvl = S.d.level;
-      X.setHp(c, S.d.hpMax);
+      if (c.exhaustion > 0) c.exhaustion -= 1;
+      c.effects = [];
+      c.hp.current = compute(c).hpMax;
+      c.hp.deathSuccess = 0;
+      c.hp.deathFail = 0;
+      c.hp.stable = false;
       c.hp.temp = 0;
       c.hp.hitDiceUsed = Math.max(0, (Number(c.hp.hitDiceUsed) || 0) - Math.max(1, Math.floor(lvl / 2)));
       c.pactUsed = 0;
       c.slotsUsed = {};
       c.concentration = "";
-      c.effects = [];
-      if (c.exhaustion > 0) c.exhaustion -= 1;
       X.resetUses(c, ["short", "long", "dawn"]);
     });
     restSummary("Длинный отдых", "moon", before);

@@ -157,7 +157,7 @@ export function installCards(X) {
       if (x === "spell-dmg" || x === "spell-crit") {
         const cast = spellCast(S.c, S.d, e, S.lastCast[e.id] || null, e.cost === "item" ? S.lastExtra[e.id] || 0 : 0);
         const lines = [];
-        const extra = e.attack ? effectDamage(S.c) : [];
+        const extra = e.attack ? effectDamage(S.c, { weapon: false }) : [];
         for (let i = 0; i < cast.beams; i++) {
           lines.push(...cast.lines);
           extra.forEach(x => lines.push({ dice: x.dice, type: x.type || (cast.lines[0] || {}).type || "force", tag: x.name }));
@@ -178,10 +178,7 @@ export function installCards(X) {
       if (x === "qty-" || x === "qty+") return X.mutate(c => { const it = findEntity(c, "item", eid); if (it) it.qty = Math.max(0, (Number(it.qty) || 0) + (x === "qty+" ? 1 : -1)); });
       if (x === "w-atk") return X.doRoll("iattack:" + eid);
       if (x === "w-dmg") return X.doRoll("idmg:" + eid);
-      if (x === "w-crit") {
-        const p = X.attackProfile("item", eid);
-        return p && X.rollDamage(`${p.name}: урон`, p.lines, true);
-      }
+      if (x === "w-crit") return X.doRoll("icrit:" + eid);
       if (x === "atk") return X.doRoll("attack:" + eid);
       if (x === "dmg") return X.doRoll("dmg:" + eid);
       if (x === "crit") return X.doRoll("crit:" + eid);

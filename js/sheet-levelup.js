@@ -26,13 +26,16 @@ export function installLevelUp(X) {
     const preview = () => {
       const next = clone(c);
       next.info.level = plan.to;
-      const gain = (st.hpMode === "roll" && st.roll != null ? st.roll : avg);
-      next.hp.rollAdj = (Number(next.hp.rollAdj) || 0) + (gain - avg);
       if (plan.asi && st.asi === "two" && st.a1 && st.a2 && st.a1 !== st.a2) {
         next.abilities[st.a1] = Math.min(20, next.abilities[st.a1] + 1);
         next.abilities[st.a2] = Math.min(20, next.abilities[st.a2] + 1);
       }
       if (plan.asi && st.asi === "one" && st.a1) next.abilities[st.a1] = Math.min(20, next.abilities[st.a1] + 2);
+      const con1 = compute(normalize(next)).mods.con;
+      const gain = st.hpMode === "roll" && st.roll != null ? st.roll : avg;
+      const levelHp = Math.max(1, gain + con1);
+      next.hp.rollAdj = (Number(next.hp.rollAdj) || 0) + levelHp - Math.max(1, avg + con1);
+      if (next.hp.maxOverride != null && next.hp.maxOverride !== "") next.hp.maxOverride = Number(next.hp.maxOverride) + levelHp + (con1 - con) * from;
       return { next, d0: S.d, d1: compute(normalize(next)), gain };
     };
     const changesHtml = () => {
@@ -115,6 +118,7 @@ export function installLevelUp(X) {
       X.withUndo("Повышение уровня", () => X.mutate(ch => {
         ch.info.level = next.info.level;
         ch.hp.rollAdj = next.hp.rollAdj;
+        ch.hp.maxOverride = next.hp.maxOverride;
         ch.abilities = next.abilities;
         ch.hp.current = Math.min(d1.hpMax, (Number(ch.hp.current) || 0) + gained);
         if (st.asi === "feat") ch.features.push({ id: "ft-" + uid(), name: st.feat.trim().slice(0, 80), nameEn: "", category: "feat", source: "", action: "passive", recharge: "always", uses: "", used: 0, slot: "none", range: "", duration: "", save: "", damage: [], description: "", effect: "" });
