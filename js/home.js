@@ -3,6 +3,7 @@ import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, timeAgo, toast, openForm, pickFile } from "./ui.js";
 import { subscribeList, createChar, getMode, onStatus } from "./store.js";
 import { subtitle } from "./tabs.js";
+import { shortWho } from "./device.js";
 
 export function mountHome(root, navigate) {
   document.title = "Листы персонажей";
@@ -28,7 +29,7 @@ export function mountHome(root, navigate) {
       return;
     }
     fromCache = !!meta.fromCache;
-    list = items.map(x => ({ ...normalize(x), id: x.id, updatedAt: Number(x.updatedAt) || 0 }));
+    list = items.map(x => ({ ...normalize(x), id: x.id, updatedAt: Number(x.updatedAt) || 0, updatedBy: x.updatedBy && typeof x.updatedBy === "object" ? x.updatedBy : null }));
     paint();
   });
 
@@ -39,7 +40,7 @@ export function mountHome(root, navigate) {
         <span class="ch-name">${esc(c.name)}</span>
         <span class="ch-sub">${esc(subtitle(c))}</span>
         <span class="ch-sub dim">${esc([c.info.subclass, c.info.background].filter(Boolean).join(" · "))}</span>
-        <span class="ch-time">${c.updatedAt ? "изменён " + timeAgo(c.updatedAt) : ""}</span>
+        <span class="ch-time">${c.updatedAt ? "изменён " + timeAgo(c.updatedAt) + (shortWho(c.updatedBy) ? " · " + esc(shortWho(c.updatedBy)) : "") : ""}</span>
       </span>
     </a>`;
   }

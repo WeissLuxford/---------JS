@@ -1,5 +1,6 @@
 import { FIREBASE_CONFIG, FIREBASE_VERSION } from "./config.js";
 import { DELETE, applyPaths } from "./sync.js";
+import { whoAmI } from "./device.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
 const LS_CHARS = "dnd.chars";
@@ -189,6 +190,7 @@ export async function saveChanges(id, changes, full) {
     const doc = map[id] ? map[id] : stripId(full);
     applyPaths(doc, changes);
     doc.updatedAt = now;
+    doc.updatedBy = whoAmI();
     map[id] = doc;
     writeLocal(map);
     setStatus({ state: "saved", error: "" });
@@ -199,7 +201,7 @@ export async function saveChanges(id, changes, full) {
   for (const [path, value] of changes) {
     args.push(new fs.FieldPath(...path), value === DELETE ? fs.deleteField() : value);
   }
-  args.push("updatedAt", now);
+  args.push("updatedAt", now, "updatedBy", whoAmI());
   pending++;
   setStatus({ state: navigator.onLine === false ? "offline" : "saving", error: navigator.onLine === false ? OFFLINE_MSG : "" });
   const slow = setTimeout(() => setStatus({ state: "offline", error: OFFLINE_MSG }), 6000);
@@ -223,7 +225,7 @@ export async function saveChanges(id, changes, full) {
 
 export async function createChar(id, c) {
   const now = Date.now();
-  const data = { ...stripId(c), createdAt: now, updatedAt: now };
+  const data = { ...stripId(c), createdAt: now, updatedAt: now, updatedBy: whoAmI() };
   if (mode === "local") {
     const map = readLocal();
     map[id] = data;
@@ -252,7 +254,8 @@ export async function createIfMissing(id, c) {
 export async function addHistory(id, data, reason) {
   const body = stripId(data);
   delete body.portrait;
-  const entry = { at: Date.now(), reason: reason || "", data: body };
+  delete body.updatedBy;
+  const entry = { at: Date.now(), reason: reason || "", by: whoAmI(), data: body };
   try {
     if (mode === "cloud") {
       await fs.addDoc(fs.collection(db, "characters", id, "history"), entry);

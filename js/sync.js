@@ -4,7 +4,7 @@ const isObj = v => v !== null && typeof v === "object" && !Array.isArray(v);
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-const SKIP = new Set(["id", "updatedAt", "createdAt"]);
+const SKIP = new Set(["id", "updatedAt", "createdAt", "updatedBy"]);
 
 export function diffPaths(base, cur, depth = 2, prefix = []) {
   const out = [];

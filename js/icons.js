@@ -80,7 +80,11 @@ const P = {
   notebook: '<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 3v18M12 8h4M12 12h4"/>',
   medkit: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4h6v3M12 10.5v6M9 13.5h6"/>',
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
-  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>'
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+  phone: '<rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/>',
+  tablet: '<rect x="4.5" y="2.5" width="15" height="19" rx="2"/><path d="M11 18.5h2"/>',
+  monitor: '<rect x="2.5" y="4" width="19" height="12.5" rx="1.5"/><path d="M8.5 20.5h7M12 16.5v4"/>',
+  signature: '<path d="M3 17c2.5-6 5-9 6.5-9 2 0-1.5 9 .5 9 1.5 0 2.5-4 4-4 1.2 0 .8 3 2 3 .8 0 1.6-1 2.5-1.8"/><path d="M3 21h18"/>'
 };
 
 export function icon(name, cls = "") {

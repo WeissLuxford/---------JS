@@ -8,12 +8,14 @@ import { TABS, RENDER, subtitle } from "./tabs.js";
 import { cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS } from "./entities.js";
 import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode } from "./store.js";
 import { diffPaths, applyPaths } from "./sync.js";
+import { describeChanges } from "./changes.js";
+import { describeWho, isMe, KIND_ICONS, editorName, setEditorName } from "./device.js";
 
 const SNAPSHOT_GAP = 10 * 60 * 1000;
 const lastSnapshot = new Map();
 const clone = v => JSON.parse(JSON.stringify(v));
 const abName = k => (ABILITIES.find(a => a.key === k) || {}).name || k;
-const META = ["updatedAt", "createdAt", "id"];
+const META = ["updatedAt", "createdAt", "updatedBy", "id"];
 
 function sameContent(a, b) {
   const strip = x => {
@@ -803,16 +805,30 @@ export function mountSheet(root, id, initialTab, navigate) {
       m.body.innerHTML = `<p class="empty">Сохранённых версий пока нет. Версия сохраняется автоматически перед правками (не чаще раза в 10 минут).</p>`;
       return;
     }
-    m.body.innerHTML = `<p class="hint">Здесь лист, каким он был в указанный момент. Восстановление тоже можно откатить: текущее состояние сначала уйдёт в историю. Портрет не меняется.</p><div class="hist">${list.map((h, i) => {
-      const hc = normalize(h.data || {});
-      const hd = compute(hc);
-      return `<div class="hist-row"><div><b>${dateTime(h.at, true)}</b>${h.reason ? ` <span class="hist-tag">${esc(h.reason)}</span>` : ""}<small>${esc(hc.name)} · ${esc(subtitle(hc))} · хиты ${esc(hc.hp.current)}/${hd.hpMax} · ${timeAgo(h.at)}</small></div><button class="btn sm" data-i="${i}">${icon("history")}Восстановить</button></div>`;
-    }).join("")}</div>`;
+    const REASONS = { "Перед восстановлением": "Восстановление версии", "Перед импортом": "Загрузка из файла" };
+    const rows = list.map((h, i) => {
+      const before = normalize(h.data || {});
+      const after = i === 0 ? S.c : normalize(list[i - 1].data || {});
+      const changes = describeChanges(before, after);
+      const shown = changes.slice(0, 8);
+      const more = changes.length - shown.length;
+      const by = h.by;
+      const reason = REASONS[h.reason] || "";
+      return `<article class="hist-item">
+        <header class="hist-head">
+          <span class="hist-dev">${icon(KIND_ICONS[by && by.kind] || "info")}</span>
+          <div class="hist-who"><b>${esc(describeWho(by))}</b>${isMe(by) ? `<span class="hist-tag me">это устройство</span>` : ""}${reason ? `<span class="hist-tag">${esc(reason)}</span>` : ""}<small>${dateTime(h.at, true)} · ${timeAgo(h.at)}${i === 0 ? " · последние правки" : ""}</small></div>
+        </header>
+        ${changes.length ? `<ul class="hist-changes">${shown.map(t => `<li>${esc(t)}</li>`).join("")}${more > 0 ? `<li class="dim">и ещё ${more}</li>` : ""}</ul>` : `<p class="hist-none">Видимых изменений нет</p>`}
+        <div class="hist-actions"><button class="btn sm ghost" data-i="${i}">${icon("history")}Вернуть как было до этих правок</button></div>
+      </article>`;
+    }).join("");
+    m.body.innerHTML = `<p class="hint">Каждая запись: кто правил, с какого устройства и что поменял. Кнопка возвращает лист к состоянию до этих правок, и это тоже можно откатить. Портрет не меняется.${editorName() ? "" : " Чтобы рядом с устройством стояло твоё имя, задай подпись в меню."}</p><div class="hist-list">${rows}</div>`;
     m.body.addEventListener("click", async e => {
       const b = e.target.closest("[data-i]");
       if (!b || b.disabled) return;
       const h = list[Number(b.dataset.i)];
-      if (!(await confirmDialog(`Вернуть лист к версии от ${dateTime(h.at, true)}?`, { ok: "Восстановить" }))) return;
+      if (!(await confirmDialog(`Вернуть лист к состоянию на ${dateTime(h.at, true)}, до этих правок?`, { ok: "Вернуть" }))) return;
       if (S.disposed) return;
       b.disabled = true;
       replaceWith(h.data || {}, "Перед восстановлением");
@@ -867,6 +883,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       ["roll-mode", "d20", "Режим броска: " + (S.rollMode === "adv" ? "преимущество" : S.rollMode === "dis" ? "помеха" : "обычный")],
       ["roll-log", "scroll", "Журнал бросков"],
       ["history", "history", "История изменений"],
+      ["sign", "signature", "Подпись в истории: " + (editorName() || "не задана")],
       ["copy-link", "link", "Скопировать ссылку"],
       ["export", "download", "Скачать файл персонажа"],
       ["import", "upload", "Загрузить из файла"],
@@ -895,6 +912,16 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "long-rest": return longRest();
       case "roll-log": return rollLogDialog();
       case "history": return historyDialog();
+      case "sign":
+        return openForm({
+          title: "Подпись в истории",
+          fields: [{ key: "name", label: "Как тебя подписывать", placeholder: "Например: Weiss или Мастер", span: 3, hint: "Сохраняется только в этом браузере. Пусто: будет видно только устройство." }],
+          value: { name: editorName() },
+          onSave: val => {
+            setEditorName(val.name);
+            toast(val.name.trim() ? `Правки с этого устройства будут подписаны: ${esc(val.name.trim())}` : "Подпись убрана", { kind: "good" });
+          }
+        });
       case "copy-link": {
         const url = location.href.split("#")[0] + `#/c/${id}`;
         try {
