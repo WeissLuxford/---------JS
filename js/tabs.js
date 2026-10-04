@@ -1,6 +1,6 @@
-import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, fmt, usesInfo, spellCast } from "./rules.js";
+import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, fmt, usesInfo, spellCast } from "./rules.js";
 import { icon, actionMark, PORTRAIT_PLACEHOLDER } from "./icons.js";
-import { esc, pips, rich } from "./ui.js";
+import { esc, pips, rich, plainPreview } from "./ui.js";
 import { spellIcon, itemIcon, fmtNum } from "./entities.js";
 
 export const TABS = [
@@ -33,6 +33,11 @@ function portraitHtml(c) {
   return c.portrait ? `<img src="${esc(c.portrait)}" alt="">` : PORTRAIT_PLACEHOLDER;
 }
 
+export function hpState(cur, max) {
+  const pct = (cur / Math.max(1, max)) * 100;
+  return cur <= 0 ? "down" : pct <= 25 ? "low" : pct <= 50 ? "mid" : "ok";
+}
+
 export function hpPanel(ctx) {
   const { c, d } = ctx;
   const cur = Math.max(0, Math.min(d.hpMax, Number(c.hp.current) || 0));
@@ -52,8 +57,8 @@ export function hpPanel(ctx) {
       ${deathBtn}
     </div>` : "";
   return panel("Хиты", `
-    <div class="hp-wrap ${dying ? "dying" : ""}">
-      <button class="hp-big" data-act="hp">
+    <div class="hp-wrap ${dying ? "dying" : ""}" data-hpstate="${hpState(cur, d.hpMax)}">
+      <button class="hp-big" data-act="hp" data-card="stat:hp">
         <span class="hp-nums"><span data-calc="hp">${cur}</span><small>/ <span data-calc="hpmax">${d.hpMax}</span></small></span>
         ${tmp ? `<span class="hp-temp">+${tmp} врем.</span>` : ""}
       </button>
@@ -63,6 +68,7 @@ export function hpPanel(ctx) {
         <button class="btn heal sm" data-act="hp" data-mode="heal">${icon("heart")}Лечение</button>
         <button class="btn ghost sm" data-act="hp" data-mode="temp">${icon("shield")}Врем.</button>
       </div>
+      <div class="hp-quick" aria-label="Быстро изменить хиты">${[-10, -5, -1, 1, 5, 10].map(n => `<button class="qbtn ${n < 0 ? "minus" : "plus"}" data-act="hp-quick" data-n="${n}" aria-label="${n < 0 ? "Урон" : "Лечение"} ${Math.abs(n)}">${n < 0 ? "−" + Math.abs(n) : "+" + n}</button>`).join("")}</div>
       <div class="hd-row">
         <span>Кости хитов: <b data-calc="hd">${d.hitDice.left}/${d.hitDice.total}</b> ${esc(c.hitDie)}</span>
         <button class="btn ghost sm" data-act="spend-hd" ${d.hitDice.left ? "" : "disabled"}>${icon("d20")}Потратить</button>
@@ -71,9 +77,13 @@ export function hpPanel(ctx) {
     </div>`, { ic: "heart", cls: "hp-panel" });
 }
 
-function statMedal(label, value, { calc, act, roll, ic, card } = {}) {
+function inspirationBtn(c) {
+  return `<button class="insp ${c.inspiration ? "on" : ""}" data-act="inspiration" data-card="stat:inspiration" aria-pressed="${c.inspiration ? "true" : "false"}">${icon("sun")}<span>${c.inspiration ? "Вдохновение есть" : "Нет вдохновения"}</span></button>`;
+}
+
+function statMedal(label, value, { calc, act, roll, ic, card, slow } = {}) {
   const tag = act || roll ? "button" : "div";
-  return `<${tag} class="medal" ${act ? `data-act="${act}"` : ""} ${roll ? `data-roll="${roll}"` : ""} ${card ? `data-card="${card}"` : ""}>${ic ? icon(ic) : ""}<span class="medal-v" ${calc ? `data-calc="${calc}"` : ""}>${esc(value)}</span><span class="medal-l">${esc(label)}</span></${tag}>`;
+  return `<${tag} class="medal ${slow ? "slow" : ""}" ${act ? `data-act="${act}"` : ""} ${roll ? `data-roll="${roll}"` : ""} ${card ? `data-card="${card}"` : ""}>${ic ? icon(ic) : ""}<span class="medal-v" ${calc ? `data-calc="${calc}"` : ""}>${esc(value)}</span><span class="medal-l">${esc(label)}</span></${tag}>`;
 }
 
 function concentrationBar(c) {
@@ -84,7 +94,15 @@ function concentrationBar(c) {
 function activeConditions(c) {
   const list = CONDITIONS.filter(k => c.conditions[k.key]);
   if (!list.length && !c.exhaustion) return "";
-  return `<div class="cond-active">${list.map(k => `<span class="chip bad" data-card="condition:${k.key}">${esc(k.name)}</span>`).join("")}${c.exhaustion ? `<span class="chip bad">Истощение ${esc(c.exhaustion)}</span>` : ""}</div>`;
+  return `<div class="cond-active">${list.map(k => `<span class="chip bad" data-card="condition:${k.key}">${esc(k.name)}</span>`).join("")}${c.exhaustion ? `<span class="chip bad" data-card="stat:exhaustion">Истощение ${esc(c.exhaustion)}</span>` : ""}</div>`;
+}
+
+function defenseLines(c) {
+  const rows = Object.entries(DEFENSE_KINDS).filter(([k]) => c.defenses[k].length).map(([k, label]) => `<div class="full def-row"><span>${label}:</span>${c.defenses[k].map(t => {
+    const dt = DAMAGE[t] || {};
+    return `<span class="def-chip" style="--c:${dt.color || "#cbbfa8"}">${icon(dt.icon || "sparkle")}${esc(dt.name || t)}</span>`;
+  }).join("")}</div>`).join("");
+  return rows + (c.resistances ? `<div class="full"><span class="dim">${esc(c.resistances)}</span></div>` : "");
 }
 
 export function tabChar(ctx) {
@@ -96,14 +114,14 @@ export function tabChar(ctx) {
     </div>`).join("");
   const saves = ABILITIES.map(a => `
     <div class="row">
-      <button class="prof ${c.saves[a.key] ? "p1" : ""}" data-act="toggle-save" data-k="${a.key}" title="Владение"></button>
+      <button class="prof ${c.saves[a.key] ? "p1" : ""}" data-act="toggle-save" data-k="${a.key}" title="Владение" aria-label="Владение спасброском: ${a.name}" aria-pressed="${c.saves[a.key] ? "true" : "false"}"></button>
       <button class="row-name" data-roll="save:${a.key}">${a.name}</button>
       <span class="row-val" data-calc="save.${a.key}">${fmt(d.saves[a.key])}</span>
     </div>`).join("");
   const skills = SKILLS.map(s => {
     const p = Number(c.skills[s.key]) || 0;
     return `<div class="row" data-card="skill:${s.key}">
-      <button class="prof p${p}" data-act="cycle-skill" data-k="${s.key}" title="Нет / владение / компетентность"></button>
+      <button class="prof p${p}" data-act="cycle-skill" data-k="${s.key}" title="Нет / владение / компетентность" aria-label="${s.name}: ${["нет владения", "владение", "компетентность"][p]}"></button>
       <button class="row-name" data-roll="skill:${s.key}">${s.name}<small>${abShort(s.ab)}</small></button>
       <span class="row-val" data-calc="skill.${s.key}">${fmt(d.skills[s.key])}</span>
     </div>`;
@@ -114,8 +132,8 @@ export function tabChar(ctx) {
   return `
   <div class="char-grid">
     <div class="col col-left">
-      ${panel("Характеристики", `<div class="abil-grid">${abil}</div>`, { ic: "star" })}
-      ${panel("Спасброски", `<div class="rows">${saves}</div>`, { ic: "shield" })}
+      ${panel("Характеристики", `<div class="abil-grid">${abil}</div>`, { ic: "star", cls: "p-abil" })}
+      ${panel("Спасброски", `<div class="rows">${saves}</div>`, { ic: "shield", cls: "p-saves" })}
     </div>
     <div class="col col-center">
       <section class="hero">
@@ -128,11 +146,12 @@ export function tabChar(ctx) {
         </button>
       </section>
       <div class="medals">
-        ${statMedal("КД", d.ac, { calc: "ac", act: "edit-armor", ic: "shield" })}
-        ${statMedal("Инициатива", fmt(d.init), { calc: "init", roll: "init", ic: "bolt" })}
-        ${statMedal("Скорость", c.speed + " фт", { calc: "speed", act: "edit-info", ic: "boot" })}
-        ${statMedal("Мастерство", fmt(d.pb), { calc: "pb", ic: "star" })}
+        ${statMedal("КД", d.ac, { calc: "ac", act: "edit-armor", ic: "shield", card: "stat:ac" })}
+        ${statMedal("Инициатива", fmt(d.init), { calc: "init", roll: "init", ic: "bolt", card: "stat:init" })}
+        ${statMedal("Скорость", d.speed + " фт", { calc: "speed", act: "edit-info", ic: "boot", card: "stat:speed", slow: d.speed < d.baseSpeed })}
+        ${statMedal("Мастерство", fmt(d.pb), { calc: "pb", ic: "star", card: "stat:pb" })}
       </div>
+      ${inspirationBtn(c)}
       ${concentrationBar(c)}
       ${activeConditions(c)}
       ${hpPanel(ctx)}
@@ -142,11 +161,11 @@ export function tabChar(ctx) {
           <div><span>Пассивная Проницательность</span><b data-calc="pi">${d.passive.insight}</b></div>
           <div><span>Пассивный Анализ</span><b data-calc="pinv">${d.passive.investigation}</b></div>
           ${c.senses ? `<div class="full"><span>${esc(c.senses)}</span></div>` : ""}
-          ${c.resistances ? `<div class="full"><span>Сопротивления: ${esc(c.resistances)}</span></div>` : ""}
-        </div>`, { ic: "eye" })}
+          ${defenseLines(c)}
+        </div>`, { ic: "eye", cls: "p-senses" })}
     </div>
     <div class="col col-right">
-      ${panel("Навыки", `<div class="rows">${skills}</div>`, { ic: "d20" })}
+      ${panel("Навыки", `<div class="rows">${skills}</div>`, { ic: "d20", cls: "p-skills" })}
     </div>
   </div>
   ${panel("Владения и языки", `<div class="prof-grid">${prof}</div>`, { ic: "wrench" })}`;
@@ -197,14 +216,37 @@ function rechargeShort(r) {
   return { short: "кор. отдых", long: "длин. отдых", dawn: "рассвет", none: "не восст.", always: "" }[r] || "";
 }
 
+function combatStrip(ctx) {
+  const { c, d } = ctx;
+  const caster = c.casterType !== "none" || c.spells.length;
+  return `<div class="combat-strip">
+    ${statMedal("КД", d.ac, { calc: "ac", act: "edit-armor", ic: "shield", card: "stat:ac" })}
+    ${statMedal("Инициатива", fmt(d.init), { calc: "init", roll: "init", ic: "bolt", card: "stat:init" })}
+    ${statMedal("Скорость", d.speed + " фт", { calc: "speed", ic: "boot", card: "stat:speed", slow: d.speed < d.baseSpeed })}
+    ${caster ? statMedal("СЛ закл.", d.spell.dc, { calc: "dc", ic: "drop" }) : statMedal("Внимат.", d.passive.perception, { calc: "pp", ic: "eye" })}
+  </div>`;
+}
+
+function conditionsPanel(ctx) {
+  const { c, ui } = ctx;
+  const active = CONDITIONS.filter(k => c.conditions[k.key]);
+  const open = ui.condOpen != null ? ui.condOpen : active.length > 0 || c.exhaustion > 0;
+  const conds = CONDITIONS.map(k => `<button class="chip toggle ${c.conditions[k.key] ? "on bad" : ""}" data-act="toggle-cond" data-k="${k.key}" data-card="condition:${k.key}" aria-pressed="${c.conditions[k.key] ? "true" : "false"}">${esc(k.name)}</button>`).join("");
+  const exh = `<div class="exh"><span data-card="stat:exhaustion">Истощение</span>${[0, 1, 2, 3, 4, 5, 6].map(i => `<button class="chip toggle ${c.exhaustion === i ? "on" : ""}" data-act="exhaustion" data-i="${i}" aria-pressed="${c.exhaustion === i ? "true" : "false"}" aria-label="Истощение ${i}">${i}</button>`).join("")}</div>`;
+  const summary = [...active.map(k => k.name), c.exhaustion ? `Истощение ${c.exhaustion}` : ""].filter(Boolean);
+  return `<details class="panel cond-panel" data-ui-open="condOpen" ${open ? "open" : ""}>
+    <summary class="panel-h">${icon("skull")}<h3>Состояния</h3><span class="cond-sum">${summary.length ? summary.map(t => `<span class="chip bad">${esc(t)}</span>`).join("") : `<span class="dim">нет</span>`}</span><span class="spacer"></span><span class="cond-chev">${icon("down")}</span></summary>
+    <div class="panel-b"><p class="hint">Отмеченные состояния сами дают помеху или преимущество на броски. Зажми или наведи, чтобы прочитать описание.</p><div class="chips">${conds}</div>${exh}</div>
+  </details>`;
+}
+
 export function tabCombat(ctx) {
   const { c } = ctx;
   const attacks = c.attacks.map(a => attackRow(ctx, a)).join("") || `<p class="empty">Атак пока нет</p>`;
-  const conds = CONDITIONS.map(k => `<button class="chip toggle ${c.conditions[k.key] ? "on bad" : ""}" data-act="toggle-cond" data-k="${k.key}" data-card="condition:${k.key}">${esc(k.name)}</button>`).join("");
-  const exh = `<div class="exh"><span>Истощение</span>${[0, 1, 2, 3, 4, 5, 6].map(i => `<button class="chip toggle ${c.exhaustion === i ? "on" : ""}" data-act="exhaustion" data-i="${i}">${i}</button>`).join("")}</div>`;
   const slots = slotsBlock(ctx);
   const res = resourceRows(ctx);
   return `
+  ${combatStrip(ctx)}
   <div class="combat-grid">
     <div class="col">
       <div class="rest-row">
@@ -213,11 +255,12 @@ export function tabCombat(ctx) {
       </div>
       ${concentrationBar(c)}
       ${hpPanel(ctx)}
-      ${panel("Состояния", `<div class="chips">${conds}</div>${exh}`, { ic: "skull" })}
+      ${conditionsPanel(ctx)}
     </div>
     <div class="col">
-      ${panel("Атаки", `<div class="atk-list">${attacks}</div>`, { ic: "swords", actions: addBtn("add-attack", "Атака") })}
-      ${slots || res ? panel("Ресурсы", `${slots}${res}`, { ic: "hourglass" }) : ""}
+      ${inspirationBtn(c)}
+      ${panel("Атаки", `<div class="atk-list">${attacks}</div>`, { ic: "swords", actions: addBtn("add-attack", "Атака"), cls: "p-attacks" })}
+      ${slots || res ? panel("Ресурсы", `${slots}${res}`, { ic: "hourglass", cls: "p-res" }) : ""}
     </div>
   </div>`;
 }
@@ -229,8 +272,10 @@ function spellTile(ctx, sp) {
   const a = ACTIONS[sp.action] || ACTIONS.action;
   const dmg = cast.lines[0] ? `${cast.beams > 1 ? cast.beams + "× " : ""}${cast.lines[0].dice} ${(DAMAGE[cast.lines[0].type] || {}).name || ""}`.toLowerCase() : "";
   const u = sp.cost === "uses" ? usesInfo(d, sp) : null;
-  const flags = [sp.concentration ? `<i class="flag" title="Концентрация">К</i>` : "", sp.ritual ? `<i class="flag" title="Ритуал">Р</i>` : ""].join("");
-  return `<button class="tile" data-open="spell:${esc(sp.id)}" data-card="spell:${esc(sp.id)}" style="--c:${ic.color}">
+  const unprep = Number(sp.level) > 0 && sp.prepared === false;
+  const flags = [sp.concentration ? `<i class="flag" title="Концентрация">К</i>` : "", sp.ritual ? `<i class="flag" title="Ритуал">Р</i>` : "", unprep ? `<i class="flag off" title="Не подготовлено">н/п</i>` : ""].join("");
+  const search = [sp.name, sp.nameEn, sp.source].filter(Boolean).join(" ").toLowerCase();
+  return `<button class="tile ${unprep ? "unprep" : ""}" data-open="spell:${esc(sp.id)}" data-card="spell:${esc(sp.id)}" data-search="${esc(search)}" style="--c:${ic.color}">
     <span class="tile-ic">${icon(ic.icon)}</span>
     <span class="tile-main"><span class="tile-name">${esc(sp.name)}</span><span class="tile-sub">${actionMark(a.shape, a.color)}<span class="tile-sub-t">${esc(sp.castTime || a.name)}${dmg ? ` · <span class="tile-dmg">${esc(dmg)}</span>` : ""}</span></span></span>
     <span class="tile-side">${flags}${u ? pips(u.max, u.left, "#e9a54a") : ""}</span>
@@ -248,8 +293,19 @@ export function tabSpells(ctx) {
       ${statMedal("Модификатор", fmt(d.spell.mod), { ic: "star" })}
     </div>
     ${slotsBlock(ctx)}`;
+  const f = ctx.ui.spellFilter || "all";
+  const hasUnprep = c.spells.some(sp => Number(sp.level) > 0 && sp.prepared === false);
+  const pass = sp => {
+    if (f === "prepared") return Number(sp.level) === 0 || sp.prepared !== false;
+    if (f === "conc") return !!sp.concentration;
+    if (f === "ritual") return !!sp.ritual;
+    if (f === "damage") return (sp.damage || []).some(x => x.type !== "healing" && x.type !== "temp");
+    return true;
+  };
+  const filters = [["all", "Все"], ...(hasUnprep ? [["prepared", "Подготовленные"]] : []), ["damage", "С уроном"], ["conc", "Концентрация"], ["ritual", "Ритуалы"]];
+  const tools = c.spells.length > 5 ? `<div class="spell-tools"><label class="search-box">${icon("search")}<input type="search" data-ui="spell-q" placeholder="Найти заклинание" value="${esc(ctx.ui.spellQ || "")}" aria-label="Найти заклинание"></label><div class="chips filter">${filters.map(([k, l]) => `<button class="chip toggle ${f === k ? "on" : ""}" data-act="spell-filter" data-k="${k}" aria-pressed="${f === k ? "true" : "false"}">${l}</button>`).join("")}</div></div>` : "";
   const groups = {};
-  c.spells.forEach(s => {
+  c.spells.filter(pass).forEach(s => {
     const l = Number(s.level) || 0;
     (groups[l] = groups[l] || []).push(s);
   });
@@ -258,7 +314,9 @@ export function tabSpells(ctx) {
   return `
     ${panel("Заклинательство", head, { ic: "book", actions: addBtn("add-spell", "Заклинание") })}
     ${concentrationBar(c)}
-    ${lists || `<p class="empty">Заклинаний пока нет. Нажми «Заклинание», чтобы добавить.</p>`}`;
+    ${tools}
+    <div class="spell-lists">${lists || (c.spells.length ? `<p class="empty">Под этот фильтр ничего не подходит</p>` : `<p class="empty">Заклинаний пока нет. Нажми «Заклинание», чтобы добавить.</p>`)}</div>
+    <p class="empty" data-search-empty hidden>Ничего не нашлось</p>`;
 }
 
 function featureTile(ctx, f) {
@@ -327,24 +385,27 @@ const ATTITUDE = { ally: ["Союзник", "#4fcf6a"], neutral: ["Нейтра�
 export function tabNotes(ctx) {
   const { c, ui } = ctx;
   const s = ui.notesSection || "patron";
-  const nav = `<div class="subtabs">${NOTE_SECTIONS.map(([k, l, ic]) => `<button class="subtab ${s === k ? "on" : ""}" data-act="notes-section" data-k="${k}">${icon(ic)}${l}${k !== "misc" && c.notes[k].length ? `<small>${c.notes[k].length}</small>` : ""}</button>`).join("")}</div>`;
-  if (s === "misc") {
-    return nav + panel("Прочие заметки", `<textarea class="autogrow big-text" rows="10" data-path="notes.misc" placeholder="Всё, что не влезло в другие разделы">${esc(c.notes.misc)}</textarea>`, { ic: "notebook" });
-  }
+  const nav = `<div class="subtabs">${NOTE_SECTIONS.map(([k, l, ic]) => `<button class="subtab ${s === k ? "on" : ""}" data-act="notes-section" data-k="${k}">${icon(ic)}${l}${c.notes[k].length ? `<small>${c.notes[k].length}</small>` : ""}</button>`).join("")}</div>`;
   let list = c.notes[s].slice();
   if (s === "quests") {
     const order = { active: 0, "": 1, done: 2, failed: 3 };
     list.sort((a, b) => (order[a.status] ?? 1) - (order[b.status] ?? 1));
   }
+  const local = ui.noteOpen || {};
+  const isCollapsed = n => (n.id in local ? !local[n.id] : !!n.collapsed);
   const cards = list.map(n => {
     const st = s === "quests" ? STATUS[n.status] : s === "people" ? ATTITUDE[n.attitude] : null;
-    return `<article class="note ${n.status === "done" || n.status === "failed" ? "dim" : ""}">
-      <header><div><h4>${esc(n.title || "Без названия")}</h4>${n.subtitle ? `<div class="note-sub">${esc(n.subtitle)}</div>` : ""}</div><span class="spacer"></span>${st ? `<span class="badge" style="--c:${st[1]}">${st[0]}</span>` : ""}<button class="icon-btn" data-act="edit-note" data-sec="${s}" data-id="${esc(n.id)}" title="Изменить">${icon("edit")}</button></header>
-      <div class="note-text">${rich(n.text)}</div>
+    const shut = isCollapsed(n);
+    const preview = shut ? plainPreview(n.text) : "";
+    return `<article class="note ${shut ? "collapsed" : ""} ${n.status === "done" || n.status === "failed" ? "dim" : ""}">
+      <header><button class="note-toggle" data-act="toggle-note" data-sec="${s}" data-id="${esc(n.id)}" aria-expanded="${shut ? "false" : "true"}"><span class="note-chev">${icon("down")}</span><span class="note-titles"><h4>${esc(n.title || "Без названия")}</h4>${n.subtitle ? `<span class="note-sub">${esc(n.subtitle)}</span>` : ""}${preview ? `<span class="note-prev">${esc(preview)}</span>` : ""}</span></button>${st ? `<span class="badge" style="--c:${st[1]}">${st[0]}</span>` : ""}<button class="icon-btn" data-act="edit-note" data-sec="${s}" data-id="${esc(n.id)}" title="Изменить" aria-label="Изменить «${esc(n.title || "Без названия")}»">${icon("edit")}</button></header>
+      ${shut ? "" : `<div class="note-text">${rich(n.text) || `<p class="dim">Пусто</p>`}</div>`}
     </article>`;
   }).join("");
-  const label = { patron: "Запись", quests: "Задание", people: "Человек" }[s];
-  return nav + `<div class="notes-head">${addBtn("add-note", label, `data-sec="${s}"`)}</div><div class="notes">${cards || `<p class="empty">Здесь пока пусто</p>`}</div>`;
+  const label = { patron: "Запись", quests: "Задание", people: "Человек", misc: "Заметка" }[s];
+  const empty = s === "misc" ? "Здесь можно хранить что угодно: законы мира, слухи, план города, правила Мастера. Каждую заметку можно свернуть до названия." : "Здесь пока пусто";
+  const fold = list.length > 1 ? `<button class="btn ghost sm" data-act="fold-notes" data-sec="${s}" data-v="1">${icon("minus")}Свернуть все</button><button class="btn ghost sm" data-act="fold-notes" data-sec="${s}" data-v="0">${icon("plus")}Развернуть все</button>` : "";
+  return nav + `<div class="notes-head">${fold}<span class="spacer"></span>${addBtn("add-note", label, `data-sec="${s}"`)}</div><div class="notes ${s === "misc" ? "single" : ""}">${cards || `<p class="empty">${empty}</p>`}</div>`;
 }
 
 export function tabStory(ctx) {

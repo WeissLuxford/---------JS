@@ -1,4 +1,4 @@
-import { ABILITIES, SKILLS, CONDITIONS } from "./rules.js";
+import { ABILITIES, SKILLS, CONDITIONS, DAMAGE, DEFENSE_KINDS } from "./rules.js";
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -11,11 +11,11 @@ const PERSONALITY = { appearance: "Внешность", traits: "Черты ха
 const PROF = { armor: "Владение доспехами", weapons: "Владение оружием", tools: "Инструменты", languages: "Языки" };
 const COINS = { pp: "ПМ", gp: "ЗМ", ep: "ЭМ", sp: "СМ", cp: "ММ" };
 const LISTS = { attacks: "Атаки", spells: "Заклинания", features: "Умения", items: "Снаряжение" };
-const NOTES = { patron: "Заметки о покровителе", quests: "Задания", people: "Люди" };
+const NOTES = { patron: "Заметки о покровителе", quests: "Задания", people: "Люди", misc: "Прочие заметки" };
 const SIMPLE = {
   name: "Имя", speed: "Скорость", initBonus: "Бонус инициативы", hitDie: "Кость хитов", casterType: "Тип заклинателя",
-  spellAbility: "Заклинательная характеристика", senses: "Чувства", resistances: "Сопротивления", exhaustion: "Истощение",
-  pactUsed: "Потраченные ячейки договора", concentration: "Концентрация"
+  spellAbility: "Заклинательная характеристика", senses: "Чувства", resistances: "Сопротивления (заметка)", exhaustion: "Истощение",
+  pactUsed: "Потраченные ячейки договора", concentration: "Концентрация", inspiration: "Вдохновение"
 };
 
 const short = v => {
@@ -41,9 +41,14 @@ function listChanges(label, a = [], b = [], nameKey = "name") {
     const y = byA.get(x.id);
     if (!y || same(x, y)) continue;
     const rest = k => {
-      const { used, ...r } = k;
+      const { used, collapsed, ...r } = k;
       return r;
     };
+    const view = k => {
+      const { collapsed, ...r } = k;
+      return r;
+    };
+    if (same(view(x), view(y))) continue;
     if (same(rest(x), rest(y))) usesOnly.push(x[nameKey] || "без названия");
     else changedNames.push(x[nameKey] || "без названия");
   }
@@ -93,12 +98,18 @@ export function describeChanges(a, b) {
     if (off.length) out.push(`Сняты состояния: ${off.join(", ")}`);
   }
   if (!same(a.damageSwap, b.damageSwap)) out.push("Замена типа урона");
+  for (const [k, label] of Object.entries(DEFENSE_KINDS)) {
+    const x = (a.defenses && a.defenses[k]) || [];
+    const y = (b.defenses && b.defenses[k]) || [];
+    if (same(x, y)) continue;
+    const names = list => list.map(t => (DAMAGE[t] || {}).name || t).join(", ") || "нет";
+    out.push(`${label}: ${names(x)} → ${names(y)}`);
+  }
   out.push(...objChanges(PROF, a.proficiencies, b.proficiencies));
   const coins = Object.keys(COINS).filter(k => a.coins[k] !== b.coins[k]).map(k => `${COINS[k]} ${short(a.coins[k])} → ${short(b.coins[k])}`);
   if (coins.length) out.push(`Монеты: ${coins.join(", ")}`);
   for (const [k, label] of Object.entries(LISTS)) out.push(...listChanges(label, a[k], b[k]));
   for (const [k, label] of Object.entries(NOTES)) out.push(...listChanges(label, a.notes[k], b.notes[k], "title"));
-  if (a.notes.misc !== b.notes.misc) out.push("Прочие заметки: текст изменён");
   out.push(...objChanges(PERSONALITY, a.personality, b.personality));
   if (a.archived !== b.archived) out.push(b.archived ? "Убран в архив" : "Возвращён из архива");
   return out;

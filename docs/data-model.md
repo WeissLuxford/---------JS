@@ -16,20 +16,23 @@
 | `hitDie` | `d6/d8/d10/d12` | кость хитов |
 | `casterType` | `none/full/half/third/pact` | тип заклинателя (ячейки считаются сами) |
 | `spellAbility` | ключ характеристики | заклинательная характеристика |
-| `armor` | `{name, base, dexCap: full/2/0, shield, bonus}` | КД считается из этого |
-| `speed`, `initBonus`, `senses`, `resistances` | | |
+| `armor` | `{name, base, dexCap: full/2/0, addAbility: ""/con/wis/int/cha, shield, bonus}` | КД считается из этого; `addAbility` для Защиты без доспехов |
+| `speed`, `initBonus`, `senses` | | скорость в листе базовая, истощение и состояния снижают её в `compute()` |
+| `resistances` | строка | заметка о защите, только для чтения глазами |
+| `defenses` | `{resist[], vuln[], immune[]}` | типы урона из `DAMAGE_TYPES`; если поля нет, `normalize()` выводит его из текста `resistances` |
+| `inspiration` | boolean | вдохновение |
 | `hp` | `{current, temp, maxOverride, bonusPerLevel, hitDiceUsed, deathSuccess, deathFail, stable}` | максимум хитов считается, если нет `maxOverride` |
 | `slotsUsed` | `{уровень: потрачено}` | обычные ячейки |
 | `pactUsed` | число | потраченные ячейки договора |
 | `conditions` | `{key: true}` | состояния |
-| `exhaustion` | 0..6 | |
+| `exhaustion` | 0..6 | правила 2014: 1 помеха на проверки, 2 скорость вдвое, 3 помеха на атаки и спасброски, 4 максимум хитов вдвое, 5 скорость 0 |
 | `concentration` | строка | имя заклинания в концентрации |
 | `damageSwap` | `{enabled, from, to, label}` | хоумбрю-замена типа урона (Ледяная кровь) |
 | `proficiencies` | `{armor, weapons, tools, languages}` | строки |
 | `attacks`, `spells`, `features`, `items` | массивы сущностей с `id` | см. ниже |
 | `coins` | `{cp, sp, ep, gp, pp}` | |
 | `personality` | `{appearance, traits, ideals, bonds, flaws, backstory, allies}` | |
-| `notes` | `{patron[], quests[], people[], misc}` | заметки |
+| `notes` | `{patron[], quests[], people[], misc[]}` | заметки; старая строка `misc` превращается в одну заметку `nt-misc-legacy` |
 | `ownerUid`, `ownerName` | | владелец (только облако) |
 | `visibility` | `private` / `link` | доступ по ссылке; нет поля = `link` |
 | `createdAt`, `updatedAt`, `updatedBy` | | служебные; `updatedBy = {uid, name, kind}` |
@@ -42,7 +45,7 @@
 - **Заклинание**: `name, nameEn, level 0..9, school, action, castTime, range, area, duration, concentration, ritual, components, save, attack, damage[{dice,type,addMod}], scaling, upcast, castAt, onSave, description, higher, source, cost (slot/uses/free), uses, recharge, used, prepared`
 - **Умение**: `name, nameEn, category (class/invocation/gift/race/background/feat/other), source (dm/own/class/race/item/""), action, recharge, uses, used, slot (none/pact), range, duration, save, damage[], description, effect`
 - **Предмет**: `name, type, rarity, qty, weight, equipped, attuned, requiresAttunement, action, uses, recharge, used, damage[], description, effect, value`
-- **Заметка**: `title, subtitle, status (active/done/failed), attitude (ally/neutral/hostile), text`
+- **Заметка**: `title, subtitle, status (active/done/failed), attitude (ally/neutral/hostile), text, collapsed`. Текст с разметкой: `## заголовок`, `**жирный**`, `*курсив*`, `__подчёркнутый__`, `~~зачёркнутый~~`, `==маркер==`, `- список`, `1. список`, `- [ ] дело`, `> цитата`, `---`. Рисует `rich()` из `ui.js`, всё экранируется до разметки.
 
 Справочники (типы урона, школы, действия, редкости, состояния) в начале `js/rules.js`.
 

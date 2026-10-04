@@ -1,12 +1,86 @@
 import { icon, die, actionMark } from "./icons.js";
-import { DAMAGE, ACTIONS, parseDice, rollDice, fmt } from "./rules.js";
+import { DAMAGE, DAMAGE_TYPES, ACTIONS, parseDice, rollDice, fmt } from "./rules.js";
 
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 
+function inline(text) {
+  let s = esc(text);
+  let todo = "";
+  const t = s.match(/^\[( |x|х)\]\s+/i);
+  if (t) {
+    todo = `<span class="rt-todo ${t[1].trim() ? "done" : ""}" aria-hidden="true"></span>`;
+    s = s.slice(t[0].length);
+  }
+  s = s
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+    .replace(/__(.+?)__/g, "<u>$1</u>")
+    .replace(/~~(.+?)~~/g, "<s>$1</s>")
+    .replace(/==(.+?)==/g, "<mark>$1</mark>")
+    .replace(/\*(\S(?:[^*]*?\S)?)\*/g, "<i>$1</i>");
+  return todo + s;
+}
+
 export function rich(text) {
-  const s = String(text ?? "").trim();
-  if (!s) return "";
-  return s.split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, "<br>").replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")}</p>`).join("");
+  const lines = String(text ?? "").replace(/\r/g, "").split("\n");
+  const out = [];
+  let para = [];
+  let list = null;
+  let quote = [];
+  const flushPara = () => {
+    if (para.length) out.push(`<p>${para.map(inline).join("<br>")}</p>`);
+    para = [];
+  };
+  const flushList = () => {
+    if (list) out.push(`<${list.tag}>${list.items.map(i => `<li>${inline(i)}</li>`).join("")}</${list.tag}>`);
+    list = null;
+  };
+  const flushQuote = () => {
+    if (quote.length) out.push(`<blockquote>${quote.map(inline).join("<br>")}</blockquote>`);
+    quote = [];
+  };
+  const flush = () => {
+    flushPara();
+    flushList();
+    flushQuote();
+  };
+  const toList = (tag, item) => {
+    flushPara();
+    flushQuote();
+    if (!list || list.tag !== tag) {
+      flushList();
+      list = { tag, items: [] };
+    }
+    list.items.push(item);
+  };
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    let m;
+    if (!line.trim()) flush();
+    else if ((m = line.match(/^\s*(#{1,3})\s+(.+)$/))) {
+      flush();
+      out.push(`<h${m[1].length + 3} class="rt-h">${inline(m[2])}</h${m[1].length + 3}>`);
+    } else if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      flush();
+      out.push("<hr>");
+    } else if ((m = line.match(/^\s*>\s?(.*)$/))) {
+      flushPara();
+      flushList();
+      quote.push(m[1]);
+    } else if ((m = line.match(/^\s*[-*•]\s+(.+)$/))) toList("ul", m[1]);
+    else if ((m = line.match(/^\s*\d+[.)]\s+(.+)$/))) toList("ol", m[1]);
+    else {
+      flushList();
+      flushQuote();
+      para.push(line);
+    }
+  }
+  flush();
+  return out.join("");
+}
+
+export function plainPreview(text, max = 90) {
+  const s = String(text ?? "").replace(/[#>*_~=`|-]+/g, " ").replace(/\[( |x|х)\]/gi, " ").replace(/\s+/g, " ").trim();
+  return s.length > max ? s.slice(0, max - 1) + "…" : s;
 }
 
 export function $(sel, root = document) {
@@ -30,8 +104,17 @@ const toastHost = () => {
 export function toast(html, { kind = "", timeout = 3200 } = {}) {
   const el = document.createElement("div");
   el.className = "toast " + kind;
+  el.setAttribute("role", kind === "bad" ? "alert" : "status");
   el.innerHTML = html;
-  toastHost().appendChild(el);
+  const host = toastHost();
+  host.appendChild(el);
+  const limit = window.matchMedia("(max-width: 760px)").matches ? 2 : 3;
+  const live = Array.from(host.children).filter(t => !t.classList.contains("gone"));
+  live.slice(0, Math.max(0, live.length - limit)).forEach(t => {
+    t.classList.add("gone");
+    t.classList.remove("in");
+    setTimeout(() => t.remove(), 250);
+  });
   requestAnimationFrame(() => el.classList.add("in"));
   const close = () => {
     el.classList.remove("in");
@@ -49,14 +132,31 @@ function logRoll(entry) {
   if (rollLog.length > 40) rollLog.pop();
 }
 
-export function showD20(label, modifier, result, mode) {
+function whyHtml(why, fail) {
+  return `${fail ? `<div class="r-fail">Автоматический провал: ${esc(fail)}</div>` : ""}${(why || []).map(w => `<div class="r-why">${esc(w)}</div>`).join("")}`;
+}
+
+export function showD20(label, modifier, result, mode, { why = [], fail = "", extra = "" } = {}) {
   const cls = result.nat20 ? "crit" : result.nat1 ? "fumble" : "";
   const both = result.b != null ? `<span class="r-both">${result.a} / ${result.b} ${mode === "adv" ? "преим." : "помеха"}</span>` : "";
   const note = result.nat20 ? "Естественная 20!" : result.nat1 ? "Естественная 1" : "";
-  logRoll({ label, text: `${result.total} (${result.pick}${fmt(modifier)})` });
+  logRoll({ label, text: `${fail ? "провал" : result.total} (${result.pick}${fmt(modifier)})` });
   toast(
-    `<div class="roll ${cls}">${die(20, result.nat20 ? "#f4d66d" : result.nat1 ? "#e5533d" : "#cbbfa8", result.pick)}<div class="r-body"><div class="r-label">${esc(label)}</div><div class="r-calc">${result.pick} ${fmt(modifier).replace(/^([+−])/, "$1 ")} ${both}</div>${note ? `<div class="r-note">${note}</div>` : ""}</div><div class="r-total">${result.total}</div></div>`,
-    { timeout: 4500 }
+    `<div class="roll ${cls} ${fail ? "failed" : ""}">${die(20, result.nat20 ? "#f4d66d" : result.nat1 ? "#e5533d" : "#cbbfa8", result.pick)}<div class="r-body"><div class="r-label">${esc(label)}</div><div class="r-calc">${result.pick} ${fmt(modifier).replace(/^([+−])/, "$1 ")} ${both}</div>${note ? `<div class="r-note">${note}</div>` : ""}${whyHtml(why, fail)}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div><div class="r-total">${fail ? "✕" : result.total}</div></div>`,
+    { timeout: extra ? 9000 : why.length || fail ? 6500 : 4500 }
+  );
+}
+
+export function showBeams(label, modifier, results, mode, { why = [], extra = "" } = {}) {
+  const rows = results.map((r, i) => {
+    const both = r.b != null ? `<span class="r-both">${r.a} / ${r.b}</span>` : "";
+    return `<div class="r-beam ${r.nat20 ? "crit" : r.nat1 ? "fumble" : ""}"><span>Луч ${i + 1}</span><span class="r-calc">${r.pick} ${fmt(modifier).replace(/^([+−])/, "$1 ")} ${both}</span><b>${r.total}</b>${r.nat20 ? `<em>крит</em>` : r.nat1 ? `<em>промах</em>` : ""}</div>`;
+  }).join("");
+  results.forEach((r, i) => logRoll({ label: `${label} (луч ${i + 1})`, text: `${r.total} (${r.pick}${fmt(modifier)})` }));
+  const top = results.some(r => r.nat20) ? "#f4d66d" : "#cbbfa8";
+  toast(
+    `<div class="roll beams">${die(20, top, results.length + "×")}<div class="r-body"><div class="r-label">${esc(label)}${mode !== "normal" ? ` · ${mode === "adv" ? "преимущество" : "помеха"}` : ""}</div>${rows}${whyHtml(why, "")}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div></div>`,
+    { timeout: 12000 }
   );
 }
 
@@ -64,13 +164,13 @@ export function showDamage(label, lines, crit = false) {
   const parts = [];
   let total = 0;
   for (const line of lines) {
-    const expr = crit ? critExpr(line.dice) : line.dice;
+    const expr = crit || line.crit ? critExpr(line.dice) : line.dice;
     const r = rollDice(expr);
     if (!r) continue;
     total += r.total;
     const dt = DAMAGE[line.type] || DAMAGE.bludgeoning;
     const rolls = r.rolls.length ? `<span class="r-rolls">[${r.rolls.map(x => (x.sign < 0 ? "−" : "") + x.r).join(", ")}]</span>` : "";
-    parts.push(`<div class="r-line" style="--c:${dt.color}"><span>${esc(expr)}</span>${rolls}<b>${r.total}</b> ${icon(dt.icon)} ${esc(dt.name)}</div>`);
+    parts.push(`<div class="r-line ${line.crit ? "crit" : ""}" style="--c:${dt.color}">${line.tag ? `<em>${esc(line.tag)}</em>` : ""}<span>${esc(expr)}</span>${rolls}<b>${r.total}</b> ${icon(dt.icon)} ${esc(dt.name)}</div>`);
   }
   if (!parts.length) return;
   logRoll({ label, text: String(total) });
@@ -82,7 +182,7 @@ export function showDamage(label, lines, crit = false) {
   return total;
 }
 
-function critExpr(expr) {
+export function critExpr(expr) {
   const p = parseDice(expr);
   if (!p) return expr;
   const dice = p.dice.map(d => `${d.n * 2}d${d.f}`).join("+");
@@ -96,18 +196,84 @@ export function maxFace(expr) {
 }
 
 const modalStack = [];
+let armed = 0;
+let armSeq = 0;
+let backPending = false;
+const idleWaiters = [];
+let modalSeq = 0;
+
+function arm() {
+  if (armed || backPending) return;
+  armed = ++armSeq;
+  try {
+    history.pushState({ dndModal: armed }, "");
+  } catch {
+    armed = 0;
+  }
+}
+
+function disarmSoon() {
+  setTimeout(() => {
+    if (modalStack.length || !armed) return;
+    const mine = !!(history.state && history.state.dndModal === armed);
+    armed = 0;
+    if (mine) {
+      backPending = true;
+      history.back();
+      setTimeout(() => {
+        if (backPending) settleBack();
+      }, 600);
+    }
+  }, 0);
+}
+
+function settleBack() {
+  backPending = false;
+  if (modalStack.length) arm();
+  idleWaiters.splice(0).forEach(fn => fn());
+}
+
+window.addEventListener("popstate", () => {
+  if (backPending) return settleBack();
+  const st = history.state;
+  if (armed && !(st && st.dndModal === armed)) {
+    armed = 0;
+    const top = modalStack[modalStack.length - 1];
+    if (top) top.close();
+    if (modalStack.length) arm();
+    return;
+  }
+  if (!armed && st && st.dndModal) history.replaceState(null, "");
+});
+
+export function whenHistoryIdle(fn) {
+  if (backPending) idleWaiters.push(fn);
+  else fn();
+}
+
+export function onModalEntry() {
+  return !!(armed && history.state && history.state.dndModal === armed);
+}
+
+const FOCUSABLE = "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
 export function openModal({ title = "", body = "", wide = false, cls = "", onClose } = {}) {
   hideHoverCard();
+  const opener = document.activeElement;
+  const titleId = "mt" + ++modalSeq;
   const back = document.createElement("div");
   back.className = "modal-back";
-  back.innerHTML = `<div class="modal ${wide ? "wide" : ""} ${cls}" role="dialog" aria-modal="true">${title ? `<div class="modal-head"><h2>${esc(title)}</h2><button class="icon-btn" data-close title="Закрыть">${icon("close")}</button></div>` : `<button class="icon-btn modal-x" data-close title="Закрыть">${icon("close")}</button>`}<div class="modal-body"></div></div>`;
+  back.innerHTML = `<div class="modal ${wide ? "wide" : ""} ${cls}" role="dialog" aria-modal="true" tabindex="-1" ${title ? `aria-labelledby="${titleId}"` : ""}>${title ? `<div class="modal-head"><h2 id="${titleId}">${esc(title)}</h2><button class="icon-btn" data-close title="Закрыть" aria-label="Закрыть">${icon("close")}</button></div>` : `<button class="icon-btn modal-x" data-close title="Закрыть" aria-label="Закрыть">${icon("close")}</button>`}<div class="modal-body"></div></div>`;
+  const box = back.querySelector(".modal");
   const bodyEl = back.querySelector(".modal-body");
   if (typeof body === "string") bodyEl.innerHTML = body;
   else if (body) bodyEl.appendChild(body);
   document.body.appendChild(back);
   document.body.classList.add("no-scroll");
-  requestAnimationFrame(() => back.classList.add("in"));
+  requestAnimationFrame(() => {
+    back.classList.add("in");
+    if (!box.contains(document.activeElement)) box.focus({ preventScroll: true });
+  });
   let closed = false;
   const close = () => {
     if (closed) return;
@@ -115,8 +281,16 @@ export function openModal({ title = "", body = "", wide = false, cls = "", onClo
     back.classList.remove("in");
     const i = modalStack.indexOf(api);
     if (i >= 0) modalStack.splice(i, 1);
-    if (!modalStack.length) document.body.classList.remove("no-scroll");
+    if (!modalStack.length) {
+      document.body.classList.remove("no-scroll");
+      disarmSoon();
+    }
     setTimeout(() => back.remove(), 200);
+    if (box.contains(document.activeElement)) {
+      const fine = window.matchMedia("(pointer: fine)").matches;
+      if (fine && opener && opener.isConnected && typeof opener.focus === "function") opener.focus({ preventScroll: true });
+      else document.activeElement.blur();
+    }
     onClose && onClose();
   };
   back.addEventListener("mousedown", e => {
@@ -129,11 +303,35 @@ export function openModal({ title = "", body = "", wide = false, cls = "", onClo
   });
   const api = { el: back, body: bodyEl, close };
   modalStack.push(api);
+  arm();
   return api;
 }
 
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape" && modalStack.length) modalStack[modalStack.length - 1].close();
+  if (!modalStack.length) return;
+  const top = modalStack[modalStack.length - 1];
+  if (e.key === "Escape") {
+    top.close();
+    return;
+  }
+  if (e.key !== "Tab") return;
+  const box = top.el.querySelector(".modal");
+  const list = Array.from(box.querySelectorAll(FOCUSABLE)).filter(x => x.offsetParent !== null || x === document.activeElement);
+  if (!list.length) {
+    e.preventDefault();
+    box.focus();
+    return;
+  }
+  const first = list[0];
+  const last = list[list.length - 1];
+  const inside = box.contains(document.activeElement);
+  if (e.shiftKey && (!inside || document.activeElement === first || document.activeElement === box)) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && (!inside || document.activeElement === last)) {
+    e.preventDefault();
+    first.focus();
+  }
 });
 
 export function closeAllModals() {
@@ -153,22 +351,24 @@ export function confirmDialog(text, { ok = "Да", danger = false } = {}) {
   });
 }
 
-export function promptNumber(title, { label = "", value = "", buttons }) {
+export function promptNumber(title, { label = "", value = "", buttons, select = null }) {
   return new Promise(resolve => {
     let answered = false;
+    const sel = select ? `<label class="fld"><span>${esc(select.label)}</span><select data-sel>${select.options.map(([k, l]) => `<option value="${esc(k)}" ${String(select.value ?? "") === String(k) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>${select.hint ? `<small>${esc(select.hint)}</small>` : ""}</label>` : "";
     const m = openModal({
       title,
       cls: "small",
-      body: `<label class="fld"><span>${esc(label)}</span><input type="number" inputmode="numeric" class="num-big" value="${esc(value)}"></label><div class="form-actions">${buttons.map((b, i) => `<button class="btn ${b.cls || "gold"}" data-i="${i}">${esc(b.label)}</button>`).join("")}</div>`,
+      body: `<label class="fld"><span>${esc(label)}</span><input type="number" inputmode="numeric" class="num-big" value="${esc(value)}"></label>${sel}<div class="form-actions">${buttons.map((b, i) => `<button class="btn ${b.cls || "gold"}" data-i="${i}">${esc(b.label)}</button>`).join("")}</div>`,
       onClose: () => !answered && resolve(null)
     });
     const input = m.body.querySelector("input");
+    const selEl = m.body.querySelector("[data-sel]");
     setTimeout(() => input.focus(), 50);
     const done = i => {
       answered = true;
       const v = Number(input.value);
       m.close();
-      resolve({ value: Number.isFinite(v) ? v : 0, action: buttons[i].value });
+      resolve({ value: Number.isFinite(v) ? v : 0, action: buttons[i].value, type: selEl ? selEl.value : "" });
     };
     m.body.querySelectorAll("[data-i]").forEach(b => (b.onclick = () => done(Number(b.dataset.i))));
     input.addEventListener("keydown", e => {
@@ -276,6 +476,69 @@ export function enableHoverCards(root, resolve) {
   };
 }
 
+export function enableLongPress(root, onLong) {
+  let timer = 0;
+  let start = null;
+  let suppress = false;
+  const cancel = () => {
+    clearTimeout(timer);
+    timer = 0;
+    start = null;
+  };
+  const down = e => {
+    if (e.pointerType === "mouse" || e.button > 0) return;
+    const t = e.target.closest("[data-card]");
+    if (!t || !root.contains(t) || e.target.closest("input, textarea, select")) return;
+    cancel();
+    start = { x: e.clientX, y: e.clientY };
+    timer = setTimeout(() => {
+      timer = 0;
+      suppress = true;
+      setTimeout(() => (suppress = false), 700);
+      if (navigator.vibrate) {
+        try {
+          navigator.vibrate(12);
+        } catch {}
+      }
+      onLong(t.dataset.card, t);
+    }, 480);
+  };
+  const move = e => {
+    if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) cancel();
+  };
+  const click = e => {
+    if (!suppress) return;
+    suppress = false;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  const end = e => {
+    if (suppress && e.cancelable) e.preventDefault();
+  };
+  const menu = e => {
+    if (e.target.closest("[data-card]") && !e.target.closest("input, textarea, select") && (timer || suppress)) e.preventDefault();
+  };
+  root.addEventListener("pointerdown", down);
+  root.addEventListener("pointermove", move);
+  root.addEventListener("pointerup", cancel);
+  root.addEventListener("pointercancel", cancel);
+  document.addEventListener("click", click, true);
+  document.addEventListener("touchend", end, { passive: false, capture: true });
+  root.addEventListener("contextmenu", menu);
+  window.addEventListener("scroll", cancel, { passive: true });
+  return () => {
+    cancel();
+    root.removeEventListener("pointerdown", down);
+    root.removeEventListener("pointermove", move);
+    root.removeEventListener("pointerup", cancel);
+    root.removeEventListener("pointercancel", cancel);
+    document.removeEventListener("click", click, true);
+    document.removeEventListener("touchend", end, { capture: true });
+    root.removeEventListener("contextmenu", menu);
+    window.removeEventListener("scroll", cancel);
+  };
+}
+
 function optionList(options) {
   if (Array.isArray(options)) return options.map(o => (Array.isArray(o) ? o : [o, o]));
   return Object.entries(options).map(([k, v]) => [k, typeof v === "string" ? v : v.name]);
@@ -296,6 +559,13 @@ function fieldHtml(f, v) {
   if (f.type === "textarea") {
     return `<label class="fld"${span} for="${id}"><span>${esc(f.label)}</span><textarea id="${id}" data-k="${esc(f.key)}" rows="${f.rows || 4}" placeholder="${esc(f.placeholder || "")}">${esc(v ?? "")}</textarea>${hint}</label>`;
   }
+  if (f.type === "types") {
+    const set = new Set(Array.isArray(v) ? v : []);
+    return `<fieldset class="fld types"${span} data-k="${esc(f.key)}" data-types><legend>${esc(f.label)}</legend><div class="type-chips">${DAMAGE_TYPES.map(k => `<label class="type-chip" style="--c:${DAMAGE[k].color}"><input type="checkbox" value="${k}" ${set.has(k) ? "checked" : ""}>${icon(DAMAGE[k].icon)}<span>${esc(DAMAGE[k].name)}</span></label>`).join("")}</div>${hint}</fieldset>`;
+  }
+  if (f.type === "richtext") {
+    return `<div class="fld rt-field"${span}><label for="${id}">${esc(f.label)}</label><div class="rt-bar" role="toolbar" aria-label="Форматирование">${RT_TOOLS.map(([k, html, t]) => `<button type="button" class="rt-btn" data-rt="${k}" title="${esc(t)}" aria-label="${esc(t)}">${html}</button>`).join("")}<span class="spacer"></span><button type="button" class="rt-btn rt-prev" data-rt-preview aria-pressed="false">Просмотр</button></div><textarea id="${id}" data-k="${esc(f.key)}" rows="${f.rows || 10}" placeholder="${esc(f.placeholder || "")}">${esc(v ?? "")}</textarea><div class="rt-preview note-text" hidden></div>${hint}</div>`;
+  }
   if (f.type === "dicelist") {
     const rows = (Array.isArray(v) ? v : []).map(d => diceRow(d)).join("");
     return `<div class="fld dicelist"${span} data-k="${esc(f.key)}" data-dl><span>${esc(f.label)}</span><div class="dl-rows">${rows}</div><button type="button" class="btn ghost sm" data-dl-add>${icon("plus")} Добавить кубы</button>${hint}</div>`;
@@ -303,6 +573,68 @@ function fieldHtml(f, v) {
   const type = f.type === "number" ? "number" : "text";
   const list = f.suggest ? `<datalist id="${id}_dl">${f.suggest.map(o => `<option value="${esc(o)}"></option>`).join("")}</datalist>` : "";
   return `<label class="fld"${span} for="${id}"><span>${esc(f.label)}</span><input id="${id}" type="${type}" ${type === "number" ? 'inputmode="decimal" step="any"' : ""} ${list ? `list="${id}_dl"` : ""} ${f.max ? `maxlength="${f.max}"` : ""} data-k="${esc(f.key)}" value="${esc(v ?? "")}" placeholder="${esc(f.placeholder || "")}">${list}${hint}</label>`;
+}
+
+const RT_TOOLS = [
+  ["h", "<b>З</b>", "Заголовок"],
+  ["bold", "<b>Ж</b>", "Жирный"],
+  ["italic", "<i>К</i>", "Курсив"],
+  ["under", "<u>Ч</u>", "Подчёркнутый"],
+  ["strike", "<s>З</s>", "Зачёркнутый"],
+  ["mark", "<mark>М</mark>", "Выделить маркером"],
+  ["list", "•", "Список"],
+  ["num", "1.", "Нумерованный список"],
+  ["todo", "☐", "Список дел"],
+  ["quote", "❝", "Цитата"],
+  ["hr", "―", "Разделитель"]
+];
+
+const RT_WRAP = { bold: "**", italic: "*", under: "__", strike: "~~", mark: "==" };
+const RT_PREFIX = { h: "## ", list: "- ", num: "1. ", quote: "> ", todo: "- [ ] " };
+
+function replaceText(ta, start, end, text, selStart, selEnd) {
+  ta.focus();
+  ta.setSelectionRange(start, end);
+  let ok = false;
+  try {
+    ok = document.execCommand("insertText", false, text);
+  } catch {}
+  if (!ok || ta.value.slice(start, start + text.length) !== text) ta.setRangeText(text, start, end, "end");
+  ta.setSelectionRange(selStart, selEnd);
+  ta.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+export function applyFormat(ta, kind) {
+  const value = ta.value;
+  const a = ta.selectionStart;
+  const b = ta.selectionEnd;
+  const wrap = RT_WRAP[kind];
+  if (wrap) {
+    const sel = value.slice(a, b);
+    if (sel.startsWith(wrap) && sel.endsWith(wrap) && sel.length >= wrap.length * 2) {
+      const inner = sel.slice(wrap.length, sel.length - wrap.length);
+      return replaceText(ta, a, b, inner, a, a + inner.length);
+    }
+    const text = sel || "текст";
+    return replaceText(ta, a, b, wrap + text + wrap, a + wrap.length, a + wrap.length + text.length);
+  }
+  if (kind === "hr") {
+    const before = a > 0 && value[a - 1] !== "\n" ? "\n" : "";
+    const text = `${before}\n---\n\n`;
+    return replaceText(ta, b, b, text, b + text.length, b + text.length);
+  }
+  const prefix = RT_PREFIX[kind];
+  if (!prefix) return;
+  const ls = value.lastIndexOf("\n", a - 1) + 1;
+  let le = value.indexOf("\n", Math.max(a, b - (b > a && value[b - 1] === "\n" ? 1 : 0)));
+  if (le < 0) le = value.length;
+  const lines = value.slice(ls, le).split("\n");
+  const pattern = kind === "num" ? /^\d+[.)]\s/ : null;
+  const has = l => (pattern ? pattern.test(l) : l.startsWith(prefix));
+  const strip = l => (pattern ? l.replace(pattern, "") : l.slice(prefix.length));
+  const all = lines.every(l => !l.trim() || has(l));
+  const out = lines.map((l, i) => (all ? (has(l) ? strip(l) : l) : !l.trim() && lines.length > 1 ? l : (kind === "num" ? `${i + 1}. ` : prefix) + l.replace(/^(#{1,3}\s|-\s\[( |x|х)\]\s|[-*•]\s|>\s?|\d+[.)]\s)/i, ""))).join("\n");
+  replaceText(ta, ls, le, out, ls, ls + out.length);
 }
 
 function diceRow(d = {}) {
@@ -315,8 +647,34 @@ export function openForm({ title, fields, value = {}, onSave, onDelete, saveLabe
   form.className = "form-grid";
   form.innerHTML = fields.map(f => fieldHtml(f, getPath(value, f.key))).join("") + extra +
     `<div class="form-actions" style="grid-column: 1 / -1">${onDelete ? `<button type="button" class="btn danger" data-del>${icon("trash")} Удалить</button>` : ""}<span class="spacer"></span><button type="button" class="btn ghost" data-close>Отмена</button><button type="submit" class="btn gold">${esc(saveLabel)}</button></div>`;
-  const m = openModal({ title, body: form, wide: fields.length > 8 });
+  const m = openModal({ title, body: form, wide: fields.length > 8 || fields.some(f => f.type === "richtext") });
+  form.addEventListener("pointerdown", e => {
+    if (e.target.closest("[data-rt]")) e.preventDefault();
+  });
   form.addEventListener("click", e => {
+    const rt = e.target.closest("[data-rt]");
+    if (rt) {
+      const ta = rt.closest(".rt-field").querySelector("textarea");
+      if (!ta.hidden) applyFormat(ta, rt.dataset.rt);
+      return;
+    }
+    const pv = e.target.closest("[data-rt-preview]");
+    if (pv) {
+      const box = pv.closest(".rt-field");
+      const ta = box.querySelector("textarea");
+      const prev = box.querySelector(".rt-preview");
+      const on = prev.hidden;
+      if (on) {
+        prev.innerHTML = rich(ta.value) || `<p class="empty">Пусто</p>`;
+        prev.style.minHeight = ta.offsetHeight + "px";
+      }
+      prev.hidden = !on;
+      ta.hidden = on;
+      pv.setAttribute("aria-pressed", String(on));
+      pv.classList.toggle("on", on);
+      box.querySelectorAll("[data-rt]").forEach(b => (b.disabled = on));
+      return;
+    }
     if (e.target.closest("[data-dl-add]")) {
       e.target.closest("[data-dl]").querySelector(".dl-rows").insertAdjacentHTML("beforeend", diceRow({ type: "fire" }));
     }
@@ -329,6 +687,11 @@ export function openForm({ title, fields, value = {}, onSave, onDelete, saveLabe
     const out = JSON.parse(JSON.stringify(value));
     for (const f of fields) {
       if (f.type === "heading") continue;
+      if (f.type === "types") {
+        const box = form.querySelector(`[data-types][data-k="${CSS.escape(f.key)}"]`);
+        setPath(out, f.key, Array.from(box.querySelectorAll("input:checked")).map(i => i.value));
+        continue;
+      }
       if (f.type === "dicelist") {
         const box = form.querySelector(`[data-dl][data-k="${CSS.escape(f.key)}"]`);
         const list = Array.from(box.querySelectorAll(".dl-row")).map(r => ({

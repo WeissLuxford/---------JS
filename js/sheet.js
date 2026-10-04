@@ -1,10 +1,10 @@
-import { ABILITIES, SKILLS, compute, normalize, fmt, rollD20, rollDice, spellCast, usesInfo, maxDie, uid, addDice, swapType, importCharacter } from "./rules.js";
+import { ABILITIES, SKILLS, DAMAGE, DAMAGE_TYPES, DEFENSE_KINDS, compute, normalize, fmt, rollD20, rollDice, spellCast, usesInfo, maxDie, uid, addDice, swapType, importCharacter, rollContext, resolveMode, rollReasons, applyDefenses } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import {
-  esc, $, $$, toast, openModal, confirmDialog, promptNumber, showD20, showDamage, rollLog, enableHoverCards, hideHoverCard,
-  openForm, getPath, setPath, dateTime, timeAgo, cropImage, download, pickFile
+  esc, $, $$, toast, openModal, confirmDialog, promptNumber, showD20, showBeams, showDamage, rollLog, enableHoverCards, hideHoverCard,
+  enableLongPress, openForm, getPath, setPath, dateTime, timeAgo, cropImage, download, pickFile
 } from "./ui.js";
-import { TABS, RENDER, subtitle } from "./tabs.js";
+import { TABS, RENDER, subtitle, hpState } from "./tabs.js";
 import { cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS } from "./entities.js";
 import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
 import { diffPaths, applyPaths } from "./sync.js";
@@ -35,7 +35,8 @@ export function mountSheet(root, id, initialTab, navigate) {
     d: null,
     base: null,
     tab: TABS.some(t => t.key === initialTab) ? initialTab : "char",
-    ui: { invFilter: "all", notesSection: "patron" },
+    ui: { invFilter: "all", notesSection: "patron", spellFilter: "all", spellQ: "", noteOpen: {} },
+    scroll: {},
     saveTimer: null,
     retry: 0,
     pendingRender: false,
@@ -238,7 +239,8 @@ export function mountSheet(root, id, initialTab, navigate) {
     body.dataset.tab = S.tab;
     $$(".tab", root).forEach(b => b.classList.toggle("on", b.dataset.tab === S.tab));
     $$("textarea.autogrow", body).forEach(grow);
-    if (readOnly()) $$("input, textarea, select", body).forEach(el => (el.disabled = true));
+    if (readOnly()) $$("input:not([data-ui]), textarea, select", body).forEach(el => (el.disabled = true));
+    if (S.tab === "spells" && S.ui.spellQ) filterSpells(S.ui.spellQ);
     updateCalcs();
   }
 
@@ -257,7 +259,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "pb": return fmt(d.pb);
       case "init": return fmt(d.init);
       case "ac": return String(d.ac);
-      case "speed": return c.speed + " фт";
+      case "speed": return S.d.speed + " фт";
       case "pp": return String(d.passive.perception);
       case "pi": return String(d.passive.insight);
       case "pinv": return String(d.passive.investigation);
@@ -287,9 +289,15 @@ export function mountSheet(root, id, initialTab, navigate) {
       }
     });
     const pct = Math.max(0, Math.min(100, (curHp() / Math.max(1, S.d.hpMax)) * 100));
+    const state = hpState(curHp(), S.d.hpMax);
     $$("[data-hpbar]", root).forEach(el => {
       el.style.width = pct + "%";
       el.parentElement.classList.toggle("low", pct <= 25);
+    });
+    $$(".hp-mini, [data-hpstate]", root).forEach(el => (el.dataset.hpstate = state));
+    $$(".medal.slow, [data-calc=speed]", root).forEach(el => {
+      const m = el.closest(".medal");
+      if (m) m.classList.toggle("slow", S.d.speed < S.d.baseSpeed);
     });
     $$("[data-wbar]", root).forEach(el => {
       el.classList.toggle("over", S.d.weight > S.d.carry);
@@ -361,6 +369,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     snapshot("Перед правкой");
     fn(S.c);
     changed(opts);
+    return true;
   }
 
   function curHp(c = S.c) {
@@ -383,7 +392,41 @@ export function mountSheet(root, id, initialTab, navigate) {
     }
   }
 
+  function filterSpells(q) {
+    const body = $("[data-body]", root);
+    if (!body) return;
+    const needle = q.trim().toLowerCase();
+    let shown = 0;
+    $$(".spell-lists .panel", body).forEach(p => {
+      let any = 0;
+      $$(".tile[data-search]", p).forEach(t => {
+        const ok = !needle || t.dataset.search.includes(needle);
+        t.hidden = !ok;
+        if (ok) any++;
+      });
+      p.hidden = !any;
+      shown += any;
+    });
+    const empty = $("[data-search-empty]", body);
+    if (empty) empty.hidden = !(needle && !shown);
+  }
+
+  const onUiInput = e => {
+    const q = e.target.closest("[data-ui=spell-q]");
+    if (!q || !root.contains(q)) return false;
+    S.ui.spellQ = q.value;
+    filterSpells(q.value);
+    return true;
+  };
+
+  const onToggle = e => {
+    const d = e.target;
+    if (!d || !d.matches || !d.matches("details[data-ui-open]") || !root.contains(d)) return;
+    S.ui[d.dataset.uiOpen] = d.open;
+  };
+
   const onInput = e => {
+    if (onUiInput(e)) return;
     const el = e.target.closest("[data-path]");
     if (!el || !root.contains(el) || !S.c || readOnly()) return;
     if (el.tagName === "TEXTAREA" && el.classList.contains("autogrow")) grow(el);
@@ -427,36 +470,61 @@ export function mountSheet(root, id, initialTab, navigate) {
     return m;
   }
 
-  function d20(label, modifier, mode = takeMode()) {
-    const r = rollD20(modifier, mode);
-    showD20(label, modifier, r, mode);
+  function rollSetup(kind, ability, manual) {
+    const ctx = rollContext(S.c, kind, ability);
+    return { mode: resolveMode(manual, ctx), why: rollReasons(manual, ctx), fail: ctx.autoFail };
+  }
+
+  function d20(label, modifier, kind, ability, extra) {
+    const st = rollSetup(kind, ability, takeMode());
+    const r = rollD20(modifier, st.mode);
+    showD20(label, modifier, r, st.mode, { why: st.why, fail: st.fail, extra: typeof extra === "function" ? extra(r) : extra || "" });
     return r;
+  }
+
+  function dmgButtons(aid, beams, crits, missAll) {
+    if (missAll) return "";
+    const b = [];
+    if (beams > 1) {
+      b.push(`<span class="r-btns-l">Урон по попавшим:</span>`);
+      for (let h = Math.max(1, crits); h <= beams; h++) b.push(`<button class="btn sm ${h === beams ? "gold" : ""}" data-hit-dmg="${esc(aid)}" data-n="${h}" data-c="${crits}">${h}</button>`);
+    } else if (crits) b.push(`<button class="btn sm gold" data-hit-dmg="${esc(aid)}" data-n="1" data-c="1">Урон (крит)</button>`);
+    else b.push(`<button class="btn sm" data-hit-dmg="${esc(aid)}" data-n="1" data-c="0">Урон</button>`);
+    return b.join("");
+  }
+
+  function hitDamage(aid, n, crits) {
+    const at = findEntity(S.c, "attack", aid);
+    const s = S.d.attacks[aid];
+    if (!at || !s) return;
+    const lines = Array.from({ length: n }, (_, i) => ({ dice: s.dmg, type: s.type, crit: i < crits, tag: n > 1 ? `Луч ${i + 1}${i < crits ? " · крит" : ""}` : "" }));
+    showDamage(`${at.name}: урон${n > 1 ? ` (${n} ${n < 5 ? "луча" : "лучей"})` : ""}`, lines, false);
   }
 
   function doRoll(spec) {
     const { c, d } = S;
     if (!c) return;
     const [k, a] = spec.split(":");
-    if (k === "check") return d20(`Проверка: ${abName(a)}`, d.mods[a]);
-    if (k === "save") return d20(`Спасбросок: ${abName(a)}`, d.saves[a]);
+    if (k === "check") return d20(`Проверка: ${abName(a)}`, d.mods[a], "check", a);
+    if (k === "save") return d20(`Спасбросок: ${abName(a)}`, d.saves[a], "save", a);
     if (k === "skill") {
       const s = SKILLS.find(x => x.key === a);
-      return s && d20(s.name, d.skills[a]);
+      return s && d20(s.name, d.skills[a], "check", s.ab);
     }
-    if (k === "init") return d20("Инициатива", d.init);
-    if (k === "spellatk") return d20("Атака заклинанием", d.spell.atk);
+    if (k === "init") return d20("Инициатива", d.init, "check", "dex");
+    if (k === "spellatk") return d20("Атака заклинанием", d.spell.atk, "attack");
     if (k === "attack") {
       const at = findEntity(c, "attack", a);
       const s = d.attacks[a];
       if (!at || !s) return;
-      const mode = takeMode();
-      let crit = false;
-      for (let i = 0; i < s.beams; i++) {
-        const r = d20(`${at.name}: атака${s.beams > 1 ? ` (${i + 1} из ${s.beams})` : ""}`, s.hit, mode);
-        if (r.nat20) crit = true;
+      if (s.beams > 1) {
+        const st = rollSetup("attack", "", takeMode());
+        const rs = Array.from({ length: s.beams }, () => rollD20(s.hit, st.mode));
+        const crits = rs.filter(r => r.nat20).length;
+        showBeams(`${at.name}: ${s.beams} ${s.beams < 5 ? "луча" : "лучей"}`, s.hit, rs, st.mode, { why: st.why, extra: dmgButtons(a, s.beams, crits, rs.every(r => r.nat1)) });
+        return;
       }
-      if (crit) toast(`<b>Критическое попадание!</b> Кубы урона удваиваются. <button class="btn sm" data-crit="${esc(a)}">Бросить крит</button>`, { timeout: 7000 });
-      return;
+      return d20(`${at.name}: атака`, s.hit, "attack", "", r => dmgButtons(a, 1, r.nat20 ? 1 : 0, r.nat1));
     }
     if (k === "dmg" || k === "crit") {
       const at = findEntity(c, "attack", a);
@@ -468,9 +536,9 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (k === "death") {
       if (c.hp.deathFail >= 3) return toast("Персонаж погиб: спасброски больше не нужны", { kind: "bad" });
       if (c.hp.stable || c.hp.deathSuccess >= 3) return toast("Персонаж стабилизирован", { kind: "good" });
-      const mode = takeMode();
-      const r = rollD20(0, mode);
-      showD20("Спасбросок от смерти", 0, r, mode);
+      const st = rollSetup("death", "", takeMode());
+      const r = rollD20(0, st.mode);
+      showD20("Спасбросок от смерти", 0, r, st.mode, { why: st.why });
       let outcome = "";
       mutate(ch => {
         const hp = ch.hp;
@@ -494,23 +562,32 @@ export function mountSheet(root, id, initialTab, navigate) {
     }
   }
 
-  async function hpDialog(mode) {
-    const titles = { dmg: "Урон", heal: "Лечение", temp: "Временные хиты" };
-    const res = await promptNumber(mode ? titles[mode] : "Хиты", {
-      label: `Сейчас: ${curHp()} / ${S.d.hpMax}${S.c.hp.temp ? ` (+${S.c.hp.temp} врем.)` : ""}`,
-      value: "",
-      buttons: mode
-        ? [{ label: titles[mode], value: mode, cls: mode === "dmg" ? "danger" : mode === "heal" ? "heal" : "gold" }]
-        : [{ label: "Урон", value: "dmg", cls: "danger" }, { label: "Лечение", value: "heal", cls: "heal" }, { label: "Врем.", value: "temp", cls: "ghost" }, { label: "Задать", value: "set", cls: "ghost" }]
-    });
-    if (!res || S.disposed || (!res.value && res.action !== "set")) return;
-    const n = Math.abs(Math.floor(res.value));
+  function typeOptions() {
+    const def = S.d.defenses;
+    const mark = t => (def.immune.includes(t) ? " (иммунитет)" : def.resist.includes(t) && def.vuln.includes(t) ? " (сопр. и уязв.)" : def.resist.includes(t) ? " (сопротивление)" : def.vuln.includes(t) ? " (уязвимость)" : "");
+    return [["", "Без типа"], ...DAMAGE_TYPES.map(t => [t, DAMAGE[t].name + mark(t)])];
+  }
+
+  function applyHp(action, value, type = "") {
+    const raw = Math.abs(Math.floor(Number(value) || 0));
+    if (!raw && action !== "set") return;
+    let n = raw;
+    let note = "";
+    if (action === "dmg" && type) {
+      const r = applyDefenses(raw, type, S.d.defenses);
+      n = r.amount;
+      const tn = (DAMAGE[type] || {}).name || type;
+      if (r.kind === "immune") note = `${tn}: иммунитет, урон не получен`;
+      else if (r.kind === "resist") note = `${tn}: сопротивление, ${raw} → ${n}`;
+      else if (r.kind === "vuln") note = `${tn}: уязвимость, ${raw} → ${n}`;
+      else if (r.kind === "both") note = `${tn}: сопротивление и уязвимость, ${raw} → ${n}`;
+    }
     let concDc = 0;
     let concLost = "";
-    mutate(c => {
+    const ok = mutate(c => {
       const hp = c.hp;
       hp.current = curHp(c);
-      if (res.action === "dmg") {
+      if (action === "dmg") {
         const fromTemp = Math.min(hp.temp || 0, n);
         hp.temp = (hp.temp || 0) - fromTemp;
         const rest = n - fromTemp;
@@ -527,16 +604,34 @@ export function mountSheet(root, id, initialTab, navigate) {
             c.concentration = "";
           } else concDc = Math.max(10, Math.floor(n / 2));
         }
-      } else if (res.action === "heal") {
+      } else if (action === "heal") {
         setHp(c, hp.current + n);
-      } else if (res.action === "temp") {
+      } else if (action === "temp") {
         hp.temp = Math.max(hp.temp || 0, n);
-      } else if (res.action === "set") {
+      } else if (action === "set") {
         setHp(c, n);
       }
     });
+    if (ok === false) return;
+    if (note) toast(`${icon("shield")} ${esc(note)}`, { kind: "info" });
     if (concLost) toast(`${icon("spiral")} Концентрация на «${esc(concLost)}» прервана: персонаж без сознания`, { kind: "bad" });
     if (concDc) toast(`${icon("spiral")} Концентрация на «${esc(S.c.concentration)}»: спасбросок Телосложения, СЛ ${concDc}. <button class="btn sm" data-conc-roll>Бросить</button>`, { timeout: 9000 });
+  }
+
+  async function hpDialog(mode) {
+    const titles = { dmg: "Урон", heal: "Лечение", temp: "Временные хиты" };
+    const withType = !mode || mode === "dmg";
+    const res = await promptNumber(mode ? titles[mode] : "Хиты", {
+      label: `Сейчас: ${curHp()} / ${S.d.hpMax}${S.c.hp.temp ? ` (+${S.c.hp.temp} врем.)` : ""}`,
+      value: "",
+      select: withType ? { label: "Тип урона", options: typeOptions(), value: S.ui.lastDmgType || "", hint: "Сопротивления и уязвимости учтутся сами" } : null,
+      buttons: mode
+        ? [{ label: titles[mode], value: mode, cls: mode === "dmg" ? "danger" : mode === "heal" ? "heal" : "gold" }]
+        : [{ label: "Урон", value: "dmg", cls: "danger" }, { label: "Лечение", value: "heal", cls: "heal" }, { label: "Врем.", value: "temp", cls: "ghost" }, { label: "Задать", value: "set", cls: "ghost" }]
+    });
+    if (!res || S.disposed) return;
+    if (withType) S.ui.lastDmgType = res.type;
+    applyHp(res.action, res.value, res.action === "dmg" ? res.type : "");
   }
 
   function spendHitDie() {
@@ -788,7 +883,7 @@ export function mountSheet(root, id, initialTab, navigate) {
         return editEntity(kind, e);
       }
       if (x === "cast") return castSpell(e, Number(btn.dataset.lvl) || null);
-      if (x === "spell-atk") return d20(`${e.name}: атака`, S.d.spell.atk);
+      if (x === "spell-atk") return d20(`${e.name}: атака`, S.d.spell.atk, "attack");
       if (x === "spell-dmg" || x === "spell-crit") {
         const cast = spellCast(S.c, S.d, e, S.lastCast[e.id] || null);
         const lines = [];
@@ -887,7 +982,7 @@ export function mountSheet(root, id, initialTab, navigate) {
           }
           if (!String(c.name || "").trim()) c.name = "Без имени";
           const n = normalize(c);
-          for (const k of ["info", "hp", "speed", "initBonus", "hitDie", "casterType", "spellAbility", "damageSwap"]) c[k] = n[k];
+          for (const k of ["info", "hp", "speed", "initBonus", "hitDie", "casterType", "spellAbility", "damageSwap", "defenses", "resistances"]) c[k] = n[k];
           clampHp(c);
         }, { render: false });
         renderAll(true);
@@ -1082,7 +1177,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     });
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
 
   async function runAction(a, el) {
     const { c } = S;
@@ -1155,6 +1250,49 @@ export function mountSheet(root, id, initialTab, navigate) {
         toast(S.rollMode === "normal" ? "Следующий бросок d20: обычный" : `Следующий бросок d20: ${S.rollMode === "adv" ? "с преимуществом" : "с помехой"}`, { timeout: 1800 });
         return;
       case "hp": return hpDialog(el.dataset.mode);
+      case "hp-quick": {
+        const n = Number(el.dataset.n) || 0;
+        return applyHp(n < 0 ? "dmg" : "heal", Math.abs(n));
+      }
+      case "inspiration": {
+        if (c.inspiration) {
+          mutate(ch => { ch.inspiration = false; });
+          S.rollMode = "adv";
+          const b = $("[data-act=roll-mode]", root);
+          if (b) b.innerHTML = rollModeLabel();
+          return toast(`${icon("sun")} Вдохновение потрачено: следующий бросок d20 с преимуществом`, { kind: "good" });
+        }
+        mutate(ch => { ch.inspiration = true; });
+        return toast(`${icon("sun")} Вдохновение получено`, { kind: "good", timeout: 2000 });
+      }
+      case "toggle-note": {
+        const sec = el.dataset.sec;
+        const n = (c.notes[sec] || []).find(x => x.id === el.dataset.id);
+        if (!n) return;
+        const local = S.ui.noteOpen;
+        const shut = n.id in local ? !local[n.id] : !!n.collapsed;
+        if (readOnly()) {
+          local[n.id] = shut;
+          return renderTab();
+        }
+        delete local[n.id];
+        return mutate(ch => {
+          const x = (ch.notes[sec] || []).find(y => y.id === n.id);
+          if (x) x.collapsed = !shut;
+        });
+      }
+      case "fold-notes": {
+        const sec = el.dataset.sec;
+        const v = el.dataset.v === "1";
+        const list = c.notes[sec] || [];
+        if (readOnly() || list.every(x => !!x.collapsed === v)) {
+          list.forEach(x => (S.ui.noteOpen[x.id] = !v));
+          return renderTab();
+        }
+        list.forEach(x => delete S.ui.noteOpen[x.id]);
+        return mutate(ch => (ch.notes[sec] || []).forEach(x => { x.collapsed = v; }));
+      }
+      case "spell-filter": S.ui.spellFilter = el.dataset.k; return renderTab();
       case "spend-hd": return spendHitDie();
       case "death": {
         const k = el.dataset.k;
@@ -1208,7 +1346,10 @@ export function mountSheet(root, id, initialTab, navigate) {
         return useEntity(kind, e, Number(el.dataset.i) < u.left ? 1 : -1);
       }
       case "toggle-cond": return mutate(ch => { ch.conditions[el.dataset.k] = !ch.conditions[el.dataset.k]; });
-      case "exhaustion": return mutate(ch => { ch.exhaustion = Number(el.dataset.i); });
+      case "exhaustion": return mutate(ch => {
+        ch.exhaustion = Number(el.dataset.i);
+        clampHp(ch);
+      });
       case "drop-conc": return mutate(ch => { ch.concentration = ""; });
     }
   }
@@ -1223,11 +1364,16 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (!S.c) return;
     const tab = e.target.closest("[data-tab]");
     if (tab && root.contains(tab) && tab.classList.contains("tab")) {
+      if (tab.dataset.tab === S.tab) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      S.scroll[S.tab] = window.scrollY;
       S.tab = tab.dataset.tab;
       hideHoverCard();
-      history.replaceState(null, "", `#/c/${id}/${S.tab}`);
+      history.replaceState(history.state, "", `#/c/${id}/${S.tab}`);
       renderTab();
-      window.scrollTo({ top: 0 });
+      window.scrollTo({ top: S.scroll[S.tab] || 0 });
       return;
     }
     const act = e.target.closest("[data-act]");
@@ -1246,6 +1392,8 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   const onToastClick = e => {
     if (S.disposed) return;
+    const hit = e.target.closest("#toasts [data-hit-dmg]");
+    if (hit) hitDamage(hit.dataset.hitDmg, Number(hit.dataset.n) || 1, Number(hit.dataset.c) || 0);
     const crit = e.target.closest("#toasts [data-crit]");
     if (crit) doRoll("crit:" + crit.dataset.crit);
     if (e.target.closest("#toasts [data-conc-roll]")) doRoll("save:con");
@@ -1274,10 +1422,18 @@ export function mountSheet(root, id, initialTab, navigate) {
   root.addEventListener("click", onClick);
   root.addEventListener("focusout", onFocusOut);
   root.addEventListener("keydown", onKey);
+  root.addEventListener("toggle", onToggle, true);
   document.addEventListener("click", onToastClick);
   window.addEventListener("beforeunload", onBeforeUnload);
   document.addEventListener("visibilitychange", onVisibility);
   const offHover = enableHoverCards(root, ref => (S.c && !S.disposed ? cardFor(S.c, S.d, ref) : ""));
+  const offLong = enableLongPress(root, (ref, el) => {
+    if (!S.c || S.disposed) return;
+    hideHoverCard();
+    if (el.closest("[data-open]")) return openEntity(el.closest("[data-open]").dataset.open);
+    const html = cardFor(S.c, S.d, ref);
+    if (html) openModal({ body: html, cls: "entity info-card" });
+  });
 
   return () => {
     if (hasUnsaved()) flush();
@@ -1288,6 +1444,8 @@ export function mountSheet(root, id, initialTab, navigate) {
     offAccess();
     offInvite();
     offHover();
+    offLong();
+    root.removeEventListener("toggle", onToggle, true);
     root.removeEventListener("input", onInput);
     root.removeEventListener("change", onInput);
     root.removeEventListener("click", onClick);

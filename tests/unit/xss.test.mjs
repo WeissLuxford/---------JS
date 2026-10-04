@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 globalThis.document = { addEventListener() {}, querySelector() { return null; } };
+globalThis.window = { addEventListener() {}, matchMedia: () => ({ matches: false }) };
 const P = new URL("../../js/", import.meta.url).href;
 const { RENDER, TABS } = await import(P + "tabs.js");
 const { cardFor } = await import(P + "entities.js");

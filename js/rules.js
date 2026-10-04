@@ -48,6 +48,10 @@ export const DAMAGE = {
   temp: { name: "Временные хиты", color: "#9fc6ff", icon: "shield" }
 };
 
+export const DAMAGE_TYPES = Object.keys(DAMAGE).filter(k => k !== "healing" && k !== "temp");
+
+export const DEFENSE_KINDS = { resist: "Сопротивление", vuln: "Уязвимость", immune: "Иммунитет" };
+
 export const SCHOOLS = {
   abjuration: { name: "Ограждение", color: "#7fb6ff" },
   conjuration: { name: "Вызов", color: "#f0b75a" },
@@ -310,7 +314,7 @@ export function newCharacter(name = "Новый персонаж") {
     hitDie: "d8",
     casterType: "none",
     spellAbility: "int",
-    armor: { name: "Без брони", base: 10, dexCap: "full", shield: false, bonus: 0 },
+    armor: { name: "Без брони", base: 10, dexCap: "full", shield: false, bonus: 0, addAbility: "" },
     speed: 30,
     initBonus: 0,
     senses: "",
@@ -322,6 +326,8 @@ export function newCharacter(name = "Новый персонаж") {
     concentration: "",
     damageSwap: { enabled: false, from: "fire", to: "cold", label: "" },
     resistances: "",
+    defenses: { resist: [], vuln: [], immune: [] },
+    inspiration: false,
     proficiencies: { armor: "", weapons: "", tools: "", languages: "" },
     attacks: [],
     spells: [],
@@ -329,7 +335,7 @@ export function newCharacter(name = "Новый персонаж") {
     items: [],
     coins: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
     personality: { appearance: "", traits: "", ideals: "", bonds: "", flaws: "", backstory: "", allies: "" },
-    notes: { patron: [], quests: [], people: [], misc: "" }
+    notes: { patron: [], quests: [], people: [], misc: [] }
   };
 }
 
@@ -355,6 +361,25 @@ const cleanDamage = list => (Array.isArray(list) ? list : [])
   .filter(d => d && typeof d === "object")
   .map(d => ({ dice: String(d.dice ?? ""), type: typeof d.type === "string" ? d.type : "bludgeoning", addMod: !!d.addMod }));
 
+const DEFENSE_WORDS = [
+  ["acid", /кислот/], ["bludgeoning", /дробящ/], ["cold", /холод|мороз/], ["fire", /огн|огон|пламен/],
+  ["force", /силов/], ["lightning", /электр|молни/], ["necrotic", /некрот/], ["piercing", /колющ/],
+  ["poison", /(^|[^а-яё])(яд(а|у|ом|е|ы|ов|ам|ами|ах)?|ядовит[а-яё]*)(?![а-яё])/], ["psychic", /психи/], ["radiant", /излуч|сияни/], ["slashing", /рубящ/], ["thunder", /звук|гром/]
+];
+
+export function parseDefenses(text) {
+  const out = { resist: [], vuln: [], immune: [] };
+  for (const part of String(text || "").toLowerCase().split(/[,;\n]+/)) {
+    const kind = /иммун/.test(part) ? "immune" : /уязв/.test(part) ? "vuln" : "resist";
+    for (const [type, re] of DEFENSE_WORDS) if (re.test(part) && !out[kind].includes(type)) out[kind].push(type);
+  }
+  return out;
+}
+
+const cleanTypes = v => (Array.isArray(v) ? v.filter((t, i) => DAMAGE_TYPES.includes(t) && v.indexOf(t) === i) : []);
+
+export const NOTE_KEYS = ["patron", "quests", "people", "misc"];
+
 const NUMERIC_HP = ["current", "temp", "bonusPerLevel", "hitDiceUsed", "deathSuccess", "deathFail"];
 
 export function normalize(c) {
@@ -379,6 +404,12 @@ export function normalize(c) {
   out.armor.base = num(out.armor.base, 10);
   out.armor.bonus = num(out.armor.bonus);
   out.armor.dexCap = ["full", "2", "0"].includes(String(out.armor.dexCap)) ? String(out.armor.dexCap) : "full";
+  out.armor.addAbility = ABILITY_KEYS.includes(out.armor.addAbility) ? out.armor.addAbility : "";
+  out.armor.shield = !!out.armor.shield;
+  out.resistances = String(out.resistances ?? "");
+  const def = src.defenses && typeof src.defenses === "object" && !Array.isArray(src.defenses) ? src.defenses : null;
+  out.defenses = def ? { resist: cleanTypes(def.resist), vuln: cleanTypes(def.vuln), immune: cleanTypes(def.immune) } : parseDefenses(out.resistances);
+  out.inspiration = !!out.inspiration;
   out.speed = num(out.speed, 30);
   out.initBonus = num(out.initBonus);
   out.exhaustion = Math.max(0, Math.min(6, Math.round(num(out.exhaustion))));
@@ -403,10 +434,14 @@ export function normalize(c) {
   out.features = out.features.map(f => ({ ...f, damage: cleanDamage(f.damage) }));
   out.items = out.items.map(it => ({ ...it, damage: cleanDamage(it.damage) }));
   out.attacks = out.attacks.map(at => ({ ...at, damage: typeof at.damage === "string" ? at.damage : String(at.damage ?? "") }));
-  for (const k of ["patron", "quests", "people"]) {
+  const misc = out.notes.misc;
+  if (!Array.isArray(misc)) {
+    const text = typeof misc === "string" ? misc : "";
+    out.notes.misc = text.trim() ? [{ id: "nt-misc-legacy", title: "Заметки", subtitle: "", text }] : [];
+  }
+  for (const k of NOTE_KEYS) {
     out.notes[k] = (Array.isArray(out.notes[k]) ? out.notes[k] : []).filter(x => x && typeof x === "object").map((x, i) => ({ ...x, id: cleanId(x.id, "nt-" + k, i) }));
   }
-  out.notes.misc = String(out.notes.misc ?? "");
   for (const k of ["saves", "skills", "slotsUsed", "conditions"]) {
     out[k] = out[k] && typeof out[k] === "object" && !Array.isArray(out[k]) ? out[k] : {};
   }
@@ -437,11 +472,19 @@ export function compute(c) {
   };
   const a = c.armor;
   const dexPart = a.dexCap === "0" ? 0 : a.dexCap === "2" ? Math.min(mods.dex, 2) : mods.dex;
-  const ac = (Number(a.base) || 10) + dexPart + (a.shield ? 2 : 0) + (Number(a.bonus) || 0);
+  const ac = (Number(a.base) || 10) + dexPart + (a.addAbility ? mods[a.addAbility] || 0 : 0) + (a.shield ? 2 : 0) + (Number(a.bonus) || 0);
+  const cond = c.conditions || {};
+  const ex = Number(c.exhaustion) || 0;
   const die = maxDie(c.hitDie);
   const perLevel = Math.floor(die / 2) + 1;
   const autoMax = Math.max(1, die + mods.con) + Math.max(0, level - 1) * Math.max(1, perLevel + mods.con) + level * (Number(c.hp.bonusPerLevel) || 0);
-  const hpMax = c.hp.maxOverride != null && c.hp.maxOverride !== "" ? Number(c.hp.maxOverride) : autoMax;
+  const fullMax = c.hp.maxOverride != null && c.hp.maxOverride !== "" ? Number(c.hp.maxOverride) : autoMax;
+  const hpMax = ex >= 4 ? Math.max(1, Math.floor(fullMax / 2)) : fullMax;
+  const baseSpeed = Number(c.speed) || 0;
+  const stopped = ex >= 5 || ["grappled", "restrained", "paralyzed", "stunned", "unconscious", "petrified"].some(k => cond[k]);
+  const speed = stopped ? 0 : ex >= 2 ? Math.floor(baseSpeed / 2) : baseSpeed;
+  const dfn = c.defenses || { resist: [], vuln: [], immune: [] };
+  const defenses = { resist: cond.petrified ? DAMAGE_TYPES.slice() : (dfn.resist || []).slice(), vuln: (dfn.vuln || []).slice(), immune: (dfn.immune || []).slice() };
   const spellMod = mods[c.spellAbility] ?? 0;
   const spell = { ability: c.spellAbility, mod: spellMod, dc: 8 + pb + spellMod, atk: pb + spellMod };
   const pact = c.casterType === "pact" ? pactSlots(level) : null;
@@ -454,7 +497,7 @@ export function compute(c) {
     if (it.attuned) attuned++;
   }
   weight += Object.values(c.coins).reduce((s, v) => s + (Number(v) || 0), 0) / 50;
-  const d = { level, pb, mods, saves, skills, passive, ac, hpMax, autoMax, spell, pact, slots, carry, weight: Math.round(weight * 10) / 10, attuned, tier: cantripTier(level) };
+  const d = { level, pb, mods, saves, skills, passive, ac, hpMax, fullMax, autoMax, speed, baseSpeed, defenses, spell, pact, slots, carry, weight: Math.round(weight * 10) / 10, attuned, tier: cantripTier(level) };
   d.init = mods.dex + (Number(c.initBonus) || 0);
   d.hitDice = { total: level, left: Math.max(0, level - (Number(c.hp.hitDiceUsed) || 0)), die: c.hitDie };
   d.uses = {};
@@ -502,6 +545,69 @@ export function spellCast(c, d, sp, slotLevel) {
   });
   const beams = base === 0 && sp.scaling === "cantrip-beams" ? d.tier : 1;
   return { level, lines, beams };
+}
+
+const condName = k => (CONDITIONS.find(x => x.key === k) || {}).name || k;
+
+export function rollContext(c, kind, ability) {
+  const cond = (c && c.conditions) || {};
+  const ex = Number(c && c.exhaustion) || 0;
+  const adv = [];
+  const dis = [];
+  const warn = [];
+  let autoFail = "";
+  const on = keys => keys.filter(k => cond[k]).map(condName);
+  if (kind === "attack") {
+    dis.push(...on(["blinded", "frightened", "poisoned", "prone", "restrained"]));
+    adv.push(...on(["invisible"]));
+    if (ex >= 3) dis.push(`Истощение ${ex}`);
+    const stop = on(["incapacitated", "paralyzed", "stunned", "unconscious", "petrified"]);
+    if (stop.length) warn.push(`${stop.join(", ")}: действовать нельзя`);
+  }
+  if (kind === "check") {
+    dis.push(...on(["frightened", "poisoned"]));
+    if (ex >= 1) dis.push(`Истощение ${ex}`);
+    if (cond.blinded) warn.push("Ослеплён: проверки, где нужно зрение, проваливаются");
+    if (cond.deafened) warn.push("Оглох: проверки, где нужен слух, проваливаются");
+  }
+  if (kind === "save" || kind === "death") {
+    if (ability === "dex" && cond.restrained) dis.push(condName("restrained"));
+    if (ex >= 3) dis.push(`Истощение ${ex}`);
+    if (ability === "str" || ability === "dex") {
+      const fail = on(["paralyzed", "stunned", "unconscious", "petrified"]);
+      if (fail.length) autoFail = fail.join(", ");
+    }
+  }
+  return { adv, dis, warn, autoFail };
+}
+
+export function resolveMode(manual, ctx) {
+  const a = manual === "adv" || ctx.adv.length > 0;
+  const d = manual === "dis" || ctx.dis.length > 0;
+  return a && d ? "normal" : a ? "adv" : d ? "dis" : "normal";
+}
+
+export function rollReasons(manual, ctx) {
+  const adv = [...(manual === "adv" ? ["выбрано вручную"] : []), ...ctx.adv];
+  const dis = [...(manual === "dis" ? ["выбрано вручную"] : []), ...ctx.dis];
+  const out = [];
+  if (adv.length && dis.length) out.push(`Преимущество (${adv.join(", ")}) и помеха (${dis.join(", ")}) гасят друг друга`);
+  else if (adv.length && ctx.adv.length) out.push(`Преимущество: ${adv.join(", ")}`);
+  else if (dis.length && ctx.dis.length) out.push(`Помеха: ${dis.join(", ")}`);
+  out.push(...ctx.warn);
+  return out;
+}
+
+export function applyDefenses(amount, type, defenses) {
+  const n = Math.max(0, Math.floor(Number(amount) || 0));
+  if (!type || !defenses) return { amount: n, kind: "" };
+  if ((defenses.immune || []).includes(type)) return { amount: 0, kind: "immune" };
+  const resist = (defenses.resist || []).includes(type);
+  const vuln = (defenses.vuln || []).includes(type);
+  let v = n;
+  if (resist) v = Math.floor(v / 2);
+  if (vuln) v *= 2;
+  return { amount: v, kind: resist && vuln ? "both" : resist ? "resist" : vuln ? "vuln" : "" };
 }
 
 export function usesInfo(d, entity) {

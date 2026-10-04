@@ -1,14 +1,17 @@
 import { initStore, createIfMissing, getMode, validId } from "./store.js";
 import { mountHome } from "./home.js";
 import { mountSheet } from "./sheet.js";
-import { closeAllModals } from "./ui.js";
+import { closeAllModals, whenHistoryIdle, onModalEntry } from "./ui.js";
 
 const root = document.getElementById("app");
 let unmount = null;
 
 function navigate(hash) {
-  if (location.hash === hash) route();
-  else location.hash = hash;
+  whenHistoryIdle(() => {
+    if (location.hash === hash) route();
+    else if (onModalEntry()) location.replace(hash);
+    else location.hash = hash;
+  });
 }
 
 function route() {

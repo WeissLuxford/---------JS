@@ -13,7 +13,7 @@ function mutate(c) {
   const ops = [
     c => (c.hp.current = rnd(40)),
     c => (c.name = "N" + rnd(99)),
-    c => (c.notes.misc = "t" + rnd(999)),
+    c => (c.notes.misc = [{ id: "nt-x", title: "t" + rnd(999), text: "" }]),
     c => (c.spells[rnd(c.spells.length)].used = rnd(3)),
     c => c.items.splice(rnd(c.items.length), 1),
     c => (c.slotsUsed[1 + rnd(3)] = rnd(3)),

@@ -192,7 +192,56 @@ export function abilityModel(c, d, key) {
 
 export function conditionModel(key) {
   const k = CONDITIONS.find(x => x.key === key);
-  return { title: k.name, subtitle: "Состояние", art: { icon: "skull", color: "#e5533d" }, body: rich(k.desc) };
+  if (!k) return null;
+  return { title: k.name, subtitle: "Состояние", art: { icon: "skull", color: "#e5533d" }, body: rich(k.desc), footer: [{ mark: actionMark("ring", "#e5533d"), text: "Влияет на броски сам" }] };
+}
+
+const EXHAUSTION = ["Нет", "Помеха на проверки характеристик", "Скорость уменьшается вдвое", "Помеха на атаки и спасброски", "Максимум хитов уменьшается вдвое", "Скорость равна 0", "Смерть"];
+
+const defNames = list => list.map(t => (DAMAGE[t] || {}).name || t).join(", ");
+
+export function statModel(c, d, key) {
+  const line = (label, v) => `${label} ${typeof v === "number" ? fmt(v) : esc(v)}`;
+  if (key === "ac") {
+    const a = c.armor;
+    const dex = a.dexCap === "0" ? 0 : a.dexCap === "2" ? Math.min(d.mods.dex, 2) : d.mods.dex;
+    const parts = [`${esc(a.name || "Доспех")} ${Number(a.base) || 10}`];
+    if (a.dexCap !== "0") parts.push(line("Ловкость", dex) + (a.dexCap === "2" && d.mods.dex > 2 ? " (не больше +2)" : ""));
+    if (a.addAbility) parts.push(line(abName(a.addAbility), d.mods[a.addAbility]));
+    if (a.shield) parts.push("Щит +2");
+    if (Number(a.bonus)) parts.push(line("Прочее", Number(a.bonus)));
+    return { title: "Класс доспеха", subtitle: "Насколько сложно попасть", art: { icon: "shield", color: "#e9c77a" }, stats: `<span class="big-num">${d.ac}</span><span>${parts.join(" · ")}</span>`, body: rich("Атака попадает, если результат броска не меньше КД. Нажми на медаль, чтобы поменять доспех.") };
+  }
+  if (key === "init") {
+    return { title: "Инициатива", subtitle: "Порядок ходов в бою", art: { icon: "bolt", color: "#e9c77a" }, stats: `<span class="big-num">${fmt(d.init)}</span><span>${line("Ловкость", d.mods.dex)}${Number(c.initBonus) ? " · " + line("бонус", Number(c.initBonus)) : ""}</span>`, body: rich("Бросок d20 в начале боя. Истощение и состояния, дающие помеху на проверки, учитываются сами.") };
+  }
+  if (key === "speed") {
+    const why = [];
+    const ex = Number(c.exhaustion) || 0;
+    if (ex >= 5) why.push(`Истощение ${ex}: скорость 0`);
+    else if (ex >= 2) why.push(`Истощение ${ex}: вдвое меньше`);
+    CONDITIONS.filter(k => c.conditions[k.key] && ["grappled", "restrained", "paralyzed", "stunned", "unconscious", "petrified"].includes(k.key)).forEach(k => why.push(`${k.name}: скорость 0`));
+    return { title: "Скорость", subtitle: "Сколько футов за ход", art: { icon: "boot", color: "#e9c77a" }, stats: `<span class="big-num">${d.speed} фт</span><span>Обычная ${d.baseSpeed} фт</span>`, body: rich(why.length ? why.map(w => "- " + w).join("\n") : "Ничто не замедляет.") };
+  }
+  if (key === "pb") {
+    return { title: "Бонус мастерства", subtitle: `${d.level} уровень`, art: { icon: "star", color: "#e9c77a" }, stats: `<span class="big-num">${fmt(d.pb)}</span><span>+2 на 1-4, +3 на 5-8, +4 на 9-12, +5 на 13-16, +6 на 17-20</span>`, body: rich("Прибавляется к атакам и навыкам, которыми персонаж владеет, к спасброскам с владением и к СЛ заклинаний.") };
+  }
+  if (key === "hp") {
+    const die = Number(String(c.hitDie).replace(/\D/g, "")) || 8;
+    const per = Math.floor(die / 2) + 1;
+    const con = d.mods.con;
+    const manual = c.hp.maxOverride != null && c.hp.maxOverride !== "";
+    const calc = manual ? "Задано вручную" : `1 уровень: ${die} ${fmt(con)}${d.level > 1 ? `, дальше ${per} ${fmt(con)} за уровень × ${d.level - 1}` : ""}${Number(c.hp.bonusPerLevel) ? `, ещё ${Number(c.hp.bonusPerLevel)} × ${d.level}` : ""}`;
+    return { title: "Хиты", subtitle: `Кость хитов ${esc(c.hitDie)}`, art: { icon: "heart", color: "#e5533d" }, stats: `<span class="big-num">${d.hpMax}</span><span>${esc(calc)}${d.hpMax !== d.fullMax ? ` · Истощение 4+: максимум вдвое меньше (${d.fullMax})` : ""}</span>`, body: rich(d.defenses.resist.length || d.defenses.vuln.length || d.defenses.immune.length ? [d.defenses.resist.length ? `**Сопротивление:** ${defNames(d.defenses.resist)}` : "", d.defenses.vuln.length ? `**Уязвимость:** ${defNames(d.defenses.vuln)}` : "", d.defenses.immune.length ? `**Иммунитет:** ${defNames(d.defenses.immune)}` : ""].filter(Boolean).join("\n") : "Сопротивлений нет.") };
+  }
+  if (key === "inspiration") {
+    return { title: "Вдохновение", subtitle: c.inspiration ? "Есть" : "Нет", art: { icon: "sun", color: "#f4d66d" }, body: rich("Мастер даёт вдохновение за хорошую игру. Его можно потратить, чтобы получить преимущество на один бросок d20.\n\nНажми, когда оно есть: следующий бросок пойдёт с преимуществом. Нажми, когда его нет: отметить, что Мастер дал вдохновение.") };
+  }
+  if (key === "exhaustion") {
+    const ex = Number(c.exhaustion) || 0;
+    return { title: "Истощение", subtitle: `Уровень ${ex}`, art: { icon: "skull", color: "#e5533d" }, body: rich(EXHAUSTION.slice(1).map((t, i) => `- ${i + 1 <= ex ? "**" : ""}${i + 1}: ${t}${i + 1 <= ex ? "**" : ""}`).join("\n") + "\n\nЭффекты складываются. Длинный отдых снимает 1 уровень."), footer: [{ mark: actionMark("ring", "#e5533d"), text: "Влияет на броски, скорость и хиты сам" }] };
+  }
+  return null;
 }
 
 export function modelFor(c, d, ref, opts = {}) {
@@ -200,6 +249,7 @@ export function modelFor(c, d, ref, opts = {}) {
   if (kind === "skill") return skillModel(c, d, id);
   if (kind === "ability") return abilityModel(c, d, id);
   if (kind === "condition") return conditionModel(id);
+  if (kind === "stat") return statModel(c, d, id);
   const e = findEntity(c, kind, id);
   if (!e) return null;
   if (kind === "spell") return spellModel(c, d, e, opts.slotLevel);
@@ -253,6 +303,7 @@ export const EDITORS = {
       { key: "source", label: "Источник", placeholder: "Колдун, Раса..." },
       { key: "concentration", label: "Концентрация", type: "checkbox" },
       { key: "ritual", label: "Ритуал", type: "checkbox" },
+      { key: "prepared", label: "Подготовлено", type: "checkbox", hint: "Для жрецов, друидов, волшебников и паладинов. Колдуну и барду не нужно" },
       { key: "attack", label: "Бросок атаки заклинанием", type: "checkbox" },
       { key: "save", label: "Спасбросок цели", type: "select", options: SAVE_OPTS },
       { key: "damage", label: "Урон / эффект", type: "dicelist", span: 3 },
@@ -342,7 +393,8 @@ export function noteFields(section) {
   ];
   if (section === "quests") f.push({ key: "status", label: "Статус", type: "select", options: [["active", "Активно"], ["done", "Выполнено"], ["failed", "Провалено"], ["", "Без статуса"]] });
   if (section === "people") f.push({ key: "attitude", label: "Отношение", type: "select", options: [["ally", "Союзник"], ["neutral", "Нейтрально"], ["hostile", "Враг"], ["", "Неизвестно"]] });
-  f.push({ key: "text", label: "Текст", type: "textarea", rows: 8, span: 3 });
+  f.push({ key: "text", label: "Текст", type: "richtext", rows: 12, span: 3, hint: "**жирный**, *курсив*, ## заголовок, - список, > цитата, ==маркер==. Кнопка «Просмотр» показывает, как будет выглядеть" });
+  f.push({ key: "collapsed", label: "Показывать свёрнутой (только название)", type: "checkbox", span: 3 });
   return f;
 }
 
@@ -372,7 +424,11 @@ export function infoFields() {
     { key: "hp.maxOverride", label: "Макс. хиты вручную", type: "number", nullable: true, hint: "Пусто = считается автоматически" },
     { key: "hp.bonusPerLevel", label: "Доп. хиты за уровень", type: "number", hint: "Например, черта Крепкий: 2" },
     { key: "senses", label: "Чувства", placeholder: "Тёмное зрение 60 фт", span: 2 },
-    { key: "resistances", label: "Сопротивления и иммунитеты", span: 3 },
+    { type: "heading", key: "_h5", label: "Сопротивления, уязвимости, иммунитеты", span: 3 },
+    { key: "defenses.resist", label: "Сопротивление (урон пополам)", type: "types", span: 3 },
+    { key: "defenses.vuln", label: "Уязвимость (урон вдвое)", type: "types", span: 3 },
+    { key: "defenses.immune", label: "Иммунитет (без урона)", type: "types", span: 3 },
+    { key: "resistances", label: "Заметка о защите", span: 3, placeholder: "Огонь (Адское сопротивление)", hint: "Отмеченные типы считаются сами, когда вводишь урон с типом" },
     { type: "heading", key: "_h3", label: "Спасброски с владением", span: 3 },
     ...ABILITIES.map(a => ({ key: "saves." + a.key, label: a.name, type: "checkbox" })),
     { type: "heading", key: "_h4", label: "Замена типа урона (хоумбрю)", span: 3 },
@@ -388,6 +444,7 @@ export function armorFields() {
     { key: "armor.name", label: "Доспех", span: 2 },
     { key: "armor.base", label: "Базовый КД", type: "number" },
     { key: "armor.dexCap", label: "Ловкость", type: "select", options: [["full", "Полностью (лёгкий / без доспеха)"], ["2", "Не больше +2 (средний)"], ["0", "Не учитывается (тяжёлый)"]] },
+    { key: "armor.addAbility", label: "Ещё прибавлять к КД", type: "select", options: [["", "Ничего"], ["con", "Телосложение (Защита без доспехов варвара)"], ["wis", "Мудрость (Защита без доспехов монаха)"], ["int", "Интеллект"], ["cha", "Харизма"]], span: 2 },
     { key: "armor.shield", label: "Щит (+2)", type: "checkbox" },
     { key: "armor.bonus", label: "Прочие бонусы", type: "number", hint: "Кольцо защиты, магия и т.п." }
   ];
