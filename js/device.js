@@ -1,5 +1,4 @@
 const LS_DEVICE = "dnd.device";
-const LS_NAME = "dnd.editorName";
 
 function read(key) {
   try {
@@ -55,27 +54,20 @@ const info = { ...detect(), gpu: detectGpu() };
 export const KIND_NAMES = { phone: "Телефон", tablet: "Планшет", desktop: "Компьютер" };
 export const KIND_ICONS = { phone: "phone", tablet: "tablet", desktop: "monitor" };
 
-export function editorName() {
-  return read(LS_NAME).slice(0, 40);
-}
+let identity = () => ({ uid: "", name: "" });
 
-export function setEditorName(name) {
-  write(LS_NAME, String(name || "").trim().slice(0, 40));
+export function bindIdentity(fn) {
+  identity = fn;
 }
 
 export function whoAmI() {
-  return { id: deviceId, kind: info.kind, os: info.os, browser: info.browser, gpu: info.gpu, name: editorName() };
-}
-
-let currentUid = () => "";
-
-export function bindUid(fn) {
-  currentUid = fn;
+  const me = identity();
+  return { id: deviceId, uid: me.uid, name: me.name, kind: info.kind, os: info.os, browser: info.browser, gpu: info.gpu };
 }
 
 export function isMe(by) {
   if (!by) return false;
-  const uid = currentUid();
+  const uid = identity().uid;
   if (by.uid && uid) return by.uid === uid;
   return by.id === deviceId;
 }

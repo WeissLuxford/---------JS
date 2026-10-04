@@ -1,7 +1,7 @@
 import { FIREBASE_CONFIG, FIREBASE_VERSION } from "./config.js";
 import { DELETE, applyPaths } from "./sync.js";
 import { whoAmI } from "./device.js";
-import { initAccess, currentUid } from "./access.js";
+import { initAccess, currentUid, getAccess } from "./access.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
 const LS_CHARS = "dnd.chars";
@@ -36,7 +36,10 @@ export const validId = id => typeof id === "string" && /^[A-Za-z0-9_-]{1,100}$/.
 
 const clone = v => JSON.parse(JSON.stringify(v ?? null));
 
-const who = () => ({ ...whoAmI(), uid: currentUid() });
+const who = () => whoAmI();
+
+export const EMULATOR = new URLSearchParams(location.search).has("emu");
+const LS_RECENT = "dnd.recent";
 
 function readLocal() {
   try {
@@ -106,16 +109,17 @@ export async function initStore() {
     const app = appMod.initializeApp(FIREBASE_CONFIG);
     try {
       db = fsMod.initializeFirestore(app, {
-        localCache: storageOk()
+        localCache: storageOk() && !EMULATOR
           ? fsMod.persistentLocalCache({ tabManager: fsMod.persistentMultipleTabManager() })
           : fsMod.memoryLocalCache()
       });
     } catch {
       db = fsMod.getFirestore(app);
     }
+    if (EMULATOR) fsMod.connectFirestoreEmulator(db, "127.0.0.1", 8080);
     fs = fsMod;
     mode = "cloud";
-    await initAccess({ app, fsMod, database: db, cdn: CDN });
+    await initAccess({ app, fsMod, database: db, cdn: CDN, emulator: EMULATOR });
     setStatus({ state: navigator.onLine === false ? "offline" : "idle", error: navigator.onLine === false ? OFFLINE_MSG : "" });
   } catch {
     mode = "local";
@@ -124,26 +128,44 @@ export async function initStore() {
   return mode;
 }
 
-export function subscribeList(cb) {
+function listFrom(q, cb) {
+  return fs.onSnapshot(
+    q,
+    { includeMetadataChanges: true },
+    snap => {
+      const list = [];
+      snap.forEach(d => list.push({ ...d.data(), id: d.id }));
+      cb(list, { fromCache: snap.metadata.fromCache });
+    },
+    err => {
+      if (!String(err && err.code).includes("permission-denied")) setStatus({ state: "error", error: humanError(err) });
+      cb(null, { error: err });
+    }
+  );
+}
+
+export function subscribeList(cb, scope = "mine") {
   if (mode === "cloud") {
-    return fs.onSnapshot(
-      fs.collection(db, "characters"),
-      { includeMetadataChanges: true },
-      snap => {
-        const list = [];
-        snap.forEach(d => list.push({ ...d.data(), id: d.id }));
-        cb(list, { fromCache: snap.metadata.fromCache });
-      },
-      err => {
-        setStatus({ state: "error", error: humanError(err) });
-        cb(null, { error: err });
-      }
-    );
+    const uid = currentUid();
+    if (scope === "all") return listFrom(fs.collection(db, "characters"), cb);
+    if (!uid) {
+      cb([], {});
+      return () => {};
+    }
+    return listFrom(fs.query(fs.collection(db, "characters"), fs.where("ownerUid", "==", uid)), cb);
   }
   const emit = map => cb(Object.entries(map).map(([id, c]) => ({ ...c, id })), {});
   emit(readLocal());
   localListeners.add(emit);
   return () => localListeners.delete(emit);
+}
+
+export function subscribeInvites(email, cb) {
+  if (mode !== "cloud" || !email) {
+    cb([], {});
+    return () => {};
+  }
+  return listFrom(fs.collection(db, "invites", email.toLowerCase(), "chars"), cb);
 }
 
 export function subscribeChar(id, cb) {
@@ -230,6 +252,13 @@ export async function saveChanges(id, changes, full) {
 export async function createChar(id, c) {
   const now = Date.now();
   const data = { ...stripId(c), createdAt: now, updatedAt: now, updatedBy: who() };
+  delete data.archived;
+  data.archived = false;
+  if (mode === "cloud") {
+    const a = getAccess();
+    data.ownerUid = a.uid;
+    data.ownerName = a.name;
+  }
   if (mode === "local") {
     const map = readLocal();
     map[id] = data;
@@ -253,6 +282,83 @@ export async function createIfMissing(id, c) {
     const cur = await t.get(ref);
     if (!cur.exists()) t.set(ref, { ...stripId(c), createdAt: now, updatedAt: now });
   });
+}
+
+export async function claimCharacter(id) {
+  const a = getAccess();
+  await fs.updateDoc(fs.doc(db, "characters", id), { ownerUid: a.uid, ownerName: a.name, updatedAt: Date.now(), updatedBy: who() });
+}
+
+export async function getAcl(id) {
+  if (mode !== "cloud") return null;
+  const snap = await fs.getDoc(fs.doc(db, "characters", id, "acl", "main"));
+  return snap.exists() ? snap.data() : { emails: [] };
+}
+
+export async function saveAcl(id, emails, meta) {
+  const prev = await getAcl(id).catch(() => ({ emails: [] }));
+  const clean = [...new Set(emails.map(e => String(e).trim().toLowerCase()).filter(Boolean))].slice(0, 20);
+  await fs.setDoc(fs.doc(db, "characters", id, "acl", "main"), { emails: clean, updatedAt: Date.now() });
+  const removed = (prev.emails || []).filter(e => !clean.includes(e));
+  const added = clean.filter(e => !(prev.emails || []).includes(e));
+  await Promise.all([
+    ...added.map(e => fs.setDoc(fs.doc(db, "invites", e, "chars", id), { ...meta, at: Date.now() }).catch(() => {})),
+    ...removed.map(e => fs.deleteDoc(fs.doc(db, "invites", e, "chars", id)).catch(() => {}))
+  ]);
+  return clean;
+}
+
+export async function deleteCharacter(id) {
+  if (mode !== "cloud") {
+    const map = readLocal();
+    delete map[id];
+    writeLocal(map);
+    try {
+      localStorage.removeItem(LS_HIST + id);
+    } catch {}
+    removeRecent(id);
+    return;
+  }
+  const acl = await getAcl(id).catch(() => null);
+  const hist = await fs.getDocs(fs.collection(db, "characters", id, "history")).catch(() => null);
+  if (hist) await Promise.all(hist.docs.map(d => fs.deleteDoc(d.ref).catch(() => {})));
+  if (acl && acl.emails) await Promise.all(acl.emails.map(e => fs.deleteDoc(fs.doc(db, "invites", e, "chars", id)).catch(() => {})));
+  await fs.deleteDoc(fs.doc(db, "characters", id, "acl", "main")).catch(() => {});
+  await fs.deleteDoc(fs.doc(db, "characters", id));
+  removeRecent(id);
+}
+
+export function getRecents() {
+  try {
+    const v = JSON.parse(localStorage.getItem(LS_RECENT) || "[]");
+    return Array.isArray(v) ? v.filter(x => x && validId(x.id)) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addRecent(c) {
+  if (!c || !validId(c.id)) return;
+  const list = getRecents().filter(x => x.id !== c.id);
+  list.unshift({ id: c.id, name: String(c.name || "").slice(0, 120), sub: String(c.sub || "").slice(0, 120), at: Date.now() });
+  try {
+    localStorage.setItem(LS_RECENT, JSON.stringify(list.slice(0, 24)));
+  } catch {}
+}
+
+export function removeRecent(id) {
+  try {
+    localStorage.setItem(LS_RECENT, JSON.stringify(getRecents().filter(x => x.id !== id)));
+  } catch {}
+}
+
+export async function getCharOnce(id) {
+  if (mode !== "cloud") {
+    const c = readLocal()[id];
+    return c ? { ...c, id } : null;
+  }
+  const snap = await fs.getDoc(fs.doc(db, "characters", id));
+  return snap.exists() ? { ...snap.data(), id } : null;
 }
 
 export async function addHistory(id, data, reason) {

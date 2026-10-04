@@ -46,7 +46,6 @@ async function start() {
   if (getMode() === "local") await ensureSeed();
   window.addEventListener("hashchange", route);
   route();
-  if (getMode() === "cloud") ensureSeed();
 }
 
 start();

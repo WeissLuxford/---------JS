@@ -1,4 +1,4 @@
-import { whoAmI, bindUid } from "./device.js";
+import { bindIdentity } from "./device.js";
 
 let authMod = null;
 let auth = null;
@@ -10,32 +10,34 @@ const listeners = new Set();
 
 const state = {
   enabled: false,
-  authOk: false,
+  ready: false,
   authError: "",
   uid: "",
-  isOwner: false,
-  ownerEmail: "",
+  name: "",
+  email: "",
+  photo: "",
+  isAdmin: false,
   banned: false,
-  allowed: false,
-  locked: false
+  enforced: false
 };
+
+const LS_ENFORCED = "dnd.rulesV2";
+
+export const IN_APP = /FBAN|FBAV|Instagram|Line\/|MicroMessenger|VKClient|Telegram|; wv\)|GSA\//i.test(navigator.userAgent || "");
 
 export function currentUid() {
   return state.uid;
 }
 
-bindUid(currentUid);
-
-function canEdit() {
-  if (!state.enabled) return true;
-  if (state.isOwner) return true;
-  if (state.banned) return false;
-  if (state.locked && !state.allowed) return false;
-  return true;
+export function myEmail() {
+  return (state.email || "").toLowerCase();
 }
 
+bindIdentity(() => ({ uid: state.uid, name: state.name }));
+
 function snapshot() {
-  return { ...state, canEdit: canEdit(), reason: state.isOwner ? "" : state.banned ? "banned" : state.locked && !state.allowed ? "locked" : "" };
+  const signedIn = !!state.uid;
+  return { ...state, signedIn, canCreate: !state.enforced || (signedIn && !state.banned) };
 }
 
 function emit() {
@@ -57,38 +59,65 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeo
 
 function authMessage(e) {
   const code = String((e && (e.code || e.message)) || "");
-  if (code.includes("configuration-not-found") || code.includes("CONFIGURATION_NOT_FOUND") || code.includes("operation-not-allowed") || code.includes("admin-restricted")) return "Вход не включён в Firebase (Authentication: Anonymous и Google)";
-  if (code.includes("unauthorized-domain")) return "Этот адрес сайта не добавлен в Firebase: Authentication, Settings, Authorized domains";
-  if (code.includes("popup-blocked")) return "Браузер заблокировал окно входа: разреши всплывающие окна для сайта";
+  if (code.includes("configuration-not-found") || code.includes("operation-not-allowed") || code.includes("admin-restricted")) return "Вход через Google ещё не включён в Firebase (Authentication, Sign-in method, Google)";
+  if (code.includes("unauthorized-domain")) return "Адрес сайта не добавлен в Firebase: Authentication, Settings, Authorized domains";
+  if (code.includes("popup-blocked")) return "Браузер заблокировал окно входа: разреши всплывающие окна для сайта и попробуй ещё раз";
   if (code.includes("popup-closed") || code.includes("cancelled-popup")) return "Окно входа закрыто";
   if (code.includes("network")) return "Нет связи с сервером входа";
+  if (code.includes("web-storage-unsupported")) return "Браузер запрещает хранить данные сайта: вход невозможен в этом режиме";
   if (code === "timeout") return "Сервер входа не ответил";
   return (e && e.message) || "Ошибка входа";
 }
 
-export async function initAccess({ app, fsMod, database, cdn }) {
+export async function initAccess({ app, fsMod, database, cdn, emulator }) {
   fs = fsMod;
   db = database;
   try {
     authMod = await import(`${cdn}/firebase-auth.js`);
     auth = authMod.getAuth(app);
+    if (emulator) {
+      authMod.connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+      window.__emuSignIn = (sub, email, name) => authMod.signInWithCredential(auth, authMod.GoogleAuthProvider.credential(JSON.stringify({ sub, email, email_verified: true, name })));
+    }
+    state.enabled = true;
+    state.enforced = await detectRules();
     await withTimeout(new Promise(res => {
       const off = authMod.onAuthStateChanged(auth, u => {
         off();
         res(u);
       });
     }), 5000).catch(() => {});
-    if (!auth.currentUser) await withTimeout(authMod.signInAnonymously(auth), 7000);
-    state.enabled = true;
-    state.authError = "";
     authMod.onAuthStateChanged(auth, u => setUser(u));
-    setUser(auth.currentUser);
+    await setUser(auth.currentUser);
   } catch (e) {
-    state.enabled = false;
-    state.authOk = false;
     state.authError = authMessage(e);
-    emit();
   }
+  state.ready = true;
+  emit();
+}
+
+async function detectRules() {
+  try {
+    await withTimeout(fs.getDoc(fs.doc(db, "meta", "rules")), 6000);
+    remember(true);
+    return true;
+  } catch (e) {
+    if (String(e && e.code).includes("permission-denied")) {
+      remember(false);
+      return false;
+    }
+    try {
+      return localStorage.getItem(LS_ENFORCED) === "1";
+    } catch {
+      return false;
+    }
+  }
+}
+
+function remember(v) {
+  try {
+    localStorage.setItem(LS_ENFORCED, v ? "1" : "0");
+  } catch {}
 }
 
 function clearSubs() {
@@ -96,65 +125,47 @@ function clearSubs() {
   unsubs = [];
 }
 
-function watchDoc(path, onValue) {
-  try {
-    const off = fs.onSnapshot(fs.doc(db, ...path), snap => onValue(snap), () => onValue(null));
-    unsubs.push(off);
-  } catch {
-    onValue(null);
-  }
-}
-
 async function setUser(u) {
-  if (u && user && u.uid === user.uid && state.authOk) return;
+  if ((u && user && u.uid === user.uid) || (!u && !user && state.ready)) return;
   user = u;
   clearSubs();
   state.uid = u ? u.uid : "";
-  state.authOk = !!u;
-  state.isOwner = false;
-  state.ownerEmail = "";
+  state.name = u ? u.displayName || (u.email || "").split("@")[0] || "Игрок" : "";
+  state.email = u ? u.email || "" : "";
+  state.photo = u ? u.photoURL || "" : "";
+  state.isAdmin = false;
   state.banned = false;
-  state.allowed = false;
   emit();
   if (!u) return;
-  watchDoc(["bans", u.uid], snap => {
-    state.banned = !!(snap && snap.exists());
-    emit();
-  });
-  watchDoc(["allowed", u.uid], snap => {
-    state.allowed = !!(snap && snap.exists());
-    emit();
-  });
-  watchDoc(["meta", "access"], snap => {
-    state.locked = !!(snap && snap.exists() && snap.data().locked === true);
-    emit();
-  });
-  registerDevice();
-  if (!u.isAnonymous) {
-    state.isOwner = await probeOwner();
-    state.ownerEmail = state.isOwner ? u.email || "" : "";
-    emit();
-  }
-}
-
-async function probeOwner() {
+  try {
+    const off = fs.onSnapshot(fs.doc(db, "bans", u.uid), s => {
+      state.banned = s.exists();
+      emit();
+    }, () => {});
+    unsubs.push(off);
+  } catch {}
+  saveProfile(u);
   try {
     await fs.getDoc(fs.doc(db, "admin", "probe"));
-    return true;
+    state.isAdmin = true;
   } catch {
-    return false;
+    state.isAdmin = false;
   }
+  emit();
 }
 
-export async function registerDevice() {
-  if (!user || !fs) return;
+async function saveProfile(u) {
   try {
-    await fs.setDoc(fs.doc(db, "devices", user.uid), { ...whoAmI(), uid: user.uid, anonymous: !!user.isAnonymous, lastSeen: Date.now() }, { merge: true });
+    const ref = fs.doc(db, "users", u.uid);
+    const snap = await fs.getDoc(ref);
+    const data = { name: state.name, email: state.email, photo: state.photo, lastSeen: Date.now() };
+    if (!snap.exists()) data.createdAt = Date.now();
+    await fs.setDoc(ref, data, { merge: true });
   } catch {}
 }
 
-export async function signInOwner() {
-  if (!authMod || !auth) throw new Error(state.authError || "Вход не включён в Firebase");
+export async function signIn() {
+  if (!authMod || !auth) throw new Error(state.authError || "Вход недоступен: облако не подключено");
   const provider = new authMod.GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
   try {
@@ -162,40 +173,22 @@ export async function signInOwner() {
   } catch (e) {
     throw new Error(authMessage(e));
   }
-  if (!(await probeOwner())) {
-    await signOutOwner();
-    throw new Error("Этот Google-аккаунт не владелец. Проверь, что в правилах Firestore указана именно эта почта.");
-  }
-  state.isOwner = true;
-  state.ownerEmail = (auth.currentUser && auth.currentUser.email) || "";
-  emit();
 }
 
-export async function signOutOwner() {
-  if (!authMod || !auth) return;
-  await authMod.signOut(auth);
-  try {
-    await withTimeout(authMod.signInAnonymously(auth), 7000);
-  } catch (e) {
-    state.authError = authMessage(e);
-    emit();
-  }
+export async function signOut() {
+  if (auth) await authMod.signOut(auth);
 }
 
-export function subscribeDevices(cb) {
-  const data = { devices: [], bans: new Map(), allowed: new Map() };
-  const push = () => cb({ devices: data.devices, bans: data.bans, allowed: data.allowed });
+export function subscribeUsers(cb) {
+  const data = { users: [], bans: new Map() };
+  const push = () => cb({ users: data.users, bans: data.bans });
   const offs = [
-    fs.onSnapshot(fs.collection(db, "devices"), s => {
-      data.devices = s.docs.map(d => ({ ...d.data(), uid: d.id }));
+    fs.onSnapshot(fs.collection(db, "users"), s => {
+      data.users = s.docs.map(d => ({ ...d.data(), uid: d.id }));
       push();
     }, () => cb(null)),
     fs.onSnapshot(fs.collection(db, "bans"), s => {
       data.bans = new Map(s.docs.map(d => [d.id, d.data()]));
-      push();
-    }, () => {}),
-    fs.onSnapshot(fs.collection(db, "allowed"), s => {
-      data.allowed = new Map(s.docs.map(d => [d.id, d.data()]));
       push();
     }, () => {})
   ];
@@ -204,16 +197,6 @@ export function subscribeDevices(cb) {
 
 export async function setBan(uid, on, info = {}) {
   const ref = fs.doc(db, "bans", uid);
-  if (on) await fs.setDoc(ref, { at: Date.now(), device: info });
+  if (on) await fs.setDoc(ref, { at: Date.now(), who: info });
   else await fs.deleteDoc(ref);
-}
-
-export async function setAllowed(uid, on, info = {}) {
-  const ref = fs.doc(db, "allowed", uid);
-  if (on) await fs.setDoc(ref, { at: Date.now(), device: info });
-  else await fs.deleteDoc(ref);
-}
-
-export async function setLocked(on) {
-  await fs.setDoc(fs.doc(db, "meta", "access"), { locked: !!on, at: Date.now() });
 }

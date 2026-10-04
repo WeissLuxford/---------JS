@@ -6,12 +6,13 @@ import {
 } from "./ui.js";
 import { TABS, RENDER, subtitle } from "./tabs.js";
 import { cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS } from "./entities.js";
-import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode } from "./store.js";
+import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, getAcl, addRecent, deleteCharacter } from "./store.js";
 import { diffPaths, applyPaths } from "./sync.js";
 import { describeChanges } from "./changes.js";
-import { describeWho, isMe, KIND_ICONS, editorName, setEditorName, whoAmI } from "./device.js";
-import { onAccess, registerDevice, currentUid } from "./access.js";
-import { banDevice, openDeviceManager } from "./admin.js";
+import { describeWho, isMe, KIND_ICONS } from "./device.js";
+import { onAccess, getAccess, currentUid, myEmail, signIn, IN_APP } from "./access.js";
+import { banAccount, openAccounts } from "./admin.js";
+import { openShare } from "./share.js";
 
 const SNAPSHOT_GAP = 10 * 60 * 1000;
 const lastSnapshot = new Map();
@@ -43,7 +44,9 @@ export function mountSheet(root, id, initialTab, navigate) {
     openModalApi: null,
     lastCast: {},
     disposed: false,
-    access: { canEdit: true, reason: "", isOwner: false }
+    access: getAccess(),
+    isEditor: false,
+    aclFor: ""
   };
 
   root.innerHTML = `<div class="loading">${icon("d20")}<span>Загружаю лист...</span></div>`;
@@ -91,6 +94,8 @@ export function mountSheet(root, id, initialTab, navigate) {
       S.c = incoming;
       S.d = compute(S.c);
       renderAll();
+      checkEditor();
+      if (rights().role !== "owner") addRecent({ id, name: S.c.name, sub: subtitle(S.c) });
       return;
     }
     const local = diffPaths(S.base, S.c);
@@ -105,20 +110,61 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (!meta.pendingWrites) toast(`${icon("cloud")} Лист обновлён: кто-то внёс изменения`, { kind: "info" });
   });
 
+  function rights() {
+    const a = S.access;
+    if (getMode() !== "cloud" || !a.enforced) return { canEdit: true, role: "open" };
+    if (!a.signedIn) return { canEdit: false, role: "guest" };
+    if (a.banned) return { canEdit: false, role: "banned" };
+    const own = !!(S.c && S.c.ownerUid && S.c.ownerUid === a.uid);
+    if (own) return { canEdit: true, role: "owner" };
+    if (a.isAdmin) return { canEdit: true, role: "admin" };
+    if (S.isEditor) return { canEdit: true, role: "editor" };
+    return { canEdit: false, role: S.c && !S.c.ownerUid ? "orphan" : "viewer" };
+  }
+
+  let lastRole = "";
+
+  async function checkEditor() {
+    const a = S.access;
+    const key = `${a.uid}|${a.enforced}`;
+    if (S.aclFor === key || !S.c || getMode() !== "cloud" || !a.enforced || !a.signedIn || S.c.ownerUid === a.uid) return;
+    S.aclFor = key;
+    try {
+      const acl = await getAcl(id);
+      S.isEditor = !!(acl && (acl.emails || []).includes(myEmail()));
+    } catch {
+      S.isEditor = false;
+    }
+    if (!S.disposed && S.c && rights().role !== lastRole) renderAll(true);
+  }
+
   const offAccess = onAccess(a => {
-    const changedRights = a.canEdit !== S.access.canEdit || a.isOwner !== S.access.isOwner || a.reason !== S.access.reason;
     S.access = a;
-    if (changedRights && S.c && !S.disposed) renderAll(true);
+    if (!S.c || S.disposed) return;
+    checkEditor();
+    if (rights().role !== lastRole) renderAll(true);
   });
 
   function readOnly() {
-    return !S.access.canEdit;
+    return !rights().canEdit;
   }
 
   function roText() {
-    return S.access.reason === "banned"
-      ? "Владелец запретил этому устройству вносить правки. Смотреть лист можно."
-      : `Владелец закрыл редактирование. Смотреть лист можно. Чтобы править, попроси владельца пустить это устройство: ${describeWho({ ...whoAmI(), name: editorName() })}, ID ${currentUid().slice(0, 6)}.`;
+    const r = rights().role;
+    if (r === "banned") return "Владелец сайта запретил твоему аккаунту вносить правки. Смотреть лист можно.";
+    if (r === "guest") return "Только просмотр. Если владелец дал тебе право править, войди через Google.";
+    if (r === "orphan") return "Только просмотр: у персонажа пока нет владельца.";
+    return "Только просмотр: это чужой персонаж. Можно сделать копию себе (Меню).";
+  }
+
+  function roBar() {
+    if (!readOnly()) return "";
+    const r = rights().role;
+    const btn = r === "guest"
+      ? `<button class="btn sm gold" data-act="signin">${icon("user")}Войти через Google</button>`
+      : r === "viewer" || r === "orphan" ? `<button class="btn sm" data-act="duplicate">${icon("copy")}Копия себе</button>` : "";
+    const warn = r === "guest" && IN_APP ? `<small>Открыто внутри приложения: для входа открой ссылку в Chrome или Safari.</small>` : "";
+    return `<div class="ro-bar">${icon("eye")}<span>${esc(roText())}${warn}</span>${btn}</div>`;
   }
 
   function inputFocused() {
@@ -134,6 +180,7 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   function renderAll(keepScroll) {
     if (S.disposed) return;
+    lastRole = rights().role;
     const y = window.scrollY;
     const c = S.c;
     document.title = `${c.name} · Лист персонажа`;
@@ -149,7 +196,7 @@ export function mountSheet(root, id, initialTab, navigate) {
           <button class="icon-btn" data-act="menu" title="Меню">${icon("dots")}</button>
         </header>
         <nav class="tabs" role="tablist">${TABS.map(t => `<button class="tab ${S.tab === t.key ? "on" : ""}" data-tab="${t.key}" role="tab">${icon(t.icon)}<span class="tab-l">${t.name}</span><span class="tab-s">${t.short || t.name}</span></button>`).join("")}</nav>
-        ${readOnly() ? `<div class="ro-bar">${icon("eye")}<span>${esc(roText())}</span></div>` : ""}
+        ${roBar()}
         ${c.archived ? `<div class="archived-bar">${icon("archive")} Персонаж в архиве <button class="btn sm" data-act="unarchive">Вернуть</button></div>` : ""}
         <main class="tab-body" data-body></main>
       </div>`;
@@ -845,13 +892,13 @@ export function mountSheet(root, id, initialTab, navigate) {
           <div class="hist-who"><b>${esc(describeWho(by))}</b>${isMe(by) ? `<span class="hist-tag me">это устройство</span>` : ""}${reason ? `<span class="hist-tag">${esc(reason)}</span>` : ""}<small>${dateTime(h.at, true)} · ${timeAgo(h.at)}${i === 0 ? " · последние правки" : ""}</small></div>
         </header>
         ${changes.length ? `<ul class="hist-changes">${shown.map(t => `<li>${esc(t)}</li>`).join("")}${more > 0 ? `<li class="dim">и ещё ${more}</li>` : ""}</ul>` : `<p class="hist-none">Видимых изменений нет</p>`}
-        <div class="hist-actions">${S.access.isOwner && by && by.uid && by.uid !== currentUid() ? `<button class="btn sm danger" data-ban-i="${i}">${icon("close")}Запретить устройство</button>` : ""}<button class="btn sm ghost" data-i="${i}">${icon("history")}Вернуть как было до этих правок</button></div>
+        <div class="hist-actions">${S.access.isAdmin && by && by.uid && by.uid !== currentUid() ? `<button class="btn sm danger" data-ban-i="${i}">${icon("close")}Запретить аккаунт</button>` : ""}<button class="btn sm ghost" data-i="${i}">${icon("history")}Вернуть как было до этих правок</button></div>
       </article>`;
     }).join("");
-    m.body.innerHTML = `<p class="hint">Каждая запись: кто правил, с какого устройства и что поменял. Кнопка возвращает лист к состоянию до этих правок, и это тоже можно откатить. Портрет не меняется.${editorName() ? "" : " Чтобы рядом с устройством стояло твоё имя, задай подпись в меню."}</p><div class="hist-list">${rows}</div>`;
+    m.body.innerHTML = `<p class="hint">Каждая запись: кто правил, с какого устройства и что поменял. Кнопка возвращает лист к состоянию до этих правок, и это тоже можно откатить. Портрет не меняется.</p><div class="hist-list">${rows}</div>`;
     m.body.addEventListener("click", async e => {
       const ban = e.target.closest("[data-ban-i]");
-      if (ban) return banDevice(list[Number(ban.dataset.banI)].by);
+      if (ban) return banAccount(list[Number(ban.dataset.banI)].by);
       const b = e.target.closest("[data-i]");
       if (!b || b.disabled) return;
       const h = list[Number(b.dataset.i)];
@@ -904,25 +951,31 @@ export function mountSheet(root, id, initialTab, navigate) {
   }
 
   function menu() {
+    const r = rights();
+    const a = S.access;
+    const cloud = getMode() === "cloud";
+    const manage = r.role === "owner" || r.role === "admin" || r.role === "open";
     const items = [
       ["short-rest", "campfire", "Короткий отдых"],
       ["long-rest", "moon", "Длинный отдых"],
       ["roll-mode", "d20", "Режим броска: " + (S.rollMode === "adv" ? "преимущество" : S.rollMode === "dis" ? "помеха" : "обычный")],
       ["roll-log", "scroll", "Журнал бросков"],
       ["history", "history", "История изменений"],
-      ["sign", "signature", "Подпись в истории: " + (editorName() || "не задана")],
-      ...(S.access.isOwner ? [["devices", "monitor", "Устройства и запреты"]] : []),
-      ["copy-link", "link", "Скопировать ссылку"],
+      ["share", "link", "Поделиться"],
       ["export", "download", "Скачать файл персонажа"],
-      ["import", "upload", "Загрузить из файла"],
-      ["duplicate", "copy", "Сделать копию"],
-      S.c.archived ? ["unarchive", "archive", "Вернуть из архива"] : ["archive", "archive", "Убрать в архив"]
+      ...(r.canEdit ? [["import", "upload", "Заменить из файла"]] : []),
+      ...(!cloud || a.canCreate ? [["duplicate", "copy", r.canEdit ? "Сделать копию" : "Копия себе"]] : []),
+      ...(manage ? [S.c.archived ? ["unarchive", "archive", "Вернуть из архива"] : ["archive", "archive", "Убрать в архив"]] : []),
+      ...(cloud && a.enforced && manage ? [["delete", "trash", "Удалить навсегда"]] : []),
+      ...(a.isAdmin ? [["accounts", "people", "Аккаунты и запреты"]] : []),
+      ...(cloud && a.enforced && !a.signedIn ? [["signin", "user", "Войти через Google"]] : [])
     ];
+    const roles = { owner: "Ты владелец этого листа.", admin: "Ты владелец сайта и можешь править любой лист.", editor: "Тебя пригласили редактором этого листа.", viewer: "Ты смотришь чужой лист.", guest: "Ты не вошёл: лист только для просмотра.", banned: "Твой аккаунт запрещён.", orphan: "У листа нет владельца.", open: cloud ? "Пока правила базы не обновлены, править может любой, у кого есть ссылка." : "Облако недоступно: данные хранятся только в этом браузере." };
     const st = lastStatus || {};
     const m = openModal({
       title: "Меню",
       cls: "small",
-      body: `<div class="menu-list">${items.map(([a, ic, l]) => `<button class="menu-item" data-m="${a}">${icon(ic)}<span>${l}</span></button>`).join("")}</div><p class="hint">${getMode() === "cloud" ? "Данные в облаке: все, у кого есть ссылка, видят и правят этот лист." : "Облако недоступно: данные хранятся только в этом браузере."}${currentUid() ? `<br>ID этого устройства: ${esc(currentUid().slice(0, 6))}` : ""}${st.error ? `<br>${esc(st.error)}` : ""}</p>`
+      body: `<div class="menu-list">${items.map(([a, ic, l]) => `<button class="menu-item" data-m="${a}">${icon(ic)}<span>${l}</span></button>`).join("")}</div><p class="hint">${esc(roles[r.role] || "")}${st.error ? `<br>${esc(st.error)}` : ""}</p>`
     });
     m.body.addEventListener("click", e => {
       const b = e.target.closest("[data-m]");
@@ -940,27 +993,27 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "long-rest": return longRest();
       case "roll-log": return rollLogDialog();
       case "history": return historyDialog();
-      case "devices": return openDeviceManager();
-      case "sign":
-        return openForm({
-          title: "Подпись в истории",
-          fields: [{ key: "name", label: "Как тебя подписывать", placeholder: "Например: Weiss или Мастер", span: 3, hint: "Сохраняется только в этом браузере. Пусто: будет видно только устройство." }],
-          value: { name: editorName() },
-          onSave: val => {
-            setEditorName(val.name);
-            registerDevice();
-            toast(val.name.trim() ? `Правки с этого устройства будут подписаны: ${esc(val.name.trim())}` : "Подпись убрана", { kind: "good" });
-          }
-        });
-      case "copy-link": {
-        const url = location.href.split("#")[0] + `#/c/${id}`;
+      case "accounts": return openAccounts();
+      case "share": return openShare({ ...c, id });
+      case "signin":
         try {
-          await navigator.clipboard.writeText(url);
-          toast(`${icon("link")} Ссылка скопирована`, { kind: "good" });
-        } catch {
-          openModal({ title: "Ссылка", cls: "small", body: `<input class="copy-input" readonly value="${esc(url)}">` });
+          await signIn();
+        } catch (err) {
+          toast(esc(err.message), { kind: "bad", timeout: 7000 });
         }
         return;
+      case "delete": {
+        if (!(await confirmDialog(`Удалить «${c.name}» навсегда вместе с историей? Вернуть будет нельзя. Если сомневаешься, лучше убери в архив или скачай файл.`, { ok: "Удалить навсегда", danger: true }))) return;
+        try {
+          clearTimeout(S.saveTimer);
+          S.saveTimer = null;
+          S.base = clone(S.c);
+          await deleteCharacter(id);
+          toast("Персонаж удалён", { kind: "good" });
+          return navigate("#/");
+        } catch {
+          return toast("Не получилось удалить: проверь права", { kind: "bad" });
+        }
       }
       case "export": {
         const name = (c.name || "character").replace(/[^\p{L}\p{N}]+/gu, "_");
@@ -970,9 +1023,12 @@ export function mountSheet(root, id, initialTab, navigate) {
       }
       case "import": return importDialog();
       case "duplicate": {
+        if (getMode() === "cloud" && !S.access.canCreate) return toast(S.access.signedIn ? "Твоему аккаунту нельзя создавать персонажей" : "Чтобы сделать копию себе, войди через Google", { kind: "bad" });
         const nid = uid();
         const copy = clone(c);
         delete copy.id;
+        delete copy.ownerUid;
+        delete copy.ownerName;
         try {
           await createChar(nid, { ...copy, name: c.name + " (копия)", archived: false });
           toast("Копия создана", { kind: "good" });
