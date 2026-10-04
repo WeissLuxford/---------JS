@@ -2,96 +2,99 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    function isAdmin() {
-      return signedIn() && request.auth.uid == 'ВСТАВЬ_СВОЙ_UID';
-    }
-
-    function notBanned() {
-      return signedIn() && !exists(/databases/$(database)/documents/bans/$(request.auth.uid));
-    }
-
+    function signedIn() { return request.auth != null; }
+    function isGoogle() { return signedIn() && request.auth.token.firebase.sign_in_provider == 'google.com'; }
+    function isAdmin() { return isGoogle() && request.auth.uid == 'ВСТАВЬ_СВОЙ_UID'; }
+    function notBanned() { return isGoogle() && !exists(/databases/$(database)/documents/bans/$(request.auth.uid)); }
     function myEmail() {
-      return signedIn()
-        && request.auth.token.email is string
-        && request.auth.token.email_verified == true
-        ? request.auth.token.email.lower()
-        : '';
+      return isGoogle() && request.auth.token.email is string && request.auth.token.email_verified == true
+        ? request.auth.token.email.lower() : '';
     }
-
-    function charDoc(id) {
-      return get(/databases/$(database)/documents/characters/$(id));
-    }
-
-    function ownerOf(data) {
-      return data.get('ownerUid', '');
-    }
-
-    function isOwner(data) {
-      return signedIn() && ownerOf(data) != '' && ownerOf(data) == request.auth.uid;
-    }
-
+    function nowMs() { return request.time.toMillis(); }
+    function notFuture(v) { return v is number && v <= nowMs() + 3600000; }
+    function charDoc(id) { return get(/databases/$(database)/documents/characters/$(id)); }
+    function ownerOf(data) { return data.get('ownerUid', ''); }
+    function isOwner(data) { return signedIn() && ownerOf(data) != '' && ownerOf(data) == request.auth.uid; }
+    function aclPath(id) { return /databases/$(database)/documents/characters/$(id)/acl/main; }
     function isEditor(id) {
-      return myEmail() != ''
-        && exists(/databases/$(database)/documents/characters/$(id)/acl/main)
-        && myEmail() in get(/databases/$(database)/documents/characters/$(id)/acl/main).data.get('emails', []);
+      return myEmail() != '' && exists(aclPath(id)) && myEmail() in get(aclPath(id)).data.get('emails', []);
     }
-
-    function canEdit(id, data) {
-      return isAdmin() || (notBanned() && (isOwner(data) || isEditor(id)));
-    }
-
-    function validCharacter(data) {
-      return data.keys().size() < 60
-        && data.get('name', '') is string
-        && data.get('name', '').size() <= 120
-        && data.get('portrait', '') is string
-        && data.get('portrait', '').size() <= 400000;
+    function canEdit(id, data) { return isAdmin() || (notBanned() && (isOwner(data) || isEditor(id))); }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function optStr(d, k, n) { return !(k in d) || (d[k] is string && d[k].size() <= n); }
+    function optList(d, k, n) { return !(k in d) || (d[k] is list && d[k].size() <= n); }
+    function validCharacter(d) {
+      return d.keys().size() < 60
+        && d.get('name', '') is string && d.get('name', '').size() <= 120
+        && d.get('portrait', '') is string && d.get('portrait', '').size() <= 400000
+        && d.get('visibility', 'link') in ['link', 'private']
+        && optStr(d, 'ownerName', 60)
+        && optList(d, 'attacks', 60) && optList(d, 'spells', 300)
+        && optList(d, 'features', 300) && optList(d, 'items', 500)
+        && notFuture(d.get('updatedAt', 0))
+        && d.get('updatedBy', {}) is map && d.get('updatedBy', {}).size() <= 8
+        && d.get('updatedBy', {}).get('uid', '') == request.auth.uid;
     }
 
     match /characters/{id} {
-      allow get: if true;
+      allow get: if resource == null
+        || resource.data.get('visibility', 'link') == 'link'
+        || isOwner(resource.data) || isAdmin() || isEditor(id);
       allow list: if isAdmin() || (signedIn() && resource.data.get('ownerUid', '') == request.auth.uid);
       allow create: if notBanned()
         && request.resource.data.get('ownerUid', '') == request.auth.uid
+        && notFuture(request.resource.data.get('createdAt', 0))
         && validCharacter(request.resource.data);
       allow update: if canEdit(id, resource.data)
         && validCharacter(request.resource.data)
-        && (isAdmin() || request.resource.data.get('ownerUid', '') == ownerOf(resource.data));
-      allow delete: if isAdmin() || (notBanned() && isOwner(resource.data));
+        && (isAdmin() || !changed().hasAny(['ownerUid', 'createdAt']))
+        && (ownerOf(resource.data) == '' || ownerOf(request.resource.data) != '')
+        && (isAdmin() || isOwner(resource.data) || !changed().hasAny(['ownerName', 'visibility']));
+      allow delete: if isAdmin() || isOwner(resource.data);
 
       match /history/{h} {
-        allow read: if canEdit(id, charDoc(id).data);
+        allow read: if isAdmin() || isOwner(charDoc(id).data) || isEditor(id);
         allow create: if canEdit(id, charDoc(id).data)
-          && request.resource.data.keys().hasOnly(['at', 'reason', 'by', 'data']);
+          && request.resource.data.keys().hasOnly(['at', 'reason', 'by', 'data'])
+          && notFuture(request.resource.data.at)
+          && request.resource.data.reason is string && request.resource.data.reason.size() <= 80
+          && request.resource.data.by is map && request.resource.data.by.size() <= 8
+          && request.resource.data.by.get('uid', '') == request.auth.uid
+          && request.resource.data.data is map && request.resource.data.data.size() < 60
+          && !('portrait' in request.resource.data.data);
         allow update: if false;
-        allow delete: if isAdmin() || (notBanned() && isOwner(charDoc(id).data));
+        allow delete: if isAdmin() || isOwner(charDoc(id).data);
       }
 
       match /acl/{doc} {
-        allow read: if isAdmin()
-          || isOwner(charDoc(id).data)
+        allow read: if isAdmin() || isOwner(charDoc(id).data)
           || (myEmail() != '' && myEmail() in resource.data.get('emails', []));
         allow create, update: if (isAdmin() || (notBanned() && isOwner(charDoc(id).data)))
           && doc == 'main'
-          && request.resource.data.get('emails', []) is list
-          && request.resource.data.get('emails', []).size() <= 20;
-        allow delete: if isAdmin() || (notBanned() && isOwner(charDoc(id).data));
+          && request.resource.data.keys().hasOnly(['emails', 'updatedAt'])
+          && request.resource.data.emails is list
+          && request.resource.data.emails.size() <= 20;
+        allow delete: if isAdmin() || isOwner(charDoc(id).data);
       }
     }
 
     match /invites/{email}/chars/{id} {
       allow read: if isAdmin() || (myEmail() != '' && myEmail() == email);
-      allow create, update, delete: if isAdmin() || (notBanned() && isOwner(charDoc(id).data));
+      allow create, update: if (isAdmin() || (notBanned() && isOwner(charDoc(id).data)))
+        && email in getAfter(/databases/$(database)/documents/characters/$(id)/acl/main).data.get('emails', [])
+        && request.resource.data.keys().hasOnly(['name', 'ownerName', 'ownerUid', 'at'])
+        && request.resource.data.get('name', '') is string && request.resource.data.get('name', '').size() <= 120
+        && request.resource.data.get('ownerName', '') is string && request.resource.data.get('ownerName', '').size() <= 60;
+      allow delete: if isAdmin() || (myEmail() != '' && myEmail() == email) || isOwner(charDoc(id).data);
     }
 
     match /users/{uid} {
       allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
-      allow create, update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'email', 'photo', 'createdAt', 'lastSeen']);
+      allow create, update: if isGoogle() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'email', 'photo', 'createdAt', 'lastSeen'])
+        && request.resource.data.get('email', '') == request.auth.token.email
+        && request.resource.data.get('name', '') is string && request.resource.data.get('name', '').size() <= 80
+        && request.resource.data.get('photo', '') is string && request.resource.data.get('photo', '').size() <= 1000;
       allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid);
     }
 
@@ -100,9 +103,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /admin/{doc} {
-      allow read: if isAdmin();
-    }
+    match /admin/{doc} { allow read: if isAdmin(); }
 
     match /meta/{doc} {
       allow read: if true;

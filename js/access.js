@@ -23,7 +23,9 @@ const state = {
 
 const LS_ENFORCED = "dnd.rulesV2";
 
-export const IN_APP = /FBAN|FBAV|Instagram|Line\/|MicroMessenger|VKClient|Telegram|; wv\)|GSA\//i.test(navigator.userAgent || "");
+export const IN_APP = /FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|VKClient|Telegram|; wv\)|GSA\//i.test(navigator.userAgent || "") || !!(window.TelegramWebviewProxy || window.TelegramWebview);
+
+export const IN_APP_HINT = "Google не пускает войти из встроенного браузера приложения. Открой ссылку в обычном браузере: на iPhone ⋯ → Открыть в Safari, на Android ⋮ → Открыть в браузере.";
 
 export function currentUid() {
   return state.uid;
@@ -66,6 +68,7 @@ function authMessage(e) {
   if (code.includes("network")) return "Нет связи с сервером входа";
   if (code.includes("web-storage-unsupported")) return "Браузер запрещает хранить данные сайта: вход невозможен в этом режиме";
   if (code === "timeout") return "Сервер входа не ответил";
+  if (code.includes("internal-error") || code.includes("operation-not-supported") || code.includes("disallowed")) return IN_APP_HINT;
   return (e && e.message) || "Ошибка входа";
 }
 
@@ -126,6 +129,12 @@ function clearSubs() {
 }
 
 async function setUser(u) {
+  if (u && u.isAnonymous) {
+    try {
+      await authMod.signOut(auth);
+    } catch {}
+    u = null;
+  }
   if ((u && user && u.uid === user.uid) || (!u && !user && state.ready)) return;
   user = u;
   clearSubs();
@@ -145,22 +154,42 @@ async function setUser(u) {
     unsubs.push(off);
   } catch {}
   saveProfile(u);
+  const cacheKey = "dnd.admin." + u.uid;
+  let cached = null;
+  try {
+    cached = sessionStorage.getItem(cacheKey);
+  } catch {}
+  if (cached !== null) {
+    state.isAdmin = cached === "1";
+    emit();
+    return;
+  }
   try {
     await fs.getDoc(fs.doc(db, "admin", "probe"));
     state.isAdmin = true;
   } catch {
     state.isAdmin = false;
   }
+  try {
+    sessionStorage.setItem(cacheKey, state.isAdmin ? "1" : "0");
+  } catch {}
   emit();
 }
 
 async function saveProfile(u) {
+  const key = "dnd.profile." + u.uid;
+  try {
+    if (Date.now() - Number(localStorage.getItem(key) || 0) < 12 * 3600 * 1000) return;
+  } catch {}
   try {
     const ref = fs.doc(db, "users", u.uid);
     const snap = await fs.getDoc(ref);
     const data = { name: state.name, email: state.email, photo: state.photo, lastSeen: Date.now() };
     if (!snap.exists()) data.createdAt = Date.now();
     await fs.setDoc(ref, data, { merge: true });
+    try {
+      localStorage.setItem(key, String(Date.now()));
+    } catch {}
   } catch {}
 }
 
@@ -176,6 +205,9 @@ export async function signIn() {
 }
 
 export async function signOut() {
+  try {
+    for (const k of Object.keys(sessionStorage)) if (k.startsWith("dnd.admin.")) sessionStorage.removeItem(k);
+  } catch {}
   if (auth) await authMod.signOut(auth);
 }
 

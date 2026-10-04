@@ -1,11 +1,11 @@
-import { normalize, newCharacter, uid, compute, importCharacter } from "./rules.js";
+import { normalize, newCharacter, compute, importCharacter } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, timeAgo, toast, openForm, openModal, pickFile, confirmDialog } from "./ui.js";
-import { subscribeList, subscribeInvites, createChar, getMode, onStatus, getRecents, removeRecent, claimCharacter, deleteCharacter } from "./store.js";
+import { subscribeList, subscribeInvites, createChar, getMode, onStatus, getRecents, removeRecent, claimCharacter, deleteCharacter, newCharId } from "./store.js";
 import { onAccess, signIn, signOut, IN_APP, getAccess, deleteAccountData } from "./access.js";
 import { subtitle } from "./tabs.js";
 import { shortWho } from "./device.js";
-import { openShare } from "./share.js";
+import { openShare, quickShare } from "./share.js";
 import { openAccounts, backupAll } from "./admin.js";
 
 export function mountHome(root, navigate) {
@@ -33,7 +33,7 @@ export function mountHome(root, navigate) {
     }
   });
 
-  const toChar = x => ({ ...normalize(x), id: x.id, ownerUid: x.ownerUid || "", ownerName: x.ownerName || "", updatedAt: Number(x.updatedAt) || 0, updatedBy: x.updatedBy && typeof x.updatedBy === "object" ? x.updatedBy : null });
+  const toChar = x => ({ ...normalize(x), id: x.id, ownerUid: x.ownerUid || "", ownerName: x.ownerName || "", visibility: x.visibility === "private" ? "private" : "link", updatedAt: Number(x.updatedAt) || 0, updatedBy: x.updatedBy && typeof x.updatedBy === "object" ? x.updatedBy : null });
 
   function resubscribe() {
     const open = getMode() === "cloud" && !access.enforced;
@@ -88,7 +88,8 @@ export function mountHome(root, navigate) {
         ${badge ? `<span class="ch-badge">${badge}</span>` : `<span class="ch-sub dim">${esc([c.info.subclass, c.info.background].filter(Boolean).join(" · "))}</span>`}
         <span class="ch-time">${c.updatedAt ? "изменён " + timeAgo(c.updatedAt) + (shortWho(c.updatedBy) ? " · " + esc(shortWho(c.updatedBy)) : "") : ""}</span>
       </span>
-      ${owner ? `<button class="ch-share" data-share="${esc(c.id)}" title="Поделиться">${icon("link")}<span>Поделиться</span></button>` : ""}
+      ${owner ? `<button class="ch-share" data-share="${esc(c.id)}" title="Поделиться" aria-label="Поделиться: ${esc(c.name)}">${icon("link")}</button>` : ""}
+      ${owner && c.visibility === "private" && getMode() === "cloud" && access.enforced ? `<span class="ch-lock" title="Доступ по ссылке выключен">${icon("shield")}</span>` : ""}
     </article>`;
   }
 
@@ -187,7 +188,7 @@ export function mountHome(root, navigate) {
         c.info.cls = val.info.cls;
         c.info.level = Math.max(1, Math.min(20, Number(val.info.level) || 1));
         c.hp.current = compute(normalize(c)).hpMax;
-        const id = uid();
+        const id = newCharId();
         createChar(id, c).then(() => navigate(`#/c/${id}`)).catch(() => toast("Не удалось создать персонажа", { kind: "bad" }));
       }
     });
@@ -260,7 +261,7 @@ export function mountHome(root, navigate) {
     const share = t.closest("[data-share]");
     if (share) {
       const c = [...(mine || []), ...(all || [])].find(x => x.id === share.dataset.share);
-      return c && openShare(c);
+      return c && quickShare(c);
     }
     const claim = t.closest("[data-claim]");
     if (claim) {
@@ -291,7 +292,7 @@ export function mountHome(root, navigate) {
       } catch {}
       if (!c) return toast("Файл не похож на лист персонажа", { kind: "bad" });
       try {
-        const id = uid();
+        const id = newCharId();
         await createChar(id, c);
         navigate(`#/c/${id}`);
       } catch {

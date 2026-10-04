@@ -32,24 +32,7 @@ function detect() {
   return { kind, os, browser };
 }
 
-function detectGpu() {
-  try {
-    const c = document.createElement("canvas");
-    const gl = c.getContext("webgl") || c.getContext("experimental-webgl");
-    if (!gl) return "";
-    const ext = gl.getExtension("WEBGL_debug_renderer_info");
-    const raw = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER) || "");
-    const angle = raw.match(/ANGLE \(([^,]+),\s*([^,]+?)(?:\s+Direct3D|\s+\(0x|\s+OpenGL|\s+Vulkan|,|\))/);
-    let name = angle ? angle[2] : raw;
-    name = name.replace(/^ANGLE Metal Renderer:\s*/i, "").replace(/\(TM\)|\(R\)|Series|Graphics|\/PCIe\/SSE2|Mesa|DRI/gi, "").replace(/\s+/g, " ").trim();
-    if (/^(WebKit WebGL|Google SwiftShader|llvmpipe)/i.test(name)) return "";
-    return name.slice(0, 40);
-  } catch {
-    return "";
-  }
-}
-
-const info = { ...detect(), gpu: detectGpu() };
+const info = detect();
 
 export const KIND_NAMES = { phone: "Телефон", tablet: "Планшет", desktop: "Компьютер" };
 export const KIND_ICONS = { phone: "phone", tablet: "tablet", desktop: "monitor" };
@@ -62,7 +45,7 @@ export function bindIdentity(fn) {
 
 export function whoAmI() {
   const me = identity();
-  return { id: deviceId, uid: me.uid, name: me.name, kind: info.kind, os: info.os, browser: info.browser, gpu: info.gpu };
+  return { uid: me.uid, name: me.name, kind: info.kind };
 }
 
 export function isMe(by) {
@@ -74,8 +57,8 @@ export function isMe(by) {
 
 export function describeWho(by) {
   if (!by || !by.kind) return "Неизвестное устройство";
-  const device = [KIND_NAMES[by.kind] || "Устройство", [by.os, by.browser].filter(Boolean).join(", "), by.gpu || ""].filter(Boolean).join(" · ");
-  return by.name ? `${by.name} (${device})` : device;
+  const device = [KIND_NAMES[by.kind] || "Устройство", [by.os, by.browser].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
+  return by.name ? `${by.name}, ${device.toLowerCase()}` : device;
 }
 
 export function shortWho(by) {

@@ -4,7 +4,7 @@ const isObj = v => v !== null && typeof v === "object" && !Array.isArray(v);
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-const SKIP = new Set(["id", "updatedAt", "createdAt", "updatedBy"]);
+const SKIP = new Set(["id", "updatedAt", "createdAt", "updatedBy", "ownerUid", "ownerName", "visibility"]);
 
 const copy = v => JSON.parse(JSON.stringify(v));
 

@@ -1,6 +1,6 @@
 import { icon } from "./icons.js";
 import { esc, openModal, confirmDialog, toast, timeAgo, download } from "./ui.js";
-import { fetchAllCharacters } from "./store.js";
+import { fetchAllCharacters, deleteCharactersOf } from "./store.js";
 import { subscribeUsers, setBan, currentUid, getAccess } from "./access.js";
 import { describeWho } from "./device.js";
 
@@ -46,7 +46,7 @@ export function openAccounts() {
       <div class="dev-main"><b>${esc(u.name || "Без имени")}</b>${me ? `<span class="hist-tag me">это ты</span>` : ""}${banned ? `<span class="hist-tag bad">запрещён</span>` : ""}<small>${esc(u.email || "")}${u.lastSeen ? ` · заходил ${timeAgo(u.lastSeen)}` : ""} · ID ${esc(shortId(u.uid))}</small></div>
       <div class="dev-actions">${me ? "" : banned
         ? `<button class="btn sm" data-unban="${esc(u.uid)}">${icon("check")}Снять запрет</button>`
-        : `<button class="btn sm danger" data-ban="${esc(u.uid)}">${icon("close")}Запретить</button>`}</div>
+        : `<button class="btn sm danger" data-ban="${esc(u.uid)}">${icon("close")}Запретить</button>`}${me ? "" : `<button class="btn sm ghost" data-wipe="${esc(u.uid)}" title="Запретить и удалить всех его персонажей">${icon("trash")}Удалить персонажей</button>`}</div>
     </article>`;
   }
 
@@ -69,13 +69,18 @@ export function openAccounts() {
   });
 
   m.body.addEventListener("click", async e => {
-    const b = e.target.closest("[data-ban], [data-unban]");
+    const b = e.target.closest("[data-ban], [data-unban], [data-wipe]");
     if (!b || !data) return;
-    const uid = b.dataset.ban || b.dataset.unban;
+    const uid = b.dataset.ban || b.dataset.unban || b.dataset.wipe;
     const u = data.users.find(x => x.uid === uid) || { uid };
     b.disabled = true;
     try {
-      if (b.dataset.ban) {
+      if (b.dataset.wipe) {
+        if (!(await confirmDialog(`Запретить аккаунт «${u.name || u.email || shortId(uid)}» и удалить всех его персонажей вместе с историей? Это необратимо.`, { ok: "Запретить и удалить", danger: true }))) return;
+        await setBan(uid, true, { name: u.name || "", email: u.email || "" });
+        const n = await deleteCharactersOf(uid);
+        toast(`Аккаунт запрещён, удалено персонажей: ${n}`, { kind: "good" });
+      } else if (b.dataset.ban) {
         if (!(await confirmDialog(`Запретить аккаунт «${u.name || u.email || shortId(uid)}»?`, { ok: "Запретить", danger: true }))) return;
         await setBan(uid, true, { name: u.name || "", email: u.email || "" });
       } else {

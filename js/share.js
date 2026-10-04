@@ -1,21 +1,30 @@
 import { icon } from "./icons.js";
 import { esc, openModal, toast } from "./ui.js";
-import { getAcl, saveAcl, getMode } from "./store.js";
+import { getAcl, saveAcl, getMode, setVisibility } from "./store.js";
 import { getAccess } from "./access.js";
 
 export function shareUrl(id) {
   return location.href.split("#")[0].split("?")[0] + `#/c/${encodeURIComponent(id)}`;
 }
 
-async function sendLink(name, url) {
-  if (navigator.share) {
-    try {
-      await navigator.share({ title: name, text: `Лист персонажа: ${name}`, url });
-      return;
-    } catch (e) {
-      if (e && e.name === "AbortError") return;
-    }
-  }
+const coarse = () => window.matchMedia("(pointer: coarse)").matches;
+
+function canManage(c) {
+  const a = getAccess();
+  return getMode() === "cloud" && a.signedIn && (a.isAdmin || c.ownerUid === a.uid);
+}
+
+function enforced() {
+  return getMode() === "cloud" && getAccess().enforced;
+}
+
+function openLink(c) {
+  if (!enforced() || !canManage(c) || c.visibility !== "private") return;
+  c.visibility = "link";
+  setVisibility(c.id, "link").catch(() => toast("Не получилось открыть доступ по ссылке", { kind: "bad" }));
+}
+
+async function copyLink(url) {
   try {
     await navigator.clipboard.writeText(url);
     toast(`${icon("link")} Ссылка скопирована`, { kind: "good" });
@@ -24,38 +33,103 @@ async function sendLink(name, url) {
   }
 }
 
+async function nativeShare(c, url) {
+  try {
+    await navigator.share({ title: c.name, text: `Лист персонажа: ${c.name}`, url });
+  } catch (e) {
+    if (e && e.name !== "AbortError") copyLink(url);
+  }
+}
+
+export function quickShare(c) {
+  const url = shareUrl(c.id);
+  if (coarse() && navigator.share) {
+    openLink(c);
+    nativeShare(c, url);
+    return;
+  }
+  openShare(c);
+}
+
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function openShare(c) {
   const a = getAccess();
   const url = shareUrl(c.id);
   const cloud = getMode() === "cloud";
-  const canManage = cloud && a.signedIn && (a.isAdmin || c.ownerUid === a.uid);
+  const manage = canManage(c);
+  const strict = enforced();
   let emails = null;
   let busy = false;
 
+  const linkState = () => !strict || c.visibility !== "private";
   const m = openModal({
     title: "Поделиться",
     cls: "small",
     body: `<div class="share">
         <section>
           <h4>${icon("eye")} Ссылка для просмотра</h4>
-          <p class="hint">Любой, у кого есть ссылка, сможет открыть лист «${esc(c.name)}» и смотреть его. Править он не сможет.</p>
+          <p class="hint" data-linkhint></p>
           <input class="copy-input" readonly value="${esc(url)}">
-          <div class="form-actions"><button class="btn gold" data-send>${icon("link")}${navigator.share ? "Отправить" : "Скопировать ссылку"}</button></div>
+          <div class="form-actions share-actions">
+            ${manage && strict ? `<label class="share-toggle"><input type="checkbox" data-vis ${linkState() ? "checked" : ""}><span>Доступ по ссылке</span></label><span class="spacer"></span>` : ""}
+            <button class="btn ${coarse() ? "" : "gold"}" data-copy>${icon("copy")}Копировать</button>
+            ${navigator.share ? `<button class="btn ${coarse() ? "gold" : ""}" data-send>${icon("link")}Отправить</button>` : ""}
+          </div>
         </section>
-        ${canManage ? `<section>
+        ${manage ? `<section>
           <h4>${icon("edit")} Редакторы</h4>
           <p class="hint">Человек с этой Google-почтой сможет править лист после входа на сайт через Google. Персонаж появится у него в разделе «Со мной поделились». Почты редакторов видишь только ты.</p>
           <div class="ed-list" data-list><div class="loading small">${icon("hourglass")} Загружаю...</div></div>
           <form class="ed-add" data-add><input type="email" inputmode="email" autocomplete="off" placeholder="почта@gmail.com" aria-label="Google-почта редактора"><button class="btn" type="submit">${icon("plus")}Пригласить</button></form>
+          <p class="hint small">Нужен точный адрес Google-аккаунта, как в Gmail.</p>
         </section>` : cloud ? "" : `<p class="hint">Облако недоступно, поэтому ссылка откроется только в этом браузере.</p>`}
       </div>`
   });
 
-  m.body.querySelector("[data-send]").onclick = () => sendLink(c.name, url);
+  const hint = m.body.querySelector("[data-linkhint]");
+  const paintHint = () => {
+    hint.textContent = linkState()
+      ? `Любой, у кого есть ссылка, сможет открыть лист «${c.name}» и смотреть его. Править он не сможет.`
+      : "Сейчас лист закрыт: по ссылке его видят только ты и редакторы. Кнопки «Копировать» и «Отправить» откроют доступ по ссылке.";
+  };
+  paintHint();
+
+  const vis = m.body.querySelector("[data-vis]");
+  if (vis) vis.addEventListener("change", async () => {
+    const next = vis.checked ? "link" : "private";
+    vis.disabled = true;
+    try {
+      await setVisibility(c.id, next);
+      c.visibility = next;
+      toast(next === "link" ? "Доступ по ссылке включён" : "Доступ по ссылке выключен: посторонние больше не откроют лист", { kind: "good" });
+    } catch {
+      vis.checked = !vis.checked;
+      toast("Не получилось изменить доступ", { kind: "bad" });
+    } finally {
+      vis.disabled = false;
+      paintHint();
+    }
+  });
+
+  const beforeSend = () => {
+    if (manage && strict && c.visibility === "private") {
+      openLink(c);
+      if (vis) vis.checked = true;
+      paintHint();
+    }
+  };
+  m.body.querySelector("[data-copy]").onclick = () => {
+    beforeSend();
+    copyLink(url);
+  };
+  const send = m.body.querySelector("[data-send]");
+  if (send) send.onclick = () => {
+    beforeSend();
+    nativeShare(c, url);
+  };
   m.body.querySelector(".copy-input").addEventListener("focus", e => e.target.select());
-  if (!canManage) return;
+  if (!manage) return;
 
   const listEl = m.body.querySelector("[data-list]");
   const paint = () => {
@@ -70,7 +144,7 @@ export function openShare(c) {
       emails = await saveAcl(c.id, next, { name: c.name, ownerName: c.ownerName || a.name, ownerUid: c.ownerUid || a.uid });
       paint();
     } catch {
-      toast("Не получилось сохранить доступ: проверь, что правила Firestore обновлены", { kind: "bad", timeout: 7000 });
+      toast("Не получилось сохранить доступ", { kind: "bad", timeout: 7000 });
     } finally {
       busy = false;
     }

@@ -43,7 +43,7 @@ const publicWho = () => {
   return { uid: w.uid || "", name: w.name || "", kind: w.kind || "" };
 };
 
-export const EMULATOR = new URLSearchParams(location.search).has("emu");
+export const EMULATOR = ["localhost", "127.0.0.1"].includes(location.hostname) && new URLSearchParams(location.search).has("emu");
 const LS_RECENT = "dnd.recent";
 
 function readLocal() {
@@ -214,8 +214,9 @@ export function subscribeChar(id, cb) {
           cb({ ...snap.data(), id: snap.id }, { pendingWrites: snap.metadata.hasPendingWrites, fromCache: snap.metadata.fromCache });
         },
         err => {
-          setStatus({ state: "error", error: humanError(err) });
-          cb(undefined, { error: err });
+          const denied = String(err && err.code).includes("permission-denied");
+          if (!denied) setStatus({ state: "error", error: humanError(err, "read") });
+          cb(undefined, { error: err, denied });
         }
       );
     } catch (e) {
@@ -273,30 +274,37 @@ export async function saveChanges(id, changes, full) {
   setStatus({ state: navigator.onLine === false ? "offline" : "saving", error: navigator.onLine === false ? OFFLINE_MSG : "" });
   const slow = setTimeout(() => setStatus({ state: "offline", error: OFFLINE_MSG }), 6000);
   try {
-    try {
-      await fs.updateDoc(ref, ...args);
-    } catch (e) {
-      if (!String(e && e.code).includes("not-found")) throw e;
-      await fs.setDoc(ref, { ...stripId(full), updatedAt: now });
-    }
+    await fs.updateDoc(ref, ...args);
     pending--;
     if (!pending) setStatus({ state: "saved", error: "" });
   } catch (e) {
     pending--;
-    setStatus({ state: "error", error: humanError(e) });
+    setStatus({ state: "error", error: humanError(e, "write") });
     throw e;
   } finally {
     clearTimeout(slow);
   }
 }
 
+export function newCharId() {
+  if (mode === "cloud") return fs.doc(fs.collection(db, "characters")).id;
+  return Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+}
+
+export function setVisibility(id, visibility) {
+  if (mode !== "cloud") return Promise.resolve();
+  return fs.updateDoc(fs.doc(db, "characters", id), { visibility, updatedAt: Date.now(), updatedBy: publicWho() });
+}
+
 export async function createChar(id, c) {
   const now = Date.now();
   const data = { ...stripId(c), createdAt: now, updatedAt: now, updatedBy: publicWho() };
-  delete data.archived;
   data.archived = false;
+  delete data.ownerUid;
+  delete data.ownerName;
   if (mode === "cloud") {
     const a = getAccess();
+    data.visibility = "private";
     data.ownerUid = a.uid;
     data.ownerName = a.name;
   }
@@ -339,13 +347,14 @@ export async function getAcl(id) {
 export async function saveAcl(id, emails, meta) {
   const prev = await getAcl(id).catch(() => ({ emails: [] }));
   const clean = [...new Set(emails.map(e => String(e).trim().toLowerCase()).filter(Boolean))].slice(0, 20);
-  await fs.setDoc(fs.doc(db, "characters", id, "acl", "main"), { emails: clean, updatedAt: Date.now() });
   const removed = (prev.emails || []).filter(e => !clean.includes(e));
   const added = clean.filter(e => !(prev.emails || []).includes(e));
-  await Promise.all([
-    ...added.map(e => fs.setDoc(fs.doc(db, "invites", e, "chars", id), { ...meta, at: Date.now() }).catch(() => {})),
-    ...removed.map(e => fs.deleteDoc(fs.doc(db, "invites", e, "chars", id)).catch(() => {}))
-  ]);
+  const now = Date.now();
+  const batch = fs.writeBatch(db);
+  batch.set(fs.doc(db, "characters", id, "acl", "main"), { emails: clean, updatedAt: now });
+  for (const e of added) batch.set(fs.doc(db, "invites", e, "chars", id), { name: String(meta.name || "").slice(0, 120), ownerName: String(meta.ownerName || "").slice(0, 60), ownerUid: meta.ownerUid || "", at: now });
+  for (const e of removed) batch.delete(fs.doc(db, "invites", e, "chars", id));
+  await batch.commit();
   return clean;
 }
 
@@ -391,6 +400,12 @@ export function removeRecent(id) {
   try {
     localStorage.setItem(LS_RECENT, JSON.stringify(getRecents().filter(x => x.id !== id)));
   } catch {}
+}
+
+export async function deleteCharactersOf(uid) {
+  const snap = await fs.getDocs(fs.query(fs.collection(db, "characters"), fs.where("ownerUid", "==", uid)));
+  for (const d of snap.docs) await deleteCharacter(d.id);
+  return snap.size;
 }
 
 export async function fetchAllCharacters() {
@@ -462,10 +477,10 @@ export async function listHistory(id) {
   }
 }
 
-export function humanError(e) {
+export function humanError(e, op = "write") {
   const code = String((e && (e.code || e.name)) || "");
   const msg = String((e && e.message) || "");
-  if (code.includes("permission-denied")) return "Нет прав на правку: устройство запрещено, редактирование закрыто владельцем или правила Firestore не пускают";
+  if (code.includes("permission-denied")) return op === "read" ? "Нет доступа к листу" : "Нет прав на правку этого листа";
   if (code.includes("unavailable")) return OFFLINE_MSG;
   if (code.includes("resource-exhausted")) return "Превышен бесплатный лимит Firebase на сегодня";
   if (code.includes("QuotaExceeded") || msg.includes("quota")) return "Память браузера переполнена";

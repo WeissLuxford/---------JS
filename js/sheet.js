@@ -6,7 +6,7 @@ import {
 } from "./ui.js";
 import { TABS, RENDER, subtitle } from "./tabs.js";
 import { cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS } from "./entities.js";
-import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, getAcl, addRecent, deleteCharacter, pendingWrites } from "./store.js";
+import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, getAcl, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
 import { diffPaths, applyPaths } from "./sync.js";
 import { describeChanges } from "./changes.js";
 import { describeWho, isMe, KIND_ICONS } from "./device.js";
@@ -78,6 +78,17 @@ export function mountSheet(root, id, initialTab, navigate) {
   const unsub = subscribeChar(id, (data, meta = {}) => {
     if (S.disposed) return;
     if (data === undefined) {
+      if (meta.denied) {
+        if (!S.c) {
+          const guest = getMode() === "cloud" && !S.access.signedIn;
+          root.innerHTML = `<div class="loading err">${icon("eye")}<span>Владелец закрыл доступ к этому листу</span><small>${guest ? "Если тебе дали право править, войди через Google." : "Попроси владельца снова поделиться ссылкой или пригласить тебя редактором."}</small>${guest ? `<button class="btn gold" data-act="signin">${icon("user")}Войти через Google</button>` : ""}<a class="btn" href="#/">К списку</a></div>`;
+        } else {
+          S.closed = true;
+          renderAll(true);
+          toast(`${icon("eye")} Владелец закрыл доступ к листу`, { kind: "bad", timeout: 6000 });
+        }
+        return;
+      }
       if (!S.c) {
         if (meta.offline) loaderMessage("cloudOff", "Нет связи с облаком", "Этот лист ещё не открывался на этом устройстве. Он загрузится, как только появится интернет.");
         else loaderMessage("cloudOff", "Не удалось загрузить персонажа", (lastStatus && lastStatus.error) || "");
@@ -113,6 +124,7 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   function rights() {
     const a = S.access;
+    if (S.closed) return { canEdit: false, role: "closed" };
     if (getMode() !== "cloud" || !a.enforced) return { canEdit: true, role: "open" };
     if (!a.signedIn) return { canEdit: false, role: "guest" };
     if (a.banned) return { canEdit: false, role: "banned" };
@@ -153,6 +165,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (r === "banned") return "Владелец сайта запретил твоему аккаунту вносить правки. Смотреть лист можно.";
     if (r === "guest") return "Только просмотр. Если владелец дал тебе право править, войди через Google.";
     if (r === "orphan") return "Только просмотр: у персонажа пока нет владельца.";
+    if (r === "closed") return "Владелец закрыл доступ к листу. Показана последняя загруженная версия.";
     return "Только просмотр: это чужой персонаж. Можно сделать копию себе (Меню).";
   }
 
@@ -184,7 +197,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     const c = S.c;
     document.title = `${c.name} · Лист персонажа`;
     root.innerHTML = `
-      <div class="sheet">
+      <div class="sheet ${readOnly() ? "viewer" : ""}">
         <header class="topbar">
           <a class="icon-btn" href="#/" title="Все персонажи">${icon("back")}</a>
           <button class="tb-portrait" data-act="portrait" title="Портрет">${c.portrait ? `<img src="${esc(c.portrait)}" alt="">` : PORTRAIT_PLACEHOLDER}</button>
@@ -300,7 +313,20 @@ export function mountSheet(root, id, initialTab, navigate) {
       await saveChanges(id, changes, sent);
       S.retry = 0;
       S.saveFailed = false;
-    } catch {
+    } catch (err) {
+      if (String(err && err.code).includes("permission-denied")) {
+        S.base = prevBase;
+        S.c = normalize(clone(prevBase));
+        S.c.id = id;
+        S.d = compute(S.c);
+        S.aclFor = "";
+        S.isEditor = false;
+        S.saveFailed = false;
+        renderAll(true);
+        checkEditor();
+        toast(`${icon("eye")} ${esc(humanError(err, "write"))}: права на правку отозваны, показана версия с сервера`, { kind: "bad", timeout: 7000 });
+        return;
+      }
       S.saveFailed = true;
       S.base = applyPaths(clone(S.base), diffPaths(sent, prevBase));
       S.retry = Math.min((S.retry || 1000) * 2, 30000);
@@ -313,10 +339,10 @@ export function mountSheet(root, id, initialTab, navigate) {
   }
 
   function mutate(fn, opts) {
-    if (S.disposed || !S.c) return;
+    if (S.disposed || !S.c) return false;
     if (readOnly()) {
       toast(`${icon("eye")} ${esc(roText())}`, { kind: "bad" });
-      return;
+      return false;
     }
     snapshot("Перед правкой");
     fn(S.c);
@@ -501,6 +527,7 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   function spendHitDie() {
     const { c, d } = S;
+    if (readOnly()) return;
     if (d.hitDice.left <= 0) return toast("Кости хитов закончились");
     if (curHp() <= 0) return toast("Без сознания нельзя тратить кости хитов", { kind: "bad" });
     const r = rollDice(`1d${maxDie(c.hitDie)}`);
@@ -587,6 +614,7 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   function castSpell(sp, chosenLevel) {
     const { d } = S;
+    if (readOnly()) return;
     const lvl = Number(sp.level) || 0;
     let castLevel = null;
     if (lvl > 0 && sp.cost === "slot") {
@@ -620,7 +648,7 @@ export function mountSheet(root, id, initialTab, navigate) {
   }
 
   function useEntity(kind, e, delta = 1) {
-    if (!e) return;
+    if (!e || readOnly()) return;
     const u = usesInfo(S.d, e);
     const pactCost = kind === "feature" && e.slot === "pact";
     if (!u && !pactCost) return;
@@ -637,6 +665,20 @@ export function mountSheet(root, id, initialTab, navigate) {
   function entityButtons(kind, e) {
     const { d } = S;
     const b = [];
+    if (readOnly()) {
+      if (kind === "spell") {
+        if (e.attack) b.push(`<button class="btn" data-x="spell-atk">${icon("d20")}Атака ${fmt(d.spell.atk)}</button>`);
+        if ((e.damage || []).length) b.push(`<button class="btn" data-x="spell-dmg">${icon("force")}Бросить кубы</button>`);
+      }
+      if ((kind === "feature" || kind === "item") && (e.damage || []).length) b.push(`<button class="btn" data-x="${kind === "item" ? "item-dmg" : "feat-dmg"}">${icon("d20")}Бросить кубы</button>`);
+      if (kind === "attack") {
+        const s = d.attacks[e.id];
+        if (s.kind === "attack") b.push(`<button class="btn gold" data-x="atk">${icon("d20")}Атака ${fmt(s.hit)}${s.beams > 1 ? ` ×${s.beams}` : ""}</button>`);
+        b.push(`<button class="btn" data-x="dmg">${icon("swords")}Урон</button>`);
+        b.push(`<button class="btn ghost" data-x="crit">Крит</button>`);
+      }
+      return b.join("");
+    }
     if (kind === "spell") {
       const lvl = Number(e.level) || 0;
       if (lvl > 0 || e.concentration) {
@@ -892,6 +934,7 @@ export function mountSheet(root, id, initialTab, navigate) {
   }
 
   function replaceWith(data, reason) {
+    if (readOnly()) return;
     data = { ...data, ownerUid: S.c.ownerUid, ownerName: S.c.ownerName };
     addHistory(id, clone(S.c), reason);
     lastSnapshot.set(id, Date.now());
@@ -973,7 +1016,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       body: `<p>Файл: <b>${esc(c.name)}</b>, ${esc(subtitle(c))}</p><div class="form-actions"><button class="btn" data-new>Как нового персонажа</button><button class="btn danger" data-replace>Заменить текущего</button></div>`
     });
     m.body.querySelector("[data-new]").onclick = async () => {
-      const nid = uid();
+      const nid = newCharId();
       m.close();
       try {
         await createChar(nid, c);
@@ -1001,7 +1044,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       ["roll-mode", "d20", "Режим броска: " + (S.rollMode === "adv" ? "преимущество" : S.rollMode === "dis" ? "помеха" : "обычный")],
       ["roll-log", "scroll", "Журнал бросков"],
       ...(r.canEdit ? [["history", "history", "История изменений"]] : []),
-      ["share", "link", "Поделиться"],
+      ["share", "link", manage && cloud && a.enforced ? "Поделиться и доступ" : "Поделиться"],
       ["export", "download", "Скачать файл персонажа"],
       ...(r.canEdit ? [["import", "upload", "Заменить из файла"]] : []),
       ...(!cloud || a.canCreate ? [["duplicate", "copy", r.canEdit ? "Сделать копию" : "Копия себе"]] : []),
@@ -1064,7 +1107,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "import": return importDialog();
       case "duplicate": {
         if (getMode() === "cloud" && !S.access.canCreate) return toast(S.access.signedIn ? "Твоему аккаунту нельзя создавать персонажей" : "Чтобы сделать копию себе, войди через Google", { kind: "bad" });
-        const nid = uid();
+        const nid = newCharId();
         const copy = clone(c);
         delete copy.id;
         delete copy.ownerUid;
@@ -1151,6 +1194,12 @@ export function mountSheet(root, id, initialTab, navigate) {
   }
 
   const onClick = e => {
+    const si = e.target.closest("[data-act=signin]");
+    if (si && root.contains(si) && !S.c) {
+      e.preventDefault();
+      signIn().catch(err => toast(esc(err.message), { kind: "bad", timeout: 7000 }));
+      return;
+    }
     if (!S.c) return;
     const tab = e.target.closest("[data-tab]");
     if (tab && root.contains(tab) && tab.classList.contains("tab")) {
