@@ -1,4 +1,4 @@
-import { icon, die, actionMark } from "./icons.js";
+import { icon, die, actionMark, ICON_NAMES } from "./icons.js";
 import { DAMAGE, DAMAGE_TYPES, ACTIONS, parseDice, rollDice, fmt } from "./rules.js";
 
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
@@ -476,6 +476,98 @@ export function enableHoverCards(root, resolve) {
   };
 }
 
+export function enableReorder(root, onDrop) {
+  let drag = null;
+  const down = e => {
+    const h = e.target.closest(".drag-h");
+    if (!h || !root.contains(h)) return;
+    const item = h.closest("[data-rid]");
+    const box = item && item.closest("[data-reorder]");
+    if (!box) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const r = item.getBoundingClientRect();
+    const ghost = item.cloneNode(true);
+    ghost.classList.add("drag-ghost");
+    Object.assign(ghost.style, { left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px" });
+    document.body.appendChild(ghost);
+    item.classList.add("drag-src");
+    drag = { item, box, ghost, dx: e.clientX - r.left, dy: e.clientY - r.top, start: ids(box), id: e.pointerId, x: e.clientX, y: e.clientY };
+    const tick = () => {
+      if (!drag) return;
+      const bar = root.querySelector(".order-bar");
+      const top = Math.max(90, bar ? bar.getBoundingClientRect().bottom + 36 : 0);
+      const edge = drag.y < top ? -1 : drag.y > window.innerHeight - 150 ? 1 : 0;
+      if (edge) {
+        window.scrollBy(0, edge * 12);
+        place();
+      }
+      drag.raf = requestAnimationFrame(tick);
+    };
+    drag.raf = requestAnimationFrame(tick);
+  };
+  const place = () => {
+    const under = document.elementFromPoint(drag.x, drag.y);
+    const el = under && under.closest("[data-rid]");
+    if (!el || el === drag.item || el.parentElement !== drag.box) return;
+    const kids = Array.from(drag.box.children);
+    if (kids.indexOf(el) > kids.indexOf(drag.item)) el.after(drag.item);
+    else el.before(drag.item);
+  };
+  const ids = box => Array.from(box.children).filter(x => x.dataset && x.dataset.rid).map(x => x.dataset.rid);
+  const move = e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    e.preventDefault();
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    drag.ghost.style.left = e.clientX - drag.dx + "px";
+    drag.ghost.style.top = e.clientY - drag.dy + "px";
+    place();
+  };
+  const up = e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { item, box, ghost, start, raf } = drag;
+    cancelAnimationFrame(raf);
+    drag = null;
+    ghost.remove();
+    item.classList.remove("drag-src");
+    const now = ids(box);
+    if (now.join("|") !== start.join("|")) onDrop(box.dataset.reorder, now);
+  };
+  const key = e => {
+    if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown" && e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+    const item = e.target.closest && e.target.closest("[data-reorder] > [data-rid]");
+    if (!item || !root.contains(item) || !root.querySelector(".drag-h")) return;
+    e.preventDefault();
+    const box = item.parentElement;
+    const start = ids(box);
+    const back = e.key === "ArrowUp" || e.key === "ArrowLeft";
+    const sib = back ? item.previousElementSibling : item.nextElementSibling;
+    if (!sib || !sib.dataset.rid) return;
+    if (back) sib.before(item);
+    else sib.after(item);
+    item.focus();
+    onDrop(box.dataset.reorder, ids(box), start);
+  };
+  root.addEventListener("pointerdown", down);
+  window.addEventListener("pointermove", move, { passive: false });
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", up);
+  root.addEventListener("keydown", key);
+  return () => {
+    root.removeEventListener("pointerdown", down);
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", up);
+    root.removeEventListener("keydown", key);
+    if (drag) {
+      cancelAnimationFrame(drag.raf);
+      drag.ghost.remove();
+    }
+    drag = null;
+  };
+}
+
 export function enableLongPress(root, onLong) {
   let timer = 0;
   let start = null;
@@ -562,6 +654,11 @@ function fieldHtml(f, v) {
   if (f.type === "types") {
     const set = new Set(Array.isArray(v) ? v : []);
     return `<fieldset class="fld types"${span} data-k="${esc(f.key)}" data-types><legend>${esc(f.label)}</legend><div class="type-chips">${DAMAGE_TYPES.map(k => `<label class="type-chip" style="--c:${DAMAGE[k].color}"><input type="checkbox" value="${k}" ${set.has(k) ? "checked" : ""}>${icon(DAMAGE[k].icon)}<span>${esc(DAMAGE[k].name)}</span></label>`).join("")}</div>${hint}</fieldset>`;
+  }
+  if (f.type === "icon") {
+    const cur = String(v || "");
+    const opt = (k, inner, t) => `<label class="icon-opt" title="${esc(t)}"><input type="radio" name="${id}" value="${esc(k)}" ${cur === k ? "checked" : ""} aria-label="${esc(t)}">${inner}</label>`;
+    return `<fieldset class="fld icons"${span} data-k="${esc(f.key)}" data-icons><legend>${esc(f.label)}</legend><div class="icon-grid">${opt("", "<span>Авто</span>", "Подобрать по названию")}${ICON_NAMES.map(k => opt(k, icon(k), k)).join("")}</div></fieldset>`;
   }
   if (f.type === "richtext") {
     return `<div class="fld rt-field"${span}><label for="${id}">${esc(f.label)}</label><div class="rt-bar" role="toolbar" aria-label="Форматирование">${RT_TOOLS.map(([k, html, t]) => `<button type="button" class="rt-btn" data-rt="${k}" title="${esc(t)}" aria-label="${esc(t)}">${html}</button>`).join("")}<span class="spacer"></span><button type="button" class="rt-btn rt-prev" data-rt-preview aria-pressed="false">Просмотр</button></div><textarea id="${id}" data-k="${esc(f.key)}" rows="${f.rows || 10}" placeholder="${esc(f.placeholder || "")}">${esc(v ?? "")}</textarea><div class="rt-preview note-text" hidden></div>${hint}</div>`;
@@ -687,6 +784,11 @@ export function openForm({ title, fields, value = {}, onSave, onDelete, saveLabe
     const out = JSON.parse(JSON.stringify(value));
     for (const f of fields) {
       if (f.type === "heading") continue;
+      if (f.type === "icon") {
+        const ch = form.querySelector(`[data-icons][data-k="${CSS.escape(f.key)}"] input:checked`);
+        setPath(out, f.key, ch ? ch.value : "");
+        continue;
+      }
       if (f.type === "types") {
         const box = form.querySelector(`[data-types][data-k="${CSS.escape(f.key)}"]`);
         setPath(out, f.key, Array.from(box.querySelectorAll("input:checked")).map(i => i.value));

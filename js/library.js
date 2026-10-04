@@ -1,4 +1,6 @@
-import { SCHOOLS, normalize, uid } from "./rules.js";
+import { SCHOOLS, normalize, uid, itemCharges } from "./rules.js";
+
+export { itemCharges };
 import { icon } from "./icons.js";
 import { esc, card, openModal, toast } from "./ui.js";
 import { spellModel } from "./entities.js";
@@ -23,14 +25,6 @@ export function guessClass(c) {
   return Object.keys(CLASSES).find(k => s.includes(CLASSES[k].toLowerCase().slice(0, 5))) || "";
 }
 
-export function itemCharges(lib) {
-  const lvl = Number(lib.level) || 0;
-  const charges = Math.max(1, lvl - 1);
-  const first = (lib.damage || [])[0];
-  const grows = !!first && first.type !== "temp" && (lvl === 0 || !!lib.upcast);
-  return { charges, maxCharges: grows ? charges + 2 : charges, upcast: grows ? (lvl === 0 ? first.dice : lib.upcast) : "" };
-}
-
 export function toSpell(lib, item) {
   const sp = { id: "sp-" + uid(), castAt: null, source: "SRD 5.1", cost: "slot", uses: "", recharge: "long", used: 0, prepared: true };
   for (const k of FIELDS) sp[k] = lib[k] ?? (k === "damage" ? [] : k === "level" ? 0 : "");
@@ -50,11 +44,15 @@ export async function openSpellLibrary({ get, onAdd, item = null }) {
     m.body.innerHTML = `<p class="empty">Не удалось загрузить библиотеку. Проверь интернет и попробуй ещё раз.</p>`;
     return;
   }
-  const st = { q: "", level: "all", cls: item ? "" : guessClass(c), open: "" };
+  const st = { q: "", level: "all", cls: item ? "" : guessClass(c), open: "", target: item ? item.id : "" };
+  const wandish = it => (it.type === "wand" || /палочк|жезл|посох/i.test(it.name || "") ? 0 : 1);
+  const charged = item ? [] : get().c.items.filter(it => get().d.uses[it.id] != null).sort((a, b) => wandish(a) - wandish(b));
+  const targetItem = () => item || get().c.items.find(it => it.id === st.target) || null;
   const have = () => new Set(get().c.spells.flatMap(s => [norm(s.nameEn), norm(s.name)]).filter(Boolean));
   m.body.innerHTML = `
     <div class="lib-tools">
       <label class="search-box">${icon("search")}<input type="search" data-q placeholder="Название по-русски или по-английски" aria-label="Поиск заклинания"></label>
+      ${charged.length ? `<label class="fld compact lib-cls"><span>Куда добавить</span><select data-target><option value="">Мои заклинания</option>${charged.map(it => `<option value="${esc(it.id)}">${esc(it.name || "Предмет")} (заряды)</option>`).join("")}</select></label>` : ""}
       <label class="fld compact lib-cls"><span>Класс</span><select data-cls><option value="">Все классы</option>${Object.entries(CLASSES).map(([k, v]) => `<option value="${k}" ${st.cls === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
     </div>
     <div class="chips filter lib-levels">${[["all", "Все"], ["0", "Заговоры"], ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => [String(n), n + " круг"])].map(([k, l]) => `<button class="chip toggle ${k === "all" ? "on" : ""}" data-lvl="${k}">${l}</button>`).join("")}</div>
@@ -80,13 +78,18 @@ export async function openSpellLibrary({ get, onAdd, item = null }) {
           ${got ? `<span class="badge" style="--c:#4fcf6a">уже есть</span>` : ""}
           <span class="lib-chev">${icon("down")}</span>
         </button>
-        ${open ? `<div class="lib-card">${card(spellModel(get().c, get().d, toSpell(s, item)))}<div class="lib-cls-line">${s.classes.map(k => CLASSES[k]).join(", ")}</div><div class="lib-actions"><button class="btn gold" data-add="${esc(s.key)}">${icon("plus")}${item ? "Добавить в предмет" : got ? "Добавить ещё раз" : "Добавить в лист"}</button></div></div>` : ""}
+        ${open ? `<div class="lib-card">${card(spellModel(get().c, get().d, toSpell(s, targetItem())))}<div class="lib-cls-line">${s.classes.map(k => CLASSES[k]).join(", ")}</div><div class="lib-actions"><button class="btn gold" data-add="${esc(s.key)}">${icon("plus")}${targetItem() ? `Добавить в «${esc(targetItem().name || "предмет")}»` : got ? "Добавить ещё раз" : "Добавить в лист"}</button></div></div>` : ""}
       </div>`;
     }).join("") || `<p class="empty">Ничего не нашлось</p>`;
   };
   draw();
   m.body.querySelector("[data-q]").addEventListener("input", e => {
     st.q = e.target.value;
+    draw();
+  });
+  const tgt = m.body.querySelector("[data-target]");
+  if (tgt) tgt.addEventListener("change", e => {
+    st.target = e.target.value;
     draw();
   });
   m.body.querySelector("[data-cls]").addEventListener("change", e => {
@@ -103,8 +106,9 @@ export async function openSpellLibrary({ get, onAdd, item = null }) {
     const add = e.target.closest("[data-add]");
     if (add) {
       const s = list.find(x => x.key === add.dataset.add);
-      if (s && onAdd(toSpell(s, item)) !== false) {
-        toast(`${icon("check")} «${esc(s.name)}» добавлено в лист`, { kind: "good", timeout: 2200 });
+      const ti = targetItem();
+      if (s && onAdd(toSpell(s, ti)) !== false) {
+        toast(`${icon("check")} «${esc(s.name)}» добавлено ${ti ? `в «${esc(ti.name || "предмет")}»` : "в лист"}`, { kind: "good", timeout: 2200 });
         st.open = "";
         draw();
       }

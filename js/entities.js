@@ -39,13 +39,66 @@ export function spellLevelText(sp) {
   return lvl === 0 ? `Заговор · ${school}` : `Заклинание ${lvl} круга · ${school}`;
 }
 
+const W = s => new RegExp("(^|[^а-яё])(" + s + ")", "i");
+
+const ITEM_WORDS = [
+  ["кольц|перстен", "ring"], ["амулет|кулон|ожерель|медальон|талисман", "amulet"], ["плащ|мантия|накидк|роба", "cloak"],
+  ["перчат|рукавиц|наруч", "glove"], ["шлем|капюшон|шляп|корон", "helmet"], ["арбалет", "arrow"], ["лук(?![а-яё])", "bow"],
+  ["посох|жезл|палочк", "wand"], ["хрустальн|сфер|шар(?![а-яё])", "orb"], ["ключ|отмычк", "key"], ["карта|карты|атлас", "map"],
+  ["письм|конверт|записк|приглашен|документ|паспорт|лицензи", "letter"], ["факел|свеч", "torch"], ["бутыл|фляг|флакон", "bottle"],
+  ["колокол", "bell"], ["палатк|шатёр|шатер", "tent"], ["кирк|лопат", "pickaxe"], ["лютн|флейт|барабан|скрипк|арф|рожок", "lute"],
+  ["кристал", "crystal"], ["бомб|гранат|взрывчат|порох", "bomb"], ["пистол|мушкет|револьвер|ружь|винтовк", "pistol"],
+  ["очки|гогл|линз", "goggles"], ["часы|хронометр", "clock"], ["якор", "anchor"], ["монокл", "monocle"], ["компас", "compass"],
+  ["конденсатор|батаре|аккумулятор", "battery"], ["перо", "feather"], ["кружк|чаш|кубок", "mug"], ["верёвк|веревк|цеп", "rope"],
+  ["фонар", "lantern"], ["рацион|хлеб|еда|сухар", "bread"], ["блокнот|дневник|журнал", "notebook"], ["целител|аптечк|бинт", "medkit"],
+  ["книг|том(?![а-яё])|гримуар", "book"], ["свиток", "scroll"], ["щит", "shield"], ["доспех|кольчуг|латы|кираса|кожа", "armor"],
+  ["меч|сабл|рапир|клинок|шпаг", "sword"], ["топор|секир", "axe"], ["молот|булав|дубин", "hammer"], ["кинжал|нож", "dagger"],
+  ["зель|эликсир|масло|яд(?![а-яё])", "potion"], ["камен|самоцвет|рубин|изумруд|сапфир|алмаз|жемчуг", "gem"],
+  ["шестер|механизм|инструмент|ключ гаечн", "gear"], ["рюкзак|сумк|мешок", "bag"], ["кошел|монет", "coin"]
+].map(([w, ic]) => [W(w), ic]);
+
+const SPELL_WORDS = [
+  ["щит|доспех|защит|ограж|броня|оберег", "shield"], ["лечен|исцел|восстанов|воскреш|жизн|оживл", "heart"], ["свет|сиян|солн|рассвет", "sun"],
+  ["тьм|темнот|ночь|тени|тень", "moon"], ["невидим|иллюз|образ|маск|облик|личин|мираж", "mask"], ["телепорт|шаг|портал|врата|перенос|план", "portal"],
+  ["полёт|полет|левитац|падени|прыж|крыл", "wings"], ["паут", "web"], ["ветер|ветр|вихр|порыв|смерч|туман|облак", "wind"],
+  ["камен|земл|стен|скал", "rock"], ["раст|лоз|шип|лес|ягод|дуб|кор", "leaf"], ["звер|живот|скакун|фамильяр", "paw"],
+  ["обнаруж|зрени|видени|поиск|прорица|ясновид|знани|опознан", "eye"], ["внуш|очаров|подчин|дружб|убежд|приказ|разум|мысл", "brain"],
+  ["страх|ужас|проклят", "skull"], ["слов|язык|послан|телепат|голос|связ", "letter"], ["призыв|вызов|знак|символ|глиф|рун", "sigil"],
+  ["время|ускор|замедл|спешк", "clock"], ["тишин|звук|гром|крик", "bell"], ["удерж|оков|опута|цеп|клетк|тюрьм", "chain"],
+  ["сфер|шар(?![а-яё])", "orb"], ["музык|песн|танец|пляск", "music"], ["рук(?![а-яё])|рука", "hand"], ["огн|пламен", "flame"], ["молни", "bolt"]
+].map(([w, ic]) => [W(w), ic]);
+
+const FEATURE_WORDS = [
+  ["зрени|глаз|взор", "eye"], ["маск|облик|личин", "mask"], ["живуч|жизн|здоров|крепк", "heart"], ["крыл|полёт|полет", "wings"],
+  ["рог|наследи|тифлинг|дьявол|адск", "horns"], ["гримуар|книг|архив|знани|учён|учен", "book"], ["сопротивл|защит|стойк", "shield"],
+  ["механ|инжене|изобрет", "gear"], ["договор|контракт|пакт", "pact"], ["голос|речь|язык", "letter"], ["скрыт|тень|тен(?![а-яё])", "moon"],
+  ["ярост|сил(?![а-яё])", "swords"], ["звер|живот", "paw"], ["удач|везен", "star"], ["огн|пламен", "flame"], ["холод|лёд|лед(?![а-яё])|мороз", "snow"]
+].map(([w, ic]) => [W(w), ic]);
+
+export function guessIcon(name, words) {
+  const n = String(name || "").toLowerCase();
+  const hit = words.find(([re]) => re.test(n));
+  return hit ? hit[1] : "";
+}
+
+export function featureIcon(f) {
+  return f.icon || guessIcon(f.name, FEATURE_WORDS) || (FEATURE_CATS[f.category] || FEATURE_CATS.other).icon;
+}
+
 export function spellIcon(c, sp) {
+  if (sp.icon) {
+    const first = (sp.damage || [])[0];
+    const t = first && DAMAGE[swapType(c, first.type)];
+    return { icon: sp.icon, color: t ? t.color : (SCHOOLS[sp.school] || { color: "#e9c77a" }).color };
+  }
   const first = (sp.damage || [])[0];
   if (first && DAMAGE[swapType(c, first.type)]) {
     const t = DAMAGE[swapType(c, first.type)];
     return { icon: t.icon, color: t.color };
   }
   const sc = SCHOOLS[sp.school] || { color: "#e9c77a" };
+  const guess = guessIcon(sp.name, SPELL_WORDS);
+  if (guess) return { icon: guess, color: sc.color };
   const map = { abjuration: "shield", conjuration: "sparkle", divination: "eye", enchantment: "brain", evocation: "force", illusion: "mask", necromancy: "skull", transmutation: "gear" };
   return { icon: map[sp.school] || "sparkle", color: sc.color };
 }
@@ -136,7 +189,7 @@ export function featureModel(c, d, f) {
   return {
     title: f.name,
     subtitle: (FEATURE_SINGULAR[f.category] || "Умение") + (f.nameEn ? ` · ${f.nameEn}` : ""),
-    art: { icon: cat.icon, color: f.source === "dm" ? "#f0c46a" : "#c9a0ff" },
+    art: { icon: featureIcon(f), color: f.source === "dm" ? "#f0c46a" : "#c9a0ff" },
     badges: [src ? { text: src, color: f.source === "dm" ? "#f0c46a" : f.source === "own" ? "#6fd3c4" : "#c9a35b" } : null],
     dice: lines,
     body: rich(f.description),
@@ -296,15 +349,8 @@ export function cardFor(c, d, ref, opts) {
 }
 
 export function itemIcon(it) {
-  const n = (it.name || "").toLowerCase();
-  const guess = [
-    ["монокл", "monocle"], ["компас", "compass"], ["конденсатор", "battery"], ["перо", "feather"], ["кружк", "mug"],
-    ["верёвк", "rope"], ["веревк", "rope"], ["фонар", "lantern"], ["рацион", "bread"], ["блокнот", "notebook"],
-    ["целител", "medkit"], ["палочк", "wand"], ["жезл", "wand"], ["посох", "wand"], ["арбалет", "arrow"], ["кинжал", "dagger"], ["книга", "book"], ["рюкзак", "bag"], ["масло", "potion"]
-  ].find(([k]) => n.includes(k));
   if (it.icon) return it.icon;
-  if (guess) return guess[1];
-  return (ITEM_TYPES[it.type] || ITEM_TYPES.misc).icon;
+  return guessIcon(it.name, ITEM_WORDS) || (ITEM_TYPES[it.type] || ITEM_TYPES.misc).icon;
 }
 
 export function fmtNum(n) {
@@ -351,7 +397,8 @@ export const EDITORS = {
       { key: "recharge", label: "Восстановление", type: "select", options: rechargeOpts },
       { key: "onSave", label: "Строка-итог (жирным)", placeholder: "При успехе: половина урона", span: 3 },
       { key: "description", label: "Описание", type: "textarea", rows: 6, span: 3 },
-      { key: "higher", label: "На больших кругах", type: "textarea", rows: 2, span: 3 }
+      { key: "higher", label: "На больших кругах", type: "textarea", rows: 2, span: 3 },
+      { key: "icon", label: "Иконка", type: "icon", span: 3 }
     ]
   },
   feature: {
@@ -371,7 +418,8 @@ export const EDITORS = {
       { key: "save", label: "Спасбросок цели", type: "select", options: SAVE_OPTS },
       { key: "damage", label: "Кубы (урон, лечение, врем. хиты)", type: "dicelist", span: 3 },
       { key: "effect", label: "Строка-итог (жирным)", span: 3 },
-      { key: "description", label: "Описание", type: "textarea", rows: 6, span: 3 }
+      { key: "description", label: "Описание", type: "textarea", rows: 6, span: 3 },
+      { key: "icon", label: "Иконка", type: "icon", span: 3 }
     ]
   },
   item: {
@@ -393,7 +441,8 @@ export const EDITORS = {
       { key: "breakOn", label: "Ломается на d20", type: "number", nullable: true, hint: "После последнего заряда бросок d20; пусто = не ломается" },
       { key: "damage", label: "Кубы", type: "dicelist", span: 3 },
       { key: "effect", label: "Строка-итог (жирным)", span: 3 },
-      { key: "description", label: "Описание", type: "textarea", rows: 5, span: 3 }
+      { key: "description", label: "Описание", type: "textarea", rows: 5, span: 3 },
+      { key: "icon", label: "Иконка", type: "icon", span: 3 }
     ]
   },
   attack: {

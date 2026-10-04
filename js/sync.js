@@ -13,7 +13,10 @@ const isEntityList = v => Array.isArray(v) && v.every(x => isObj(x) && typeof x.
 function listOps(a, b) {
   const before = new Map(a.map(x => [x.id, x]));
   const after = new Set(b.map(x => x.id));
+  const common = b.map(x => x.id).filter(id => before.has(id));
+  const was = a.map(x => x.id).filter(id => after.has(id));
   return {
+    reordered: common.some((id, i) => id !== was[i]),
     removed: a.filter(x => !after.has(x.id)).map(x => x.id),
     upserts: b.filter(x => !before.has(x.id) || !same(before.get(x.id), x)).map(copy),
     order: b.map(x => x.id)
@@ -35,6 +38,12 @@ function applyListOps(target, ops) {
       else out.push(copy(u));
     }
   }
+  if (!ops.reordered) return out;
+  const rank = new Map(ops.order.map((id, i) => [id, i]));
+  const slots = [];
+  out.forEach((x, i) => rank.has(x.id) && slots.push(i));
+  const sorted = slots.map(i => out[i]).sort((x, y) => rank.get(x.id) - rank.get(y.id));
+  slots.forEach((p, k) => (out[p] = sorted[k]));
   return out;
 }
 

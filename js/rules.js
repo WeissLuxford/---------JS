@@ -614,6 +614,25 @@ export function applyDefenses(amount, type, defenses) {
   return { amount: v, kind: resist && vuln ? "both" : resist ? "resist" : vuln ? "vuln" : "" };
 }
 
+export function itemCharges(lib) {
+  const lvl = Number(lib.level) || 0;
+  const charges = Math.max(1, lvl - 1);
+  const first = (lib.damage || [])[0];
+  const grows = !!first && first.type !== "temp" && (lvl === 0 || !!lib.upcast);
+  return { charges, maxCharges: grows ? charges + 2 : charges, upcast: grows ? (lvl === 0 ? first.dice : lib.upcast) : "" };
+}
+
+export function reorderSubset(list, ids) {
+  const byId = new Map(list.map(x => [x.id, x]));
+  const want = ids.filter(id => byId.has(id));
+  const set = new Set(want);
+  const slots = [];
+  list.forEach((x, i) => set.has(x.id) && slots.push(i));
+  const out = list.slice();
+  slots.forEach((p, k) => (out[p] = byId.get(want[k])));
+  return out;
+}
+
 export function usesInfo(d, entity) {
   const max = d.uses[entity.id];
   if (max == null) return null;

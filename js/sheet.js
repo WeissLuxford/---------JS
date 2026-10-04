@@ -1,11 +1,11 @@
-import { ABILITIES, SKILLS, DAMAGE, DAMAGE_TYPES, DEFENSE_KINDS, compute, normalize, fmt, rollD20, rollDice, spellCast, usesInfo, maxDie, uid, addDice, swapType, importCharacter, NOTE_KEYS, rollContext, resolveMode, rollReasons, applyDefenses } from "./rules.js";
+import { ABILITIES, SKILLS, DAMAGE, DAMAGE_TYPES, DEFENSE_KINDS, compute, normalize, fmt, rollD20, rollDice, spellCast, usesInfo, maxDie, uid, addDice, swapType, importCharacter, NOTE_KEYS, itemCharges, reorderSubset, rollContext, resolveMode, rollReasons, applyDefenses } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import {
   esc, $, $$, toast, openModal, confirmDialog, promptNumber, showD20, showBeams, showDamage, rollLog, enableHoverCards, hideHoverCard,
-  enableLongPress, openForm, getPath, setPath, dateTime, timeAgo, cropImage, download, pickFile
+  enableLongPress, enableReorder, openForm, getPath, setPath, dateTime, timeAgo, cropImage, download, pickFile
 } from "./ui.js";
 import { TABS, RENDER, subtitle, hpState, notesList, noteTags } from "./tabs.js";
-import { cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
+import { cardFor, findEntity, itemIcon, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
 import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
 import { diffPaths, applyPaths } from "./sync.js";
 import { describeChanges } from "./changes.js";
@@ -253,8 +253,10 @@ export function mountSheet(root, id, initialTab, navigate) {
   function renderTab() {
     const body = $("[data-body]", root);
     if (!body) return;
-    body.innerHTML = RENDER[S.tab]({ c: S.c, d: S.d, ui: S.ui });
+    body.innerHTML = (S.ui.ordering ? `<div class="order-bar">${icon("menu")}<span>Перетаскивай карточки за значок ⠿ (на компьютере ещё Alt + стрелки). Порядок сохранится для всех устройств.</span><button class="btn gold sm" data-act="toggle-order">${icon("check")}Готово</button></div>` : "") + RENDER[S.tab]({ c: S.c, d: S.d, ui: S.ui });
     body.dataset.tab = S.tab;
+    body.classList.toggle("ordering", !!S.ui.ordering);
+    if (S.ui.ordering) $$("[data-reorder] > [data-rid]", body).forEach(el => el.insertAdjacentHTML("afterbegin", `<span class="drag-h" aria-hidden="true">⠿</span>`));
     $$(".tab", root).forEach(b => b.classList.toggle("on", b.dataset.tab === S.tab));
     $$("textarea.autogrow", body).forEach(grow);
     if (readOnly()) $$("input:not([data-ui]), textarea, select:not([data-ui])", body).forEach(el => (el.disabled = true));
@@ -883,6 +885,8 @@ export function mountSheet(root, id, initialTab, navigate) {
     }
     if (kind === "spell") {
       if (e.attack) b.push(`<button class="btn" data-x="spell-atk">${icon("d20")}Атака ${fmt(spellAtk(d, e))}</button>`);
+      if (e.cost === "item") b.push(`<button class="btn ghost" data-x="to-own">${icon("book")}В мои заклинания</button>`);
+      else if (S.c.items.some(it => usesInfo(d, it))) b.push(`<button class="btn ghost" data-x="to-item">${icon("wand")}В предмет</button>`);
       if ((e.damage || []).length) {
         const lv = S.lastCast[e.id];
         const ex = e.cost === "item" ? S.lastExtra[e.id] || 0 : 0;
@@ -963,6 +967,14 @@ export function mountSheet(root, id, initialTab, navigate) {
       }
       if (x === "cast") return castSpell(e, Number(btn.dataset.lvl) || null);
       if (x === "spell-atk") return d20(`${e.name}: атака`, spellAtk(S.d, e), "attack");
+      if (x === "to-item") {
+        m.close();
+        return moveSpellToItem(e);
+      }
+      if (x === "to-own") return mutate(c => {
+        const sp = findEntity(c, "spell", eid);
+        if (sp) Object.assign(sp, { cost: Number(sp.level) > 0 ? "slot" : "free", itemId: "" });
+      });
       if (x === "item-add-spell") {
         m.close();
         return openLibrary(e);
@@ -992,6 +1004,29 @@ export function mountSheet(root, id, initialTab, navigate) {
       if (x === "atk") return doRoll("attack:" + eid);
       if (x === "dmg") return doRoll("dmg:" + eid);
       if (x === "crit") return doRoll("crit:" + eid);
+    });
+  }
+
+  function moveSpellToItem(sp) {
+    const wandish = it => (it.type === "wand" || /палочк|жезл|посох/i.test(it.name || "") ? 0 : 1);
+    const items = S.c.items.filter(it => usesInfo(S.d, it)).sort((a, b) => wandish(a) - wandish(b));
+    const m = openModal({
+      title: `«${sp.name}» в предмет`,
+      cls: "small",
+      body: `<p class="hint">Заклинание будет тратить заряды выбранного предмета. Числа можно поменять потом кнопкой «Изменить».</p><div class="menu-list">${items.map(it => `<button class="menu-item" data-it="${esc(it.id)}">${icon(itemIcon(it))}<span>${esc(it.name || "Без названия")} · ${usesInfo(S.d, it).left}/${usesInfo(S.d, it).max}</span></button>`).join("")}</div>`
+    });
+    m.body.addEventListener("click", e => {
+      const b = e.target.closest("[data-it]");
+      if (!b) return;
+      const it = items.find(x => x.id === b.dataset.it);
+      m.close();
+      if (!it) return;
+      mutate(c => {
+        const x = findEntity(c, "spell", sp.id);
+        if (x) Object.assign(x, { cost: "item", itemId: it.id, scaling: "none", ...itemCharges(x) });
+        c.spells = normalize(c).spells;
+      });
+      toast(`${icon("wand")} «${esc(sp.name)}» теперь тратит заряды «${esc(it.name)}»`, { kind: "good" });
     });
   }
 
@@ -1278,7 +1313,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     });
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
 
   async function runAction(a, el) {
     const { c } = S;
@@ -1394,6 +1429,17 @@ export function mountSheet(root, id, initialTab, navigate) {
         return mutate(ch => (ch.notes[sec] || []).forEach(x => { x.collapsed = v; }));
       }
       case "spell-filter": S.ui.spellFilter = el.dataset.k; return renderTab();
+      case "toggle-order":
+        S.ui.ordering = !S.ui.ordering;
+        if (S.ui.ordering) {
+          S.ui.notesQ = "";
+          S.ui.spellQ = "";
+          S.ui.spellFilter = "all";
+          S.ui.noteTag = "";
+          S.ui.peopleAtt = "all";
+          S.ui.invFilter = "all";
+        }
+        return renderTab();
       case "spend-hd": return spendHitDie();
       case "death": {
         const k = el.dataset.k;
@@ -1489,10 +1535,15 @@ export function mountSheet(root, id, initialTab, navigate) {
       }
       S.scroll[S.tab] = window.scrollY;
       S.tab = tab.dataset.tab;
+      S.ui.ordering = false;
       hideHoverCard();
       history.replaceState(history.state, "", `#/c/${id}/${S.tab}`);
       renderTab();
       window.scrollTo({ top: S.scroll[S.tab] || 0 });
+      return;
+    }
+    if (S.ui.ordering && e.target.closest("[data-reorder]") && !e.target.closest("[data-act=toggle-order]")) {
+      e.preventDefault();
       return;
     }
     const act = e.target.closest("[data-act]");
@@ -1546,8 +1597,16 @@ export function mountSheet(root, id, initialTab, navigate) {
   window.addEventListener("beforeunload", onBeforeUnload);
   document.addEventListener("visibilitychange", onVisibility);
   const offHover = enableHoverCards(root, ref => (S.c && !S.disposed ? cardFor(S.c, S.d, ref) : ""));
-  const offLong = enableLongPress(root, (ref, el) => {
+  const offOrder = enableReorder(root, (key, ids) => {
     if (!S.c || S.disposed) return;
+    const ok = mutate(c => {
+      const list = getPath(c, key);
+      if (Array.isArray(list)) setPath(c, key, reorderSubset(list, ids));
+    }, { render: false });
+    if (ok === false) renderTab();
+  });
+  const offLong = enableLongPress(root, (ref, el) => {
+    if (!S.c || S.disposed || S.ui.ordering) return;
     hideHoverCard();
     if (el.closest("[data-open]")) return openEntity(el.closest("[data-open]").dataset.open);
     const html = cardFor(S.c, S.d, ref);
@@ -1564,6 +1623,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     offInvite();
     offHover();
     offLong();
+    offOrder();
     root.removeEventListener("toggle", onToggle, true);
     root.removeEventListener("input", onInput);
     root.removeEventListener("change", onInput);

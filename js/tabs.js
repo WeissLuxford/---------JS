@@ -1,7 +1,7 @@
 import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, fmt, usesInfo, spellCast } from "./rules.js";
 import { icon, actionMark, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, pips, rich, plainPreview } from "./ui.js";
-import { spellIcon, itemIcon, fmtNum } from "./entities.js";
+import { spellIcon, itemIcon, featureIcon, fmtNum } from "./entities.js";
 
 export const TABS = [
   { key: "char", name: "Персонаж", short: "Герой", icon: "user" },
@@ -17,6 +17,11 @@ const abShort = k => (ABILITIES.find(a => a.key === k) || {}).short || "";
 
 function panel(title, body, { ic, actions = "", cls = "" } = {}) {
   return `<section class="panel ${cls}"><header class="panel-h">${ic ? icon(ic) : ""}<h3>${esc(title)}</h3><span class="spacer"></span>${actions}</header><div class="panel-b">${body}</div></section>`;
+}
+
+export function orderBtn(ctx) {
+  const on = !!(ctx.ui && ctx.ui.ordering);
+  return `<button class="btn ${on ? "gold" : "ghost"} sm order-btn" data-act="toggle-order" aria-pressed="${on ? "true" : "false"}">${icon(on ? "check" : "menu")}${on ? "Готово" : "Порядок"}</button>`;
 }
 
 function addBtn(act, label, extra = "") {
@@ -177,7 +182,7 @@ function attackRow(ctx, at) {
   const hit = s.kind === "save"
     ? `<span class="chip dc">СЛ ${s.dc} ${abShort(s.save)}</span>`
     : `<button class="chip hit" data-roll="attack:${esc(at.id)}">${s.beams > 1 ? `<small>${s.beams}×</small>` : ""}${fmt(s.hit)}</button>`;
-  return `<div class="atk-row">
+  return `<div class="atk-row" data-rid="${esc(at.id)}">
     <button class="atk-name" data-open="attack:${esc(at.id)}" data-card="attack:${esc(at.id)}" style="--c:${dt.color}">${icon(dt.icon)}<span><b>${esc(at.name)}</b><small>${esc(at.range || "")}</small></span></button>
     ${hit}
     <button class="chip dmg" data-roll="dmg:${esc(at.id)}" style="--c:${dt.color}">${s.beams > 1 ? s.beams + "× " : ""}${esc(s.dmg)} <span>${esc(dt.name.toLowerCase())}</span></button>
@@ -259,7 +264,7 @@ export function tabCombat(ctx) {
     </div>
     <div class="col">
       ${inspirationBtn(c)}
-      ${panel("Атаки", `<div class="atk-list">${attacks}</div>`, { ic: "swords", actions: addBtn("add-attack", "Атака"), cls: "p-attacks" })}
+      ${panel("Атаки", `<div class="atk-list" data-reorder="attacks">${attacks}</div>`, { ic: "swords", actions: orderBtn(ctx) + addBtn("add-attack", "Атака"), cls: "p-attacks" })}
       ${slots || res ? panel("Ресурсы", `${slots}${res}`, { ic: "hourglass", cls: "p-res" }) : ""}
     </div>
   </div>`;
@@ -275,7 +280,7 @@ function spellTile(ctx, sp) {
   const unprep = Number(sp.level) > 0 && sp.prepared === false && sp.cost !== "item";
   const flags = [sp.concentration ? `<i class="flag" title="Концентрация">К</i>` : "", sp.ritual ? `<i class="flag" title="Ритуал">Р</i>` : "", unprep ? `<i class="flag off" title="Не подготовлено">н/п</i>` : "", sp.cost === "item" ? `<i class="flag green" title="Тратит заряды предмета">${icon("wand")}</i>` : ""].join("");
   const search = [sp.name, sp.nameEn, sp.source].filter(Boolean).join(" ").toLowerCase();
-  return `<button class="tile ${unprep ? "unprep" : ""}" data-open="spell:${esc(sp.id)}" data-card="spell:${esc(sp.id)}" data-search="${esc(search)}" style="--c:${ic.color}">
+  return `<button class="tile ${unprep ? "unprep" : ""}" data-rid="${esc(sp.id)}" data-open="spell:${esc(sp.id)}" data-card="spell:${esc(sp.id)}" data-search="${esc(search)}" style="--c:${ic.color}">
     <span class="tile-ic">${icon(ic.icon)}</span>
     <span class="tile-main"><span class="tile-name">${esc(sp.name)}</span><span class="tile-sub">${actionMark(a.shape, a.color)}<span class="tile-sub-t">${esc(sp.castTime || a.name)}${dmg ? ` · <span class="tile-dmg">${esc(dmg)}</span>` : ""}</span></span></span>
     <span class="tile-side">${flags}${u ? pips(u.max, u.left, "#e9a54a") : ""}</span>
@@ -305,14 +310,23 @@ export function tabSpells(ctx) {
   const filters = [["all", "Все"], ...(hasUnprep ? [["prepared", "Подготовленные"]] : []), ["damage", "С уроном"], ["conc", "Концентрация"], ["ritual", "Ритуалы"]];
   const tools = c.spells.length > 5 ? `<div class="spell-tools"><label class="search-box">${icon("search")}<input type="search" data-ui="spell-q" placeholder="Найти заклинание" value="${esc(ctx.ui.spellQ || "")}" aria-label="Найти заклинание"></label><div class="chips filter">${filters.map(([k, l]) => `<button class="chip toggle ${f === k ? "on" : ""}" data-act="spell-filter" data-k="${k}" aria-pressed="${f === k ? "true" : "false"}">${l}</button>`).join("")}</div></div>` : "";
   const groups = {};
+  const fromItems = {};
   c.spells.filter(pass).forEach(s => {
+    if (s.cost === "item" && c.items.some(it => it.id === s.itemId)) {
+      (fromItems[s.itemId] = fromItems[s.itemId] || []).push(s);
+      return;
+    }
     const l = Number(s.level) || 0;
     (groups[l] = groups[l] || []).push(s);
   });
   const levels = Object.keys(groups).map(Number).sort((a, b) => a - b);
-  const lists = levels.map(l => panel(l === 0 ? "Заговоры" : `${l} круг`, `<div class="tiles">${groups[l].sort((a, b) => a.name.localeCompare(b.name, "ru")).map(s => spellTile(ctx, s)).join("")}</div>`, { ic: l === 0 ? "sparkle" : "book" })).join("");
+  const lists = levels.map(l => panel(l === 0 ? "Заговоры" : `${l} круг`, `<div class="tiles" data-reorder="spells">${groups[l].map(s => spellTile(ctx, s)).join("")}</div>`, { ic: l === 0 ? "sparkle" : "book" })).join("") +
+    c.items.filter(it => fromItems[it.id]).map(it => {
+      const u = usesInfo(d, it);
+      return panel(it.name || "Предмет", `<p class="hint item-panel-hint">Тратит заряды предмета, а не твои ячейки. Круг заклинания не важен.</p><div class="tiles" data-reorder="spells">${fromItems[it.id].map(s => spellTile(ctx, s)).join("")}</div>`, { ic: itemIcon(it), cls: "item-spells-panel", actions: `${u ? `<span class="item-charges">${pips(u.max, u.left, "#4fcf6a")}<b>${u.left}/${u.max}</b></span>` : ""}<button class="btn ghost sm" data-open="item:${esc(it.id)}">${icon("edit")}Предмет</button>` });
+    }).join("");
   return `
-    ${panel("Заклинательство", head, { ic: "book", actions: `<button class="btn ghost sm" data-act="spell-library">${icon("book")}Библиотека</button>` + addBtn("add-spell", "Своё") })}
+    ${panel("Заклинательство", head, { ic: "book", actions: orderBtn(ctx) + `<button class="btn ghost sm" data-act="spell-library">${icon("book")}Библиотека</button>` + addBtn("add-spell", "Своё") })}
     ${concentrationBar(c)}
     ${tools}
     <div class="spell-lists">${lists || (c.spells.length ? `<p class="empty">Под этот фильтр ничего не подходит</p>` : `<p class="empty">Заклинаний пока нет. Выбери их в «Библиотеке» или добавь своё.</p>`)}</div>
@@ -326,8 +340,8 @@ function featureTile(ctx, f) {
   const u = usesInfo(d, f);
   const color = f.source === "dm" ? "#f0c46a" : f.source === "own" ? "#6fd3c4" : "#c9a0ff";
   const src = f.source === "dm" ? `<i class="flag gold" title="От Мастера">М</i>` : f.source === "own" ? `<i class="flag teal" title="Своё">С</i>` : "";
-  return `<button class="tile" data-open="feature:${esc(f.id)}" data-card="feature:${esc(f.id)}" style="--c:${color}">
-    <span class="tile-ic">${icon(cat.icon)}</span>
+  return `<button class="tile" data-rid="${esc(f.id)}" data-open="feature:${esc(f.id)}" data-card="feature:${esc(f.id)}" style="--c:${color}">
+    <span class="tile-ic">${icon(featureIcon(f))}</span>
     <span class="tile-main"><span class="tile-name">${esc(f.name)}</span><span class="tile-sub">${actionMark(a.shape, a.color)}<span class="tile-sub-t">${esc(a.name)}${f.effect ? ` · ${esc(f.effect)}` : ""}</span></span></span>
     <span class="tile-side">${src}${u ? pips(u.max, u.left, "#e9a54a") : ""}</span>
   </button>`;
@@ -339,10 +353,10 @@ export function tabFeatures(ctx) {
   const sections = Object.entries(FEATURE_CATS).map(([key, cat]) => {
     const list = c.features.filter(f => (f.category || "other") === key);
     if (!list.length) return "";
-    return panel(cat.name, `<div class="tiles">${list.map(f => featureTile(ctx, f)).join("")}</div>`, { ic: cat.icon, actions: addBtn("add-feature", "", `data-cat="${key}" title="Добавить"`) });
+    return panel(cat.name, `<div class="tiles" data-reorder="features">${list.map(f => featureTile(ctx, f)).join("")}</div>`, { ic: cat.icon, actions: addBtn("add-feature", "", `data-cat="${key}" title="Добавить"`) });
   }).join("");
   return `${pact}
-    <div class="legend"><span><i class="flag gold">М</i> от Мастера</span><span><i class="flag teal">С</i> своё</span><span class="spacer"></span>${addBtn("add-feature", "Умение", 'data-cat="other"')}</div>
+    <div class="legend"><span><i class="flag gold">М</i> от Мастера</span><span><i class="flag teal">С</i> своё</span><span class="spacer"></span>${orderBtn(ctx)}${addBtn("add-feature", "Умение", 'data-cat="other"')}</div>
     ${sections || `<p class="empty">Умений пока нет</p>`}`;
 }
 
@@ -384,13 +398,13 @@ export function tabInventory(ctx) {
     if (f === "other") return !["artifact", "weapon", "armor", "consumable"].includes(it.type);
     return it.type === f;
   });
-  const items = sortItems(filtered, ui.invSort || "added", ui.invEqFirst !== false);
+  const items = ui.ordering ? filtered : sortItems(filtered, ui.invSort || "added", ui.invEqFirst !== false);
   const pct = Math.min(100, (d.weight / Math.max(1, d.carry)) * 100);
   const coins = [["pp", "ПМ", "#d7e3ef"], ["gp", "ЗМ", "#e9c77a"], ["ep", "ЭМ", "#bfd0d6"], ["sp", "СМ", "#c9c9c9"], ["cp", "ММ", "#c7864f"]].map(([k, l, col]) => `
     <label class="coin" style="--c:${col}">${icon("coin")}<input type="number" inputmode="numeric" min="0" data-path="coins.${k}" data-num value="${esc(c.coins[k])}"><span>${l}</span></label>`).join("");
   const grid = items.map(it => {
     const r = RARITY[it.rarity] || RARITY.common;
-    return `<button class="slot ${it.equipped ? "eq" : ""}" data-open="item:${esc(it.id)}" data-card="item:${esc(it.id)}" style="--c:${r.color}">
+    return `<button class="slot ${it.equipped ? "eq" : ""}" data-rid="${esc(it.id)}" data-open="item:${esc(it.id)}" data-card="item:${esc(it.id)}" style="--c:${r.color}">
       <span class="slot-ic">${icon(itemIcon(it))}</span>
       ${Number(it.qty) > 1 ? `<span class="slot-qty">${it.qty}</span>` : ""}
       ${it.attuned ? `<span class="slot-att" title="Настроено">${icon("sparkle")}</span>` : ""}
@@ -404,7 +418,7 @@ export function tabInventory(ctx) {
     ${panel("Предметы", `
       <div class="chips filter">${INV_FILTERS.map(([k, l]) => `<button class="chip toggle ${f === k ? "on" : ""}" data-act="inv-filter" data-k="${k}">${l}</button>`).join("")}</div>
       <div class="inv-sort"><label class="fld compact"><span>Сортировка</span><select data-ui="inv-sort">${INV_SORTS.map(([k, l]) => `<option value="${k}" ${(ui.invSort || "added") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label><button class="chip toggle ${ui.invEqFirst !== false ? "on" : ""}" data-act="inv-eq-first" aria-pressed="${ui.invEqFirst !== false ? "true" : "false"}">Надетое сначала</button></div>
-      <div class="inv-grid">${grid || `<p class="empty">Пусто</p>`}</div>`, { ic: "bag", actions: addBtn("add-item", "Предмет") })}`;
+      <div class="inv-grid" data-reorder="items">${grid || `<p class="empty">Пусто</p>`}</div>`, { ic: "bag", actions: orderBtn(ctx) + addBtn("add-item", "Предмет") })}`;
 }
 
 const NOTE_SECTIONS = [["patron", "Покровитель", "pact"], ["quests", "Задания", "flag"], ["people", "Люди", "people"], ["misc", "Прочее", "notebook"]];
@@ -432,7 +446,7 @@ function noteCard(n, sec, ui, q) {
   const preview = shut ? (q ? snippet(n.text, q) : plainPreview(n.text)) : "";
   const tags = noteTags(n);
   const secName = q ? (NOTE_SECTIONS.find(x => x[0] === sec) || [])[1] : "";
-  return `<article class="note ${shut ? "collapsed" : ""} ${n.status === "done" || n.status === "failed" ? "dim" : ""}">
+  return `<article data-rid="${esc(n.id)}" class="note ${shut ? "collapsed" : ""} ${n.status === "done" || n.status === "failed" ? "dim" : ""}">
     <header><button class="note-toggle" data-act="toggle-note" data-sec="${sec}" data-id="${esc(n.id)}" aria-expanded="${shut ? "false" : "true"}"><span class="note-chev">${icon("down")}</span><span class="note-titles"><h4>${esc(n.title || "Без названия")}</h4>${n.subtitle ? `<span class="note-sub">${esc(n.subtitle)}</span>` : ""}${preview ? `<span class="note-prev">${esc(preview)}</span>` : ""}</span></button>${secName ? `<span class="badge">${esc(secName)}</span>` : ""}${st ? `<span class="badge" style="--c:${st[1]}">${st[0]}</span>` : ""}<button class="icon-btn" data-act="edit-note" data-sec="${sec}" data-id="${esc(n.id)}" title="Изменить" aria-label="Изменить «${esc(n.title || "Без названия")}»">${icon("edit")}</button></header>
     ${tags.length ? `<div class="note-tags">${tags.map(t => `<button class="tag ${ui.noteTag === t ? "on" : ""}" data-act="note-tag" data-k="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}
     ${shut ? "" : `<div class="note-text">${rich(n.text) || `<p class="dim">Пусто</p>`}</div>`}
@@ -448,7 +462,7 @@ export function notesList(ctx) {
     return found.length ? `<p class="hint">Найдено во всех разделах: ${found.length}</p>${found.join("")}` : `<p class="empty">Ничего не нашлось</p>`;
   }
   let list = c.notes[s].slice();
-  if (s === "quests") {
+  if (s === "quests" && !ui.ordering) {
     const order = { active: 0, "": 1, done: 2, failed: 3 };
     list.sort((a, b) => (order[a.status] ?? 1) - (order[b.status] ?? 1));
   }
@@ -470,7 +484,7 @@ export function tabNotes(ctx) {
   const filters = `<div class="note-filters" ${searching ? "hidden" : ""}>${att.map(([k, l]) => `<button class="chip toggle ${pa === k ? "on" : ""}" data-act="people-att" data-k="${k}" aria-pressed="${pa === k ? "true" : "false"}">${l}</button>`).join("")}${tags.map(t => `<button class="tag ${ui.noteTag === t ? "on" : ""}" data-act="note-tag" data-k="${esc(t)}" aria-pressed="${ui.noteTag === t ? "true" : "false"}">#${esc(t)}</button>`).join("")}</div>`;
   const label = { patron: "Запись", quests: "Задание", people: "Человек", misc: "Заметка" }[s];
   const fold = c.notes[s].length > 1 ? `<button class="btn ghost sm" data-act="fold-notes" data-sec="${s}" data-v="1">${icon("minus")}Свернуть все</button><button class="btn ghost sm" data-act="fold-notes" data-sec="${s}" data-v="0">${icon("plus")}Развернуть все</button>` : "";
-  return nav + search + filters + `<div class="notes-head" ${searching ? "hidden" : ""}>${fold}<span class="spacer"></span>${addBtn("add-note", label, `data-sec="${s}"`)}</div><div class="notes ${s === "misc" ? "single" : ""}" data-notes-list>${notesList(ctx)}</div>`;
+  return nav + search + filters + `<div class="notes-head" ${searching ? "hidden" : ""}>${fold}<span class="spacer"></span>${orderBtn(ctx)}${addBtn("add-note", label, `data-sec="${s}"`)}</div><div class="notes ${s === "misc" ? "single" : ""}" data-notes-list data-reorder="notes.${s}">${notesList(ctx)}</div>`;
 }
 
 export function tabStory(ctx) {

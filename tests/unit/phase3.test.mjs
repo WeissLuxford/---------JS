@@ -157,3 +157,22 @@ test("library spell bound to an item gets sensible charges", async () => {
   const c = R.normalize({ name: "x", info: { level: 5 }, items: [{ id: "it-w", name: "П", uses: "7" }], spells: [sp] });
   assert.equal(R.spellCast(c, R.compute(c), c.spells[0], null, 2).lines[0].dice, "3d8");
 });
+
+test("reorder: subset keeps other items in place and survives a rebase", async () => {
+  const { diffPaths, applyPaths } = await import(P + "sync.js");
+  const L = ids => ids.map(id => ({ id, name: id }));
+  const ids = l => l.map(x => x.id).join("");
+  assert.equal(ids(R.reorderSubset(L(["a", "b", "c", "d", "e"]), ["d", "b"])), "adcbe");
+  assert.equal(ids(R.reorderSubset(L(["a", "b", "c"]), ["c", "a", "zz"])), "cba");
+  const base = { items: L(["a", "b", "c", "d"]) };
+  const local = { items: L(["c", "a", "b", "d"]) };
+  const remote = { items: [...L(["a", "b", "c", "d"]), { id: "e", name: "new" }] };
+  remote.items[3].name = "D2";
+  const merged = applyPaths(JSON.parse(JSON.stringify(remote)), diffPaths(base, local));
+  assert.equal(ids(merged.items), "cabde");
+  assert.equal(merged.items.find(x => x.id === "d").name, "D2");
+  const edit = { items: L(["a", "b", "c", "d"]) };
+  edit.items[0].name = "A2";
+  const remoteOrder = { items: L(["d", "c", "b", "a"]) };
+  assert.equal(ids(applyPaths(JSON.parse(JSON.stringify(remoteOrder)), diffPaths(base, edit)).items), "dcba");
+});
