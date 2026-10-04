@@ -295,6 +295,10 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .owner-bar .ic { color: var(--gold-2); }
 .link-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); font-size: 15px; text-decoration: underline; text-underline-offset: 3px; }
 .link-btn:hover { color: var(--gold-2); }
+.link-btn.inline { display: inline; font-size: inherit; color: var(--gold-2); }
+.privacy p { margin: 0 0 12px; color: var(--text-2); }
+.privacy b { color: var(--text); }
+hr.sep { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
 .lock-box { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px; margin-bottom: 14px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0, 0, 0, .25); }
 .lock-box > div { flex: 1 1 260px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .lock-box > div .ic { color: var(--good); }

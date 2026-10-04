@@ -1,12 +1,12 @@
 import { normalize, newCharacter, uid, compute, importCharacter } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, timeAgo, toast, openForm, openModal, pickFile, confirmDialog } from "./ui.js";
-import { subscribeList, subscribeInvites, createChar, getMode, onStatus, getRecents, removeRecent, claimCharacter } from "./store.js";
-import { onAccess, signIn, signOut, IN_APP, getAccess } from "./access.js";
+import { subscribeList, subscribeInvites, createChar, getMode, onStatus, getRecents, removeRecent, claimCharacter, deleteCharacter } from "./store.js";
+import { onAccess, signIn, signOut, IN_APP, getAccess, deleteAccountData } from "./access.js";
 import { subtitle } from "./tabs.js";
 import { shortWho } from "./device.js";
 import { openShare } from "./share.js";
-import { openAccounts } from "./admin.js";
+import { openAccounts, backupAll } from "./admin.js";
 
 export function mountHome(root, navigate) {
   document.title = "Листы персонажей";
@@ -109,14 +109,14 @@ export function mountHome(root, navigate) {
     if (getMode() !== "cloud" || !access.ready) return "";
     if (!access.signedIn) {
       return `<section class="signin">
-        <div class="signin-text">${icon("user")}<div><b>Войди через Google</b><small>Чтобы создавать своих персонажей и править те, к которым тебе дали доступ. Смотреть листы по ссылке можно и без входа.</small>${IN_APP ? `<small class="warn">Похоже, сайт открыт внутри приложения (Telegram, Instagram и т.п.). Google не пускает войти оттуда: открой ссылку в Chrome или Safari.</small>` : ""}${access.authError ? `<small class="warn">${esc(access.authError)}</small>` : ""}</div></div>
+        <div class="signin-text">${icon("user")}<div><b>Войди через Google</b><small>Чтобы создавать своих персонажей и править те, к которым тебе дали доступ. Смотреть листы по ссылке можно и без входа. <button class="link-btn inline" data-privacy>Что мы храним</button></small>${IN_APP ? `<small class="warn">Похоже, сайт открыт внутри приложения (Telegram, Instagram и т.п.). Google не пускает войти оттуда: открой ссылку в Chrome или Safari.</small>` : ""}${access.authError ? `<small class="warn">${esc(access.authError)}</small>` : ""}</div></div>
         <button class="btn gold" data-signin>${icon("user")}Войти через Google</button>
       </section>`;
     }
     return `<section class="account">
       <span class="acc-ava">${access.photo ? `<img src="${esc(access.photo)}" alt="" referrerpolicy="no-referrer">` : icon("user")}</span>
       <div class="acc-main"><b>${esc(access.name)}</b>${access.isAdmin ? `<span class="hist-tag gold">владелец сайта</span>` : ""}${access.banned ? `<span class="hist-tag bad">аккаунт запрещён</span>` : ""}<small>${esc(access.email)}</small></div>
-      <div class="acc-actions">${access.isAdmin ? `<button class="btn sm gold" data-accounts>${icon("people")}Аккаунты</button>` : ""}<button class="btn sm ghost" data-myid>${icon("info")}Мой ID</button><button class="btn sm ghost" data-signout>Выйти</button></div>
+      <div class="acc-actions">${access.isAdmin ? `<button class="btn sm gold" data-accounts>${icon("people")}Аккаунты</button><button class="btn sm" data-backup>${icon("download")}Бэкап</button>` : ""}<button class="btn sm ghost" data-myid>${icon("gear")}Аккаунт</button><button class="btn sm ghost" data-signout>Выйти</button></div>
     </section>`;
   }
 
@@ -157,7 +157,7 @@ export function mountHome(root, navigate) {
     root.innerHTML = `
       <div class="home">
         <header class="home-head">
-          <div class="home-title">${icon("d20")}<div><h1>Листы персонажей</h1><p>D&amp;D 5e в стиле Baldur's Gate 3</p></div></div>
+          <div class="home-title">${icon("d20")}<div><h1>Листы персонажей</h1><p>Интерактивный лист персонажа D&amp;D 5e</p></div></div>
           ${statusText ? `<div class="home-status">${icon("cloudOff")}${esc(statusText)}</div>` : ""}
           ${fromCache && !mine.length ? `<div class="home-status">${icon("cloudOff")}Нет связи с облаком: список появится, когда будет интернет</div>` : ""}
           ${accountBar()}
@@ -166,7 +166,7 @@ export function mountHome(root, navigate) {
         ${inv.length ? section("Со мной поделились", "edit", `<div class="ch-grid">${inv.map(x => miniCard(x, "invite")).join("")}</div>`) : ""}
         ${recents.length ? section("Недавно открытые", "eye", `<div class="ch-grid">${recents.map(x => miniCard(x, "recent")).join("")}</div>`) : ""}
         ${adminSection}
-        <footer class="home-foot"><a href="old/">Старый проект: Math Quiz</a><span>${cloud ? "Синхронизация через облако" : "Локальный режим"}</span></footer>
+        <footer class="home-foot"><button class="link-btn" data-privacy>${icon("shield")}Что мы храним</button><a href="old/">Старый проект: Math Quiz</a><span>${cloud ? "Синхронизация через облако" : "Локальный режим"}</span></footer>
       </div>`;
   }
 
@@ -193,11 +193,40 @@ export function mountHome(root, navigate) {
     });
   }
 
+  function showPrivacy() {
+    openModal({
+      title: "Что мы храним",
+      cls: "small",
+      body: `<div class="privacy">
+        <p><b>Из Google-аккаунта:</b> имя, почта и фото. Почту видишь только ты и владелец сайта. Имя видно рядом с твоими персонажами и правками.</p>
+        <p><b>Персонажи:</b> всё, что ты вписал в лист, включая портрет. Любой, у кого есть ссылка на лист, может его посмотреть, поэтому не храни там ничего личного.</p>
+        <p><b>Редакторы:</b> почты приглашённых видит только владелец листа.</p>
+        <p><b>История правок:</b> кто и когда менял лист, с какого устройства (телефон или компьютер, браузер). Видят только владелец листа, редакторы и владелец сайта.</p>
+        <p><b>Чего нет:</b> рекламы, аналитики и слежки. Данные лежат в Google Firebase и никому не передаются.</p>
+        <p><b>Удаление:</b> «Аккаунт», затем «Удалить аккаунт» стирает твой профиль и всех твоих персонажей вместе с историей.</p>
+      </div>`
+    });
+  }
+
   function showMyId() {
     const m = openModal({
-      title: "Мой ID",
+      title: "Аккаунт",
       cls: "small",
-      body: `<p class="hint">Это ID твоего аккаунта. Владельцу сайта он нужен, чтобы вписать себя в правила Firestore.</p><input class="copy-input" readonly value="${esc(access.uid)}"><div class="form-actions"><button class="btn gold" data-copyid>${icon("copy")}Скопировать</button></div>`
+      body: `<p class="hint">ID твоего аккаунта. Он нужен владельцу сайта, чтобы вписать себя в правила Firestore.</p><input class="copy-input" readonly value="${esc(access.uid)}"><div class="form-actions"><button class="btn gold" data-copyid>${icon("copy")}Скопировать ID</button></div>
+        <hr class="sep"><p class="hint">Удаление стирает твой профиль и всех твоих персонажей вместе с историей правок. Вернуть их будет нельзя. Перед этим можно скачать нужных персонажей в файл (меню листа).</p><div class="form-actions"><button class="btn danger" data-delacc>${icon("trash")}Удалить аккаунт</button></div>`
+    });
+    m.body.querySelector("[data-delacc]").addEventListener("click", async () => {
+      const count = (mine || []).length;
+      if (!(await confirmDialog(`Удалить аккаунт и всех твоих персонажей (${count})? Это необратимо. Google попросит подтвердить вход.`, { ok: "Удалить всё", danger: true }))) return;
+      try {
+        await deleteAccountData(async () => {
+          for (const c of mine || []) await deleteCharacter(c.id);
+        });
+        m.close();
+        toast("Аккаунт и персонажи удалены", { kind: "good" });
+      } catch (err) {
+        toast(esc(err.message || "Не получилось удалить"), { kind: "bad", timeout: 7000 });
+      }
     });
     m.body.querySelector("[data-copyid]").addEventListener("click", async () => {
       try {
@@ -225,7 +254,9 @@ export function mountHome(root, navigate) {
       return;
     }
     if (t.closest("[data-myid]")) return showMyId();
+    if (t.closest("[data-privacy]")) return showPrivacy();
     if (t.closest("[data-accounts]")) return openAccounts();
+    if (t.closest("[data-backup]")) return backupAll();
     const share = t.closest("[data-share]");
     if (share) {
       const c = [...(mine || []), ...(all || [])].find(x => x.id === share.dataset.share);

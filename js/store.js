@@ -38,6 +38,11 @@ const clone = v => JSON.parse(JSON.stringify(v ?? null));
 
 const who = () => whoAmI();
 
+const publicWho = () => {
+  const w = whoAmI();
+  return { uid: w.uid || "", name: w.name || "", kind: w.kind || "" };
+};
+
 export const EMULATOR = new URLSearchParams(location.search).has("emu");
 const LS_RECENT = "dnd.recent";
 
@@ -252,7 +257,7 @@ export async function saveChanges(id, changes, full) {
     const doc = map[id] ? map[id] : stripId(full);
     applyPaths(doc, changes);
     doc.updatedAt = now;
-    doc.updatedBy = who();
+    doc.updatedBy = publicWho();
     map[id] = doc;
     writeLocal(map, id);
     setStatus({ state: "saved", error: "" });
@@ -263,7 +268,7 @@ export async function saveChanges(id, changes, full) {
   for (const [path, value] of changes) {
     args.push(new fs.FieldPath(...path), value === DELETE ? fs.deleteField() : value);
   }
-  args.push("updatedAt", now, "updatedBy", who());
+  args.push("updatedAt", now, "updatedBy", publicWho());
   pending++;
   setStatus({ state: navigator.onLine === false ? "offline" : "saving", error: navigator.onLine === false ? OFFLINE_MSG : "" });
   const slow = setTimeout(() => setStatus({ state: "offline", error: OFFLINE_MSG }), 6000);
@@ -287,7 +292,7 @@ export async function saveChanges(id, changes, full) {
 
 export async function createChar(id, c) {
   const now = Date.now();
-  const data = { ...stripId(c), createdAt: now, updatedAt: now, updatedBy: who() };
+  const data = { ...stripId(c), createdAt: now, updatedAt: now, updatedBy: publicWho() };
   delete data.archived;
   data.archived = false;
   if (mode === "cloud") {
@@ -322,7 +327,7 @@ export async function createIfMissing(id, c) {
 
 export async function claimCharacter(id) {
   const a = getAccess();
-  await fs.updateDoc(fs.doc(db, "characters", id), { ownerUid: a.uid, ownerName: a.name, updatedAt: Date.now(), updatedBy: who() });
+  await fs.updateDoc(fs.doc(db, "characters", id), { ownerUid: a.uid, ownerName: a.name, updatedAt: Date.now(), updatedBy: publicWho() });
 }
 
 export async function getAcl(id) {
@@ -386,6 +391,12 @@ export function removeRecent(id) {
   try {
     localStorage.setItem(LS_RECENT, JSON.stringify(getRecents().filter(x => x.id !== id)));
   } catch {}
+}
+
+export async function fetchAllCharacters() {
+  if (mode !== "cloud") return Object.entries(readLocal()).map(([id, c]) => ({ ...c, id }));
+  const snap = await fs.getDocs(fs.collection(db, "characters"));
+  return snap.docs.map(d => ({ ...d.data(), id: d.id }));
 }
 
 export async function getCharOnce(id) {

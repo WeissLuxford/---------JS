@@ -179,6 +179,24 @@ export async function signOut() {
   if (auth) await authMod.signOut(auth);
 }
 
+export async function deleteAccountData(deleteChars) {
+  if (!auth || !auth.currentUser) throw new Error("Сначала войди");
+  const u = auth.currentUser;
+  const provider = new authMod.GoogleAuthProvider();
+  try {
+    await authMod.reauthenticateWithPopup(u, provider);
+  } catch (e) {
+    throw new Error(authMessage(e));
+  }
+  await deleteChars();
+  await fs.deleteDoc(fs.doc(db, "users", u.uid)).catch(() => {});
+  try {
+    await authMod.deleteUser(u);
+  } catch {
+    await authMod.signOut(auth);
+  }
+}
+
 export function subscribeUsers(cb) {
   const data = { users: [], bans: new Map() };
   const push = () => cb({ users: data.users, bans: data.bans });

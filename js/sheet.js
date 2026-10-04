@@ -1000,7 +1000,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       ["long-rest", "moon", "Длинный отдых"],
       ["roll-mode", "d20", "Режим броска: " + (S.rollMode === "adv" ? "преимущество" : S.rollMode === "dis" ? "помеха" : "обычный")],
       ["roll-log", "scroll", "Журнал бросков"],
-      ["history", "history", "История изменений"],
+      ...(r.canEdit ? [["history", "history", "История изменений"]] : []),
       ["share", "link", "Поделиться"],
       ["export", "download", "Скачать файл персонажа"],
       ...(r.canEdit ? [["import", "upload", "Заменить из файла"]] : []),

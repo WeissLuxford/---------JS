@@ -64,7 +64,7 @@ service cloud.firestore {
       allow delete: if isAdmin() || (notBanned() && isOwner(resource.data));
 
       match /history/{h} {
-        allow read: if true;
+        allow read: if canEdit(id, charDoc(id).data);
         allow create: if canEdit(id, charDoc(id).data)
           && request.resource.data.keys().hasOnly(['at', 'reason', 'by', 'data']);
         allow update: if false;

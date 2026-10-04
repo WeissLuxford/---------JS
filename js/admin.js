@@ -1,5 +1,6 @@
 import { icon } from "./icons.js";
-import { esc, openModal, confirmDialog, toast, timeAgo } from "./ui.js";
+import { esc, openModal, confirmDialog, toast, timeAgo, download } from "./ui.js";
+import { fetchAllCharacters } from "./store.js";
 import { subscribeUsers, setBan, currentUid, getAccess } from "./access.js";
 import { describeWho } from "./device.js";
 
@@ -14,6 +15,17 @@ export async function banAccount(by) {
     toast(`${icon("check")} Аккаунт запрещён`, { kind: "good" });
   } catch {
     toast("Не получилось: проверь, что правила Firestore обновлены и в них стоит твой ID", { kind: "bad", timeout: 7000 });
+  }
+}
+
+export async function backupAll() {
+  try {
+    const list = await fetchAllCharacters();
+    const stamp = new Date().toISOString().slice(0, 10);
+    download(`backup-${stamp}.json`, JSON.stringify({ format: "dnd-sheet-backup", version: 1, at: Date.now(), characters: list }, null, 1));
+    toast(`${icon("download")} Скачано персонажей: ${list.length}`, { kind: "good" });
+  } catch {
+    toast("Не получилось собрать копию: нужны права владельца сайта", { kind: "bad" });
   }
 }
 
