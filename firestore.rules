@@ -42,6 +42,7 @@ service cloud.firestore {
         || isOwner(resource.data) || isAdmin() || isEditor(id);
       allow list: if isAdmin() || (signedIn() && resource.data.get('ownerUid', '') == request.auth.uid);
       allow create: if notBanned()
+        && !exists(/databases/$(database)/documents/deleted/$(id))
         && request.resource.data.get('ownerUid', '') == request.auth.uid
         && notFuture(request.resource.data.get('createdAt', 0))
         && validCharacter(request.resource.data);
@@ -67,8 +68,7 @@ service cloud.firestore {
       }
 
       match /acl/{doc} {
-        allow read: if isAdmin() || isOwner(charDoc(id).data)
-          || (myEmail() != '' && myEmail() in resource.data.get('emails', []));
+        allow read: if isAdmin() || isOwner(charDoc(id).data);
         allow create, update: if (isAdmin() || (notBanned() && isOwner(charDoc(id).data)))
           && doc == 'main'
           && request.resource.data.keys().hasOnly(['emails', 'updatedAt'])
@@ -83,6 +83,7 @@ service cloud.firestore {
       allow create, update: if (isAdmin() || (notBanned() && isOwner(charDoc(id).data)))
         && email in getAfter(/databases/$(database)/documents/characters/$(id)/acl/main).data.get('emails', [])
         && request.resource.data.keys().hasOnly(['name', 'ownerName', 'ownerUid', 'at'])
+        && request.resource.data.get('ownerUid', '') == ownerOf(charDoc(id).data)
         && request.resource.data.get('name', '') is string && request.resource.data.get('name', '').size() <= 120
         && request.resource.data.get('ownerName', '') is string && request.resource.data.get('ownerName', '').size() <= 60;
       allow delete: if isAdmin() || (myEmail() != '' && myEmail() == email) || isOwner(charDoc(id).data);
@@ -94,7 +95,8 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['name', 'email', 'photo', 'createdAt', 'lastSeen'])
         && request.resource.data.get('email', '') == request.auth.token.email
         && request.resource.data.get('name', '') is string && request.resource.data.get('name', '').size() <= 80
-        && request.resource.data.get('photo', '') is string && request.resource.data.get('photo', '').size() <= 1000;
+        && request.resource.data.get('photo', '') is string && request.resource.data.get('photo', '').size() <= 1000
+        && request.resource.data.get('photo', '').matches('^(https://[a-z0-9.-]+[.]googleusercontent[.]com/.*)?$');
       allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid);
     }
 
@@ -104,6 +106,12 @@ service cloud.firestore {
     }
 
     match /admin/{doc} { allow read: if isAdmin(); }
+
+    match /deleted/{id} {
+      allow read: if true;
+      allow create: if isAdmin() || (notBanned() && isOwner(charDoc(id).data));
+      allow update, delete: if isAdmin();
+    }
 
     match /meta/{doc} {
       allow read: if true;

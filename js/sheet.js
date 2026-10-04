@@ -6,7 +6,7 @@ import {
 } from "./ui.js";
 import { TABS, RENDER, subtitle } from "./tabs.js";
 import { cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS } from "./entities.js";
-import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, getAcl, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
+import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
 import { diffPaths, applyPaths } from "./sync.js";
 import { describeChanges } from "./changes.js";
 import { describeWho, isMe, KIND_ICONS } from "./device.js";
@@ -97,6 +97,14 @@ export function mountSheet(root, id, initialTab, navigate) {
     }
     if (data === null) {
       if (!S.c) loaderMessage("info", "Персонаж не найден");
+      else if (!S.deleted) {
+        S.deleted = true;
+        clearTimeout(S.saveTimer);
+        S.saveTimer = null;
+        S.base = clone(S.c);
+        renderAll(true);
+        toast(`${icon("trash")} Этот лист удалён владельцем. Можно скачать файл или сделать копию себе.`, { kind: "bad", timeout: 8000 });
+      }
       return;
     }
     const incoming = normalize(data);
@@ -124,6 +132,7 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   function rights() {
     const a = S.access;
+    if (S.deleted) return { canEdit: false, role: "deleted" };
     if (S.closed) return { canEdit: false, role: "closed" };
     if (getMode() !== "cloud" || !a.enforced) return { canEdit: true, role: "open" };
     if (!a.signedIn) return { canEdit: false, role: "guest" };
@@ -135,18 +144,22 @@ export function mountSheet(root, id, initialTab, navigate) {
     return { canEdit: false, role: S.c && !S.c.ownerUid ? "orphan" : "viewer" };
   }
 
-  async function checkEditor() {
+  let offInvite = () => {};
+
+  function checkEditor() {
     const a = S.access;
-    const key = `${a.uid}|${a.enforced}`;
-    if (S.aclFor === key || !S.c || getMode() !== "cloud" || !a.enforced || !a.signedIn || S.c.ownerUid === a.uid) return;
+    const key = `${a.uid}|${a.enforced}|${myEmail()}`;
+    if (S.aclFor === key || !S.c || S.disposed) return;
     S.aclFor = key;
-    try {
-      const acl = await getAcl(id);
-      S.isEditor = !!(acl && (acl.emails || []).includes(myEmail()));
-    } catch {
-      S.isEditor = false;
-    }
-    if (!S.disposed && S.c && rights().role !== lastRole) renderAll(true);
+    offInvite();
+    offInvite = () => {};
+    S.isEditor = false;
+    if (getMode() !== "cloud" || !a.enforced || !a.signedIn) return;
+    offInvite = watchInvite(id, myEmail(), has => {
+      if (S.disposed) return;
+      S.isEditor = has;
+      if (S.c && rights().role !== lastRole) renderAll(true);
+    });
   }
 
   const offAccess = onAccess(a => {
@@ -166,6 +179,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (r === "guest") return "Только просмотр. Если владелец дал тебе право править, войди через Google.";
     if (r === "orphan") return "Только просмотр: у персонажа пока нет владельца.";
     if (r === "closed") return "Владелец закрыл доступ к листу. Показана последняя загруженная версия.";
+    if (r === "deleted") return "Лист удалён владельцем. Можно скачать файл или сделать копию себе (Меню).";
     return "Только просмотр: это чужой персонаж. Можно сделать копию себе (Меню).";
   }
 
@@ -174,7 +188,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     const r = rights().role;
     const btn = r === "guest"
       ? `<button class="btn sm gold" data-act="signin">${icon("user")}Войти через Google</button>`
-      : r === "viewer" || r === "orphan" ? `<button class="btn sm" data-act="duplicate">${icon("copy")}Копия себе</button>` : "";
+      : r === "viewer" || r === "orphan" || r === "deleted" ? `<button class="btn sm" data-act="duplicate">${icon("copy")}Копия себе</button>` : "";
     const warn = r === "guest" && IN_APP ? `<small>Открыто внутри приложения: для входа открой ссылку в Chrome или Safari.</small>` : "";
     return `<div class="ro-bar">${icon("eye")}<span>${esc(roText())}${warn}</span>${btn}</div>`;
   }
@@ -1068,9 +1082,15 @@ export function mountSheet(root, id, initialTab, navigate) {
     });
   }
 
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
+
   async function runAction(a, el) {
     const { c } = S;
     if (!c || S.disposed) return;
+    if (MUTATING.has(a) && readOnly()) {
+      toast(`${icon("eye")} ${esc(roText())}`, { kind: "bad" });
+      return;
+    }
     switch (a) {
       case "short-rest": return shortRest();
       case "long-rest": return longRest();
@@ -1113,7 +1133,7 @@ export function mountSheet(root, id, initialTab, navigate) {
         delete copy.ownerUid;
         delete copy.ownerName;
         try {
-          await createChar(nid, { ...copy, name: c.name + " (копия)", archived: false });
+          await createChar(nid, { ...copy, name: c.name.slice(0, 110) + " (копия)", archived: false });
           toast("Копия создана", { kind: "good" });
           return navigate(`#/c/${nid}`);
         } catch {
@@ -1266,6 +1286,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     unsub && unsub();
     unStatus();
     offAccess();
+    offInvite();
     offHover();
     root.removeEventListener("input", onInput);
     root.removeEventListener("change", onInput);

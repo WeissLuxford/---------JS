@@ -302,7 +302,7 @@ function fieldHtml(f, v) {
   }
   const type = f.type === "number" ? "number" : "text";
   const list = f.suggest ? `<datalist id="${id}_dl">${f.suggest.map(o => `<option value="${esc(o)}"></option>`).join("")}</datalist>` : "";
-  return `<label class="fld"${span} for="${id}"><span>${esc(f.label)}</span><input id="${id}" type="${type}" ${type === "number" ? 'inputmode="decimal" step="any"' : ""} ${list ? `list="${id}_dl"` : ""} data-k="${esc(f.key)}" value="${esc(v ?? "")}" placeholder="${esc(f.placeholder || "")}">${list}${hint}</label>`;
+  return `<label class="fld"${span} for="${id}"><span>${esc(f.label)}</span><input id="${id}" type="${type}" ${type === "number" ? 'inputmode="decimal" step="any"' : ""} ${list ? `list="${id}_dl"` : ""} ${f.max ? `maxlength="${f.max}"` : ""} data-k="${esc(f.key)}" value="${esc(v ?? "")}" placeholder="${esc(f.placeholder || "")}">${list}${hint}</label>`;
 }
 
 function diceRow(d = {}) {

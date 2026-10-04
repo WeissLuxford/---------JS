@@ -11,7 +11,7 @@ const coarse = () => window.matchMedia("(pointer: coarse)").matches;
 
 function canManage(c) {
   const a = getAccess();
-  return getMode() === "cloud" && a.signedIn && (a.isAdmin || c.ownerUid === a.uid);
+  return getMode() === "cloud" && a.enforced && a.signedIn && !a.banned && (a.isAdmin || c.ownerUid === a.uid);
 }
 
 function enforced() {
@@ -89,7 +89,9 @@ export function openShare(c) {
 
   const hint = m.body.querySelector("[data-linkhint]");
   const paintHint = () => {
-    hint.textContent = linkState()
+    hint.textContent = !strict && cloud
+      ? "Пока правила базы не обновлены, любой, у кого есть ссылка, может и смотреть, и править лист."
+      : linkState()
       ? `Любой, у кого есть ссылка, сможет открыть лист «${c.name}» и смотреть его. Править он не сможет.`
       : "Сейчас лист закрыт: по ссылке его видят только ты и редакторы. Кнопки «Копировать» и «Отправить» откроют доступ по ссылке.";
   };
@@ -137,16 +139,24 @@ export function openShare(c) {
       ? emails.map(e => `<div class="ed-row">${icon("user")}<span>${esc(e)}</span><button class="icon-btn" data-rm="${esc(e)}" title="Убрать доступ">${icon("close")}</button></div>`).join("")
       : `<p class="empty">Редакторов нет: лист можешь править только ты</p>`;
   };
-  const save = async next => {
-    if (busy) return;
-    busy = true;
+  const form = m.body.querySelector("[data-add]");
+  const setBusy = v => {
+    busy = v;
+    form.querySelectorAll("input, button").forEach(el => (el.disabled = v));
+    listEl.querySelectorAll("button").forEach(el => (el.disabled = v));
+  };
+  const save = async change => {
+    if (busy) return false;
+    setBusy(true);
     try {
-      emails = await saveAcl(c.id, next, { name: c.name, ownerName: c.ownerName || a.name, ownerUid: c.ownerUid || a.uid });
+      emails = await saveAcl(c.id, change, { name: c.name, ownerName: c.ownerName || a.name, ownerUid: c.ownerUid || a.uid });
       paint();
+      return true;
     } catch {
       toast("Не получилось сохранить доступ", { kind: "bad", timeout: 7000 });
+      return false;
     } finally {
-      busy = false;
+      setBusy(false);
     }
   };
   getAcl(c.id).then(acl => {
@@ -155,20 +165,19 @@ export function openShare(c) {
   }).catch(() => {
     listEl.innerHTML = `<p class="empty">Нет доступа к списку редакторов. Обнови правила Firestore.</p>`;
   });
-  m.body.querySelector("[data-add]").addEventListener("submit", e => {
+  form.addEventListener("submit", async e => {
     e.preventDefault();
-    const input = e.target.querySelector("input");
+    const input = form.querySelector("input");
     const v = input.value.trim().toLowerCase();
     if (!EMAIL.test(v)) return toast("Это не похоже на почту", { kind: "bad" });
     if (emails === null) return;
     if (v === (a.email || "").toLowerCase()) return toast("Это твоя почта: ты и так можешь править", { kind: "bad" });
     if (emails.includes(v)) return toast("Этот человек уже редактор");
     if (emails.length >= 20) return toast("Не больше 20 редакторов", { kind: "bad" });
-    input.value = "";
-    save([...emails, v]);
+    if (await save({ add: v })) input.value = "";
   });
   listEl.addEventListener("click", e => {
     const b = e.target.closest("[data-rm]");
-    if (b && emails) save(emails.filter(x => x !== b.dataset.rm));
+    if (b && emails) save({ remove: b.dataset.rm });
   });
 }

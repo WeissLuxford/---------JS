@@ -365,7 +365,7 @@ export function normalize(c) {
     const v = src[k];
     out[k] = { ...base[k], ...(v && typeof v === "object" && !Array.isArray(v) ? v : {}) };
   }
-  out.name = String(out.name ?? "");
+  out.name = String(out.name ?? "").slice(0, 120);
   out.portrait = typeof out.portrait === "string" && out.portrait.startsWith("data:image/") ? out.portrait : "";
   for (const k of ABILITY_KEYS) out.abilities[k] = Math.max(1, Math.min(30, Math.round(num(out.abilities[k], 10))));
   out.info.level = clampLevel(out.info.level);

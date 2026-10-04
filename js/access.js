@@ -99,21 +99,46 @@ export async function initAccess({ app, fsMod, database, cdn, emulator }) {
   emit();
 }
 
+const isDenied = e => String(e && e.code).includes("permission-denied");
+
+async function probeRules() {
+  const meta = await withTimeout(fs.getDocFromServer(fs.doc(db, "meta", "rules")), 6000).then(() => "ok", e => (isDenied(e) ? "denied" : "unknown"));
+  if (meta === "denied") return false;
+  if (meta === "unknown") return null;
+  const deny = await withTimeout(fs.getDocFromServer(fs.doc(db, "probe", "deny")), 6000).then(() => "ok", e => (isDenied(e) ? "denied" : "unknown"));
+  if (deny === "unknown") return null;
+  return deny === "denied";
+}
+
+let reprobeTimer = null;
+
+function scheduleReprobe(delay) {
+  clearTimeout(reprobeTimer);
+  reprobeTimer = setTimeout(async () => {
+    const v = await probeRules();
+    if (v === null) return scheduleReprobe(Math.min(delay * 2, 120000));
+    remember(v);
+    if (v !== state.enforced) {
+      state.enforced = v;
+      if (user) await refreshAdmin(user);
+      emit();
+    }
+  }, delay);
+}
+
 async function detectRules() {
+  const v = await probeRules();
+  if (v !== null) {
+    remember(v);
+    return v;
+  }
+  scheduleReprobe(5000);
+  window.addEventListener("online", () => scheduleReprobe(500), { once: true });
   try {
-    await withTimeout(fs.getDoc(fs.doc(db, "meta", "rules")), 6000);
-    remember(true);
+    const saved = localStorage.getItem(LS_ENFORCED);
+    return saved === null ? true : saved === "1";
+  } catch {
     return true;
-  } catch (e) {
-    if (String(e && e.code).includes("permission-denied")) {
-      remember(false);
-      return false;
-    }
-    try {
-      return localStorage.getItem(LS_ENFORCED) === "1";
-    } catch {
-      return false;
-    }
   }
 }
 
@@ -139,7 +164,7 @@ async function setUser(u) {
   user = u;
   clearSubs();
   state.uid = u ? u.uid : "";
-  state.name = u ? u.displayName || (u.email || "").split("@")[0] || "Игрок" : "";
+  state.name = u ? String(u.displayName || "").trim().slice(0, 60) || "Игрок" : "";
   state.email = u ? u.email || "" : "";
   state.photo = u ? u.photoURL || "" : "";
   state.isAdmin = false;
@@ -154,6 +179,15 @@ async function setUser(u) {
     unsubs.push(off);
   } catch {}
   saveProfile(u);
+  await refreshAdmin(u);
+}
+
+async function refreshAdmin(u) {
+  if (!state.enforced) {
+    state.isAdmin = false;
+    emit();
+    return;
+  }
   const cacheKey = "dnd.admin." + u.uid;
   let cached = null;
   try {
@@ -165,10 +199,14 @@ async function setUser(u) {
     return;
   }
   try {
-    await fs.getDoc(fs.doc(db, "admin", "probe"));
+    await fs.getDocFromServer(fs.doc(db, "admin", "probe"));
     state.isAdmin = true;
-  } catch {
+  } catch (e) {
     state.isAdmin = false;
+    if (!isDenied(e)) {
+      emit();
+      return;
+    }
   }
   try {
     sessionStorage.setItem(cacheKey, state.isAdmin ? "1" : "0");
@@ -177,6 +215,7 @@ async function setUser(u) {
 }
 
 async function saveProfile(u) {
+  if (!state.enforced) return;
   const key = "dnd.profile." + u.uid;
   try {
     if (Date.now() - Number(localStorage.getItem(key) || 0) < 12 * 3600 * 1000) return;
@@ -220,7 +259,8 @@ export async function deleteAccountData(deleteChars) {
   } catch (e) {
     throw new Error(authMessage(e));
   }
-  await deleteChars();
+  if (auth.currentUser !== u || !state.enforced) throw new Error("Сессия изменилась, попробуй ещё раз");
+  await deleteChars(u.uid);
   await fs.deleteDoc(fs.doc(db, "users", u.uid)).catch(() => {});
   try {
     await authMod.deleteUser(u);

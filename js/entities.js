@@ -240,7 +240,7 @@ export const EDITORS = {
     title: "Заклинание",
     make: () => ({ id: "sp-" + uid(), name: "", nameEn: "", level: 1, school: "evocation", action: "action", castTime: "", range: "", area: "", duration: "Мгновенно", concentration: false, ritual: false, components: "", save: "", attack: false, damage: [], scaling: "none", upcast: "", castAt: null, onSave: "", description: "", higher: "", source: "", cost: "slot", uses: "", recharge: "long", used: 0, prepared: true }),
     fields: [
-      { key: "name", label: "Название", span: 2 },
+      { key: "name", label: "Название", span: 2, max: 120 },
       { key: "nameEn", label: "Англ. название" },
       { key: "level", label: "Круг (0 = заговор)", type: "number" },
       { key: "school", label: "Школа", type: "select", options: SCHOOLS },
@@ -271,7 +271,7 @@ export const EDITORS = {
     title: "Умение",
     make: (cat = "other") => ({ id: "ft-" + uid(), name: "", nameEn: "", category: cat, source: "", action: "passive", recharge: "always", uses: "", used: 0, slot: "none", range: "", duration: "", save: "", damage: [], description: "", effect: "" }),
     fields: [
-      { key: "name", label: "Название", span: 2 },
+      { key: "name", label: "Название", span: 2, max: 120 },
       { key: "nameEn", label: "Англ. название" },
       { key: "category", label: "Раздел", type: "select", options: FEATURE_CATS },
       { key: "source", label: "Откуда", type: "select", options: Object.entries(FEATURE_SOURCES).map(([k, v]) => [k, v || "Не указано"]) },
@@ -291,7 +291,7 @@ export const EDITORS = {
     title: "Предмет",
     make: (type = "gear") => ({ id: "it-" + uid(), name: "", type, rarity: "common", qty: 1, weight: 0, equipped: false, attuned: false, requiresAttunement: false, action: "", uses: "", recharge: "long", used: 0, damage: [], description: "", effect: "", value: "" }),
     fields: [
-      { key: "name", label: "Название", span: 2 },
+      { key: "name", label: "Название", span: 2, max: 120 },
       { key: "type", label: "Тип", type: "select", options: ITEM_TYPES },
       { key: "rarity", label: "Редкость", type: "select", options: RARITY },
       { key: "qty", label: "Количество", type: "number" },
@@ -312,7 +312,7 @@ export const EDITORS = {
     title: "Атака",
     make: () => ({ id: "at-" + uid(), name: "", kind: "attack", ability: "str", proficient: true, bonus: 0, damage: "1d6", addMod: true, dmgBonus: 0, damageType: "slashing", saveAbility: "dex", range: "5 фт", scaling: "none", count: 1, action: "action", notes: "" }),
     fields: [
-      { key: "name", label: "Название", span: 2 },
+      { key: "name", label: "Название", span: 2, max: 120 },
       { key: "kind", label: "Тип", type: "select", options: [["attack", "Бросок атаки"], ["save", "Спасбросок цели"]] },
       { key: "ability", label: "Характеристика", type: "select", options: [...ABIL_OPTS, ["spell", "Заклинательная"], ["none", "Нет"]] },
       { key: "proficient", label: "Владение", type: "checkbox" },
@@ -349,7 +349,7 @@ export function noteFields(section) {
 export function infoFields() {
   return [
     { type: "heading", key: "_h1", label: "Персонаж", span: 3 },
-    { key: "name", label: "Имя", span: 2 },
+    { key: "name", label: "Имя", span: 2, max: 120 },
     { key: "info.player", label: "Игрок" },
     { key: "info.race", label: "Раса" },
     { key: "info.subrace", label: "Подраса" },

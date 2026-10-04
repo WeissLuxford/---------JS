@@ -1,7 +1,7 @@
 import { normalize, newCharacter, compute, importCharacter } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, timeAgo, toast, openForm, openModal, pickFile, confirmDialog } from "./ui.js";
-import { subscribeList, subscribeInvites, createChar, getMode, onStatus, getRecents, removeRecent, claimCharacter, deleteCharacter, newCharId } from "./store.js";
+import { subscribeList, subscribeInvites, createChar, getMode, onStatus, getRecents, removeRecent, claimCharacter, deleteCharactersOf, listCharactersOf, newCharId, getCharOnce } from "./store.js";
 import { onAccess, signIn, signOut, IN_APP, getAccess, deleteAccountData } from "./access.js";
 import { subtitle } from "./tabs.js";
 import { shortWho } from "./device.js";
@@ -61,6 +61,7 @@ export function mountHome(root, navigate) {
       if (disposed) return;
       invites = items || [];
       paint();
+      refreshInviteNames();
     });
     if (access.isAdmin) {
       offAll = subscribeList(items => {
@@ -68,6 +69,20 @@ export function mountHome(root, navigate) {
         all = items ? items.map(toChar) : [];
         paint();
       }, "all");
+    }
+  }
+
+  const liveNames = new Map();
+
+  function refreshInviteNames() {
+    for (const x of invites) {
+      if (liveNames.has(x.id)) continue;
+      liveNames.set(x.id, null);
+      getCharOnce(x.id).then(c => {
+        if (!c || disposed) return;
+        liveNames.set(x.id, String(c.name || ""));
+        paint();
+      }).catch(() => {});
     }
   }
 
@@ -98,8 +113,8 @@ export function mountHome(root, navigate) {
       <a class="ch-link" href="#/c/${encodeURIComponent(x.id)}" aria-label="${esc(x.name)}"></a>
       <span class="ch-portrait small">${icon(kind === "invite" ? "edit" : "eye")}</span>
       <span class="ch-info">
-        <span class="ch-name">${esc(x.name || "Без имени")}</span>
-        <span class="ch-sub">${kind === "invite" ? `Можно править · владелец ${esc(x.ownerName || "неизвестен")}` : "Только просмотр"}</span>
+        <span class="ch-name">${esc((kind === "invite" && liveNames.get(x.id)) || x.name || "Без имени")}</span>
+        <span class="ch-sub">${kind === "invite" ? `${access.banned ? "Только просмотр (аккаунт запрещён)" : "Можно править"} · владелец ${esc(x.ownerName || "неизвестен")}` : "Открыт по ссылке"}</span>
         <span class="ch-time">${x.at ? (kind === "invite" ? "доступ дан " : "открыт ") + timeAgo(x.at) : ""}</span>
       </span>
       ${kind === "recent" ? `<button class="ch-x" data-forget="${esc(x.id)}" title="Убрать из списка">${icon("close")}</button>` : ""}
@@ -143,7 +158,8 @@ export function mountHome(root, navigate) {
     const mineIds = new Set(mine.map(c => c.id));
     const inv = invites.filter(x => !mineIds.has(x.id));
     const invIds = new Set(inv.map(x => x.id));
-    const recents = getRecents().filter(x => !mineIds.has(x.id) && !invIds.has(x.id));
+    const allIds = new Set((all || []).map(c => c.id));
+    const recents = getRecents().filter(x => !mineIds.has(x.id) && !invIds.has(x.id) && !allIds.has(x.id));
     const others = all ? all.filter(c => !mineIds.has(c.id)) : [];
     const createCards = canCreate
       ? `<button class="ch-card new" data-new>${icon("plus")}<span>Новый персонаж</span></button><button class="ch-card new subtle" data-import>${icon("upload")}<span>Загрузить из файла</span></button>`
@@ -162,6 +178,7 @@ export function mountHome(root, navigate) {
           ${statusText ? `<div class="home-status">${icon("cloudOff")}${esc(statusText)}</div>` : ""}
           ${fromCache && !mine.length ? `<div class="home-status">${icon("cloudOff")}Нет связи с облаком: список появится, когда будет интернет</div>` : ""}
           ${accountBar()}
+          ${access.banned ? `<div class="home-status">${icon("eye")}Владелец сайта запретил твоему аккаунту вносить правки: можно только смотреть листы по ссылке</div>` : ""}
         </header>
         ${mySection}
         ${inv.length ? section("Со мной поделились", "edit", `<div class="ch-grid">${inv.map(x => miniCard(x, "invite")).join("")}</div>`) : ""}
@@ -175,7 +192,7 @@ export function mountHome(root, navigate) {
     openForm({
       title: "Новый персонаж",
       fields: [
-        { key: "name", label: "Имя", span: 3 },
+        { key: "name", label: "Имя", span: 3, max: 120 },
         { key: "info.race", label: "Раса" },
         { key: "info.cls", label: "Класс" },
         { key: "info.level", label: "Уровень", type: "number" }
@@ -214,15 +231,20 @@ export function mountHome(root, navigate) {
       title: "Аккаунт",
       cls: "small",
       body: `<p class="hint">ID твоего аккаунта. Он нужен владельцу сайта, чтобы вписать себя в правила Firestore.</p><input class="copy-input" readonly value="${esc(access.uid)}"><div class="form-actions"><button class="btn gold" data-copyid>${icon("copy")}Скопировать ID</button></div>
-        <hr class="sep"><p class="hint">Удаление стирает твой профиль и всех твоих персонажей вместе с историей правок. Вернуть их будет нельзя. Перед этим можно скачать нужных персонажей в файл (меню листа).</p><div class="form-actions"><button class="btn danger" data-delacc>${icon("trash")}Удалить аккаунт</button></div>`
+        ${access.enforced ? `<hr class="sep"><p class="hint">Удаление стирает твой профиль и всех твоих персонажей вместе с историей правок. Вернуть их будет нельзя. Перед этим можно скачать нужных персонажей в файл (меню листа).</p><div class="form-actions"><button class="btn danger" data-delacc>${icon("trash")}Удалить аккаунт</button></div>` : ""}`
     });
-    m.body.querySelector("[data-delacc]").addEventListener("click", async () => {
-      const count = (mine || []).length;
+    const del = m.body.querySelector("[data-delacc]");
+    if (del) del.addEventListener("click", async () => {
+      if (!getAccess().enforced) return toast("Удаление аккаунта доступно после обновления правил базы", { kind: "bad" });
+      let count = 0;
+      try {
+        count = (await listCharactersOf(access.uid)).length;
+      } catch {
+        return toast("Нет связи с сервером, попробуй позже", { kind: "bad" });
+      }
       if (!(await confirmDialog(`Удалить аккаунт и всех твоих персонажей (${count})? Это необратимо. Google попросит подтвердить вход.`, { ok: "Удалить всё", danger: true }))) return;
       try {
-        await deleteAccountData(async () => {
-          for (const c of mine || []) await deleteCharacter(c.id);
-        });
+        await deleteAccountData(uid => deleteCharactersOf(uid));
         m.close();
         toast("Аккаунт и персонажи удалены", { kind: "good" });
       } catch (err) {

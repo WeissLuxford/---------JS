@@ -344,18 +344,34 @@ export async function getAcl(id) {
   return snap.exists() ? snap.data() : { emails: [] };
 }
 
-export async function saveAcl(id, emails, meta) {
-  const prev = await getAcl(id).catch(() => ({ emails: [] }));
-  const clean = [...new Set(emails.map(e => String(e).trim().toLowerCase()).filter(Boolean))].slice(0, 20);
-  const removed = (prev.emails || []).filter(e => !clean.includes(e));
-  const added = clean.filter(e => !(prev.emails || []).includes(e));
-  const now = Date.now();
-  const batch = fs.writeBatch(db);
-  batch.set(fs.doc(db, "characters", id, "acl", "main"), { emails: clean, updatedAt: now });
-  for (const e of added) batch.set(fs.doc(db, "invites", e, "chars", id), { name: String(meta.name || "").slice(0, 120), ownerName: String(meta.ownerName || "").slice(0, 60), ownerUid: meta.ownerUid || "", at: now });
-  for (const e of removed) batch.delete(fs.doc(db, "invites", e, "chars", id));
-  await batch.commit();
-  return clean;
+export async function saveAcl(id, change, meta) {
+  const ref = fs.doc(db, "characters", id, "acl", "main");
+  return fs.runTransaction(db, async t => {
+    const snap = await t.get(ref);
+    const prev = snap.exists() ? (snap.data().emails || []) : [];
+    let next = prev.slice();
+    if (change.add) {
+      const e = String(change.add).trim().toLowerCase();
+      if (e && !next.includes(e)) next.push(e);
+    }
+    if (change.remove) next = next.filter(e => e !== change.remove);
+    next = next.slice(0, 20);
+    const now = Date.now();
+    t.set(ref, { emails: next, updatedAt: now });
+    for (const e of next.filter(x => !prev.includes(x))) {
+      t.set(fs.doc(db, "invites", e, "chars", id), { name: String(meta.name || "").slice(0, 120), ownerName: String(meta.ownerName || "").slice(0, 60), ownerUid: meta.ownerUid || "", at: now });
+    }
+    for (const e of prev.filter(x => !next.includes(x))) t.delete(fs.doc(db, "invites", e, "chars", id));
+    return next;
+  });
+}
+
+export function watchInvite(id, email, cb) {
+  if (mode !== "cloud" || !email) {
+    cb(false);
+    return () => {};
+  }
+  return fs.onSnapshot(fs.doc(db, "invites", email.toLowerCase(), "chars", id), s => cb(s.exists()), () => cb(false));
 }
 
 export async function deleteCharacter(id) {
@@ -369,12 +385,28 @@ export async function deleteCharacter(id) {
     removeRecent(id);
     return;
   }
-  const acl = await getAcl(id).catch(() => null);
-  const hist = await fs.getDocs(fs.collection(db, "characters", id, "history")).catch(() => null);
-  if (hist) await Promise.all(hist.docs.map(d => fs.deleteDoc(d.ref).catch(() => {})));
-  if (acl && acl.emails) await Promise.all(acl.emails.map(e => fs.deleteDoc(fs.doc(db, "invites", e, "chars", id)).catch(() => {})));
-  await fs.deleteDoc(fs.doc(db, "characters", id, "acl", "main")).catch(() => {});
-  await fs.deleteDoc(fs.doc(db, "characters", id));
+  const a = getAccess();
+  const ref = fs.doc(db, "characters", id);
+  const snap = await fs.getDocFromServer(ref);
+  if (!snap.exists()) {
+    removeRecent(id);
+    return;
+  }
+  if (!a.isAdmin && snap.data().ownerUid !== a.uid) throw new Error("not-owner");
+  await fs.setDoc(fs.doc(db, "deleted", id), { at: Date.now(), by: a.uid });
+  const acl = await fs.getDocFromServer(fs.doc(db, "characters", id, "acl", "main")).catch(e => {
+    if (String(e && e.code).includes("not-found")) return null;
+    throw e;
+  });
+  const hist = await fs.getDocsFromServer(fs.collection(db, "characters", id, "history"));
+  const emails = acl && acl.exists() ? acl.data().emails || [] : [];
+  const refs = [...hist.docs.map(d => d.ref), ...emails.map(e => fs.doc(db, "invites", e, "chars", id)), fs.doc(db, "characters", id, "acl", "main")];
+  for (let i = 0; i < refs.length; i += 400) {
+    const batch = fs.writeBatch(db);
+    refs.slice(i, i + 400).forEach(r => batch.delete(r));
+    await batch.commit();
+  }
+  await fs.deleteDoc(ref);
   removeRecent(id);
 }
 
@@ -402,10 +434,16 @@ export function removeRecent(id) {
   } catch {}
 }
 
+export async function listCharactersOf(uid) {
+  if (mode !== "cloud") return [];
+  const snap = await fs.getDocsFromServer(fs.query(fs.collection(db, "characters"), fs.where("ownerUid", "==", uid)));
+  return snap.docs.map(d => ({ ...d.data(), id: d.id })).filter(c => c.ownerUid === uid);
+}
+
 export async function deleteCharactersOf(uid) {
-  const snap = await fs.getDocs(fs.query(fs.collection(db, "characters"), fs.where("ownerUid", "==", uid)));
-  for (const d of snap.docs) await deleteCharacter(d.id);
-  return snap.size;
+  const list = await listCharactersOf(uid);
+  for (const c of list) await deleteCharacter(c.id);
+  return list.length;
 }
 
 export async function fetchAllCharacters() {
