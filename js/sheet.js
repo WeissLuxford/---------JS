@@ -673,6 +673,36 @@ export function mountSheet(root, id, initialTab, navigate) {
     });
   }
 
+  function giveTemp(n, force = false) {
+    const v = Math.max(0, Math.floor(Number(n) || 0));
+    if (!v || readOnly()) return;
+    const cur = Number(S.c.hp.temp) || 0;
+    if (!force && cur >= v) {
+      toast(`${icon("shield")} Временных хитов уже ${cur}, это не меньше нового броска (${v}). Оставил ${cur}: они не складываются. <button class="btn sm" data-temp-force="${v}">Заменить на ${v}</button>`, { kind: "info", timeout: 9000 });
+      return;
+    }
+    mutate(c => { c.hp.temp = v; }, { render: false });
+    renderTab();
+    toast(`${icon("shield")} Временные хиты: ${v}${cur ? ` (были ${cur}, не складываются)` : ""}`, { kind: "good", timeout: 3500 });
+  }
+
+  function castTemp(sp, level) {
+    if (/agathys|агатис/i.test(`${sp.nameEn || ""} ${sp.name || ""}`)) return giveTemp(5 * Math.max(1, level));
+    const cast = spellCast(S.c, S.d, sp, level || null);
+    const lines = cast.lines.filter(l => l.type === "temp");
+    if (!lines.length) return;
+    const total = lines.reduce((sum, l) => sum + ((rollDice(l.dice) || {}).total || 0), 0);
+    giveTemp(total);
+  }
+
+  function rollDamage(label, lines, crit = false) {
+    const res = showDamage(label, lines, crit, {
+      after: bt => (bt.healing && !readOnly() ? `<button class="btn sm heal" data-heal-self="${bt.healing}">${icon("heart")}Вылечить себя на ${bt.healing}</button>` : "")
+    });
+    if (res && res.byType.temp) giveTemp(res.byType.temp);
+    return res;
+  }
+
   function attackProfile(kind, id) {
     const { c, d } = S;
     if (kind === "attack") {
@@ -717,7 +747,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       p.lines.forEach(l => lines.push({ dice: l.dice, type: l.type, crit, tag }));
       extra.forEach(x => lines.push({ dice: x.dice, type: x.type || (p.lines[0] || {}).type || "bludgeoning", crit, tag: (tag ? tag + " · " : "") + x.name }));
     }
-    showDamage(`${p.name}: урон${n > 1 ? ` (${n} ${n < 5 ? "луча" : "лучей"})` : ""}`, lines, false);
+    rollDamage(`${p.name}: урон${n > 1 ? ` (${n} ${n < 5 ? "луча" : "лучей"})` : ""}`, lines, false);
   }
 
   function doRoll(spec) {
@@ -756,7 +786,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       const n = k === "crit" ? 1 : p.beams;
       const lines = [];
       for (let i = 0; i < n; i++) p.lines.forEach(l => lines.push({ dice: l.dice, type: l.type, tag: n > 1 ? `Луч ${i + 1}` : "" }));
-      return showDamage(`${p.name}: урон${n > 1 ? ` (${n} ${n < 5 ? "луча" : "лучей"})` : ""}`, lines, k === "crit");
+      return rollDamage(`${p.name}: урон${n > 1 ? ` (${n} ${n < 5 ? "луча" : "лучей"})` : ""}`, lines, k === "crit");
     }
     if (k === "death") {
       if (c.hp.deathFail >= 3) return toast("Персонаж погиб: спасброски больше не нужны", { kind: "bad" });
@@ -1017,6 +1047,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     });
     toast(`${icon("sparkle")} <b>${esc(sp.name)}</b>${castLevel ? ` (${castLevel} круг)` : ""}.${esc(concNote)}`, { kind: "info" });
     offerEffect(sp);
+    castTemp(sp, castLevel || Number(sp.level) || 0);
   }
 
   function useEntity(kind, e, delta = 1) {
@@ -1190,13 +1221,13 @@ export function mountSheet(root, id, initialTab, navigate) {
           lines.push(...cast.lines);
           extra.forEach(x => lines.push({ dice: x.dice, type: x.type || (cast.lines[0] || {}).type || "force", tag: x.name }));
         }
-        return showDamage(`${e.name}${cast.level && cast.level !== Number(e.level) ? ` (${cast.level} круг)` : ""}`, lines, x === "spell-crit");
+        return rollDamage(`${e.name}${cast.level && cast.level !== Number(e.level) ? ` (${cast.level} круг)` : ""}`, lines, x === "spell-crit");
       }
       if (x === "use") return useEntity(kind, e, 1);
       if (x === "restore") return useEntity(kind, e, -1);
       if (x === "feat-dmg" || x === "item-dmg") {
         const lines = (e.damage || []).map(l => ({ dice: l.addMod ? addDice(l.dice, S.d.spell.mod) : l.dice, type: swapType(S.c, l.type) }));
-        return showDamage(e.name, lines);
+        return rollDamage(e.name, lines);
       }
       if (x === "equip") return mutate(c => { const it = findEntity(c, "item", eid); if (it) it.equipped = !it.equipped; });
       if (x === "attune") {
@@ -1208,7 +1239,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       if (x === "w-dmg") return doRoll("idmg:" + eid);
       if (x === "w-crit") {
         const p = attackProfile("item", eid);
-        return p && showDamage(`${p.name}: урон`, p.lines, true);
+        return p && rollDamage(`${p.name}: урон`, p.lines, true);
       }
       if (x === "atk") return doRoll("attack:" + eid);
       if (x === "dmg") return doRoll("dmg:" + eid);
@@ -1917,6 +1948,10 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   const onToastClick = e => {
     if (S.disposed) return;
+    const hs = e.target.closest("#toasts [data-heal-self]");
+    if (hs) applyHp("heal", Number(hs.dataset.healSelf) || 0);
+    const tf = e.target.closest("#toasts [data-temp-force]");
+    if (tf) giveTemp(Number(tf.dataset.tempForce) || 0, true);
     const ae = e.target.closest("#toasts [data-add-effect]");
     if (ae) addEffect(presetEffect(ae.dataset.addEffect, { mine: ae.dataset.mine === "1", concName: ae.dataset.mine === "1" ? ae.dataset.conc : "" }));
     const hit = e.target.closest("#toasts [data-hit-dmg]");

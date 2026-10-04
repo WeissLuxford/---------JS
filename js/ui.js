@@ -297,27 +297,30 @@ export function showBeams(label, modifier, results, mode, { why = [], extra = ""
   rollFx(t.el, { crit: results.some(r => r.nat20), fumble: results.every(r => r.nat1) });
 }
 
-export function showDamage(label, lines, crit = false) {
+export function showDamage(label, lines, crit = false, { after } = {}) {
   const parts = [];
+  const byType = {};
   let total = 0;
   for (const line of lines) {
     const expr = crit || line.crit ? critExpr(line.dice) : line.dice;
     const r = rollDice(expr);
     if (!r) continue;
     total += r.total;
+    byType[line.type] = (byType[line.type] || 0) + r.total;
     const dt = DAMAGE[line.type] || DAMAGE.bludgeoning;
     const rolls = r.rolls.length ? `<span class="r-rolls">[${r.rolls.map(x => (x.sign < 0 ? "−" : "") + x.r).join(", ")}]</span>` : "";
     parts.push(`<div class="r-line ${line.crit ? "crit" : ""}" style="--c:${dt.color}">${line.tag ? `<em>${esc(line.tag)}</em>` : ""}<span>${esc(expr)}</span>${rolls}<b>${r.total}</b> ${icon(dt.icon)} ${esc(dt.name)}</div>`);
   }
-  if (!parts.length) return;
+  if (!parts.length) return null;
   logRoll({ label, text: String(total) });
+  const extra = after ? after(byType) : "";
   const firstType = DAMAGE[lines[0].type] || DAMAGE.bludgeoning;
   const t = toast(
-    `<div class="roll dmg">${die(maxFace(lines[0].dice), firstType.color, "")}<div class="r-body"><div class="r-label">${esc(label)}${crit ? " · крит" : ""}</div>${parts.join("")}</div><div class="r-total" data-final="${total}">${total}</div></div>`,
-    { timeout: 5500 }
+    `<div class="roll dmg">${die(maxFace(lines[0].dice), firstType.color, "")}<div class="r-body"><div class="r-label">${esc(label)}${crit ? " · крит" : ""}</div>${parts.join("")}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div><div class="r-total" data-final="${total}">${total}</div></div>`,
+    { timeout: extra ? 9000 : 5500 }
   );
   rollFx(t.el, { ms: 420 });
-  return total;
+  return { total, byType };
 }
 
 export function showRoll(expr) {
