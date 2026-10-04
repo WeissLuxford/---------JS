@@ -488,6 +488,18 @@ export function normalize(c) {
     out[k] = (Array.isArray(out[k]) ? out[k] : []).filter(x => x && typeof x === "object").map((x, i) => ({ ...x, id: cleanId(x.id, prefixes[k], i), name: String(x.name ?? "") }));
   }
   out.items = out.items.map(it => ({ ...it, qty: Math.max(0, num(it.qty, 1)), weight: Math.max(0, num(it.weight)) }));
+  out.items = out.items.map(it => {
+    const x = { ...it };
+    if ("atkAbility" in x) x.atkAbility = ["str", "dex", "finesse", "spell"].includes(x.atkAbility) ? x.atkAbility : "";
+    if ("atkProf" in x) x.atkProf = !!x.atkProf;
+    if ("atkBonus" in x) x.atkBonus = Math.round(num(x.atkBonus));
+    if ("acBase" in x) x.acBase = x.acBase === null || x.acBase === "" ? null : Math.max(0, Math.min(30, Math.round(num(x.acBase))));
+    if ("acDex" in x) x.acDex = ["full", "2", "0"].includes(String(x.acDex)) ? String(x.acDex) : "full";
+    if ("acBonus" in x) x.acBonus = Math.round(num(x.acBonus));
+    if ("range" in x) x.range = String(x.range ?? "").slice(0, 60);
+    return x;
+  });
+  out.spells = out.spells.map(sp => ("combat" in sp ? { ...sp, combat: ["yes", "no"].includes(sp.combat) ? sp.combat : "" } : sp));
   out.items = out.items.map(it => ("breakOn" in it ? { ...it, breakOn: it.breakOn == null || it.breakOn === "" ? null : Math.max(1, Math.min(20, Math.round(num(it.breakOn, 1)))) } : it));
   for (const k of ["attacks", "spells", "features", "items"]) {
     out[k] = out[k].map(x => ({ ...x, used: Math.max(0, num(x.used)) }));
@@ -534,8 +546,13 @@ export function compute(c) {
     investigation: 10 + skills.investigation
   };
   const a = c.armor;
-  const dexPart = a.dexCap === "0" ? 0 : a.dexCap === "2" ? Math.min(mods.dex, 2) : mods.dex;
-  const ac = (Number(a.base) || 10) + dexPart + (a.addAbility ? mods[a.addAbility] || 0 : 0) + (a.shield ? 2 : 0) + (Number(a.bonus) || 0);
+  const worn = (c.items || []).filter(it => it.equipped && (!it.requiresAttunement || it.attuned));
+  const armorItem = worn.filter(it => Number(it.acBase) > 0).sort((x, y) => Number(y.acBase) - Number(x.acBase))[0] || null;
+  const armorBase = armorItem ? Number(armorItem.acBase) : Number(a.base) || 10;
+  const dexCap = armorItem ? String(armorItem.acDex || "full") : a.dexCap;
+  const dexPart = dexCap === "0" ? 0 : dexCap === "2" ? Math.min(mods.dex, 2) : mods.dex;
+  const itemAc = worn.reduce((sum, it) => sum + (Number(it.acBonus) || 0), 0);
+  const ac = armorBase + dexPart + (a.addAbility ? mods[a.addAbility] || 0 : 0) + (a.shield ? 2 : 0) + (Number(a.bonus) || 0) + itemAc;
   const cond = c.conditions || {};
   const ex = Number(c.exhaustion) || 0;
   const die = maxDie(c.hitDie);
@@ -573,8 +590,11 @@ export function compute(c) {
       if (f.uses !== "" && f.uses != null) d.uses[f.id] = evalFormula(f.uses, d);
     }
   }
+  d.armorItem = armorItem ? armorItem.id : "";
   d.attacks = {};
   for (const at of c.attacks) d.attacks[at.id] = attackStats(c, d, at);
+  d.weapons = {};
+  for (const it of c.items || []) if (it.atkAbility && it.equipped) d.weapons[it.id] = weaponStats(c, d, it);
   return d;
 }
 
@@ -593,6 +613,20 @@ export function attackStats(c, d, at) {
     return { kind: "save", dc, save: at.saveAbility || "dex", dmg, type, beams };
   }
   return { kind: "attack", hit: abMod + prof + bonus, dmg, type, beams };
+}
+
+export function weaponStats(c, d, it) {
+  const ab = it.atkAbility === "finesse" ? (d.mods.dex >= d.mods.str ? "dex" : "str") : it.atkAbility;
+  const abMod = ab === "spell" ? d.spell.mod : d.mods[ab] ?? 0;
+  const bonus = Number(it.atkBonus) || 0;
+  const lines = (it.damage || []).filter(x => x.dice).map((x, i) => ({ dice: i === 0 ? addDice(x.dice, abMod + bonus) : x.dice, type: swapType(c, x.type) }));
+  return { kind: "attack", ability: ab, hit: abMod + (it.atkProf === false ? 0 : d.pb) + bonus, dmg: lines[0] ? lines[0].dice : "", type: lines[0] ? lines[0].type : "bludgeoning", lines, beams: 1, range: it.range || "" };
+}
+
+export function spellInCombat(sp) {
+  if (sp.combat === "yes") return true;
+  if (sp.combat === "no" || sp.cost === "item") return false;
+  return Number(sp.level) === 0 && (sp.attack || !!sp.save) && (sp.damage || []).some(x => x.type !== "healing" && x.type !== "temp");
 }
 
 export function spellCast(c, d, sp, slotLevel, extra = 0) {

@@ -1,10 +1,10 @@
-import { ABILITIES, SKILLS, DAMAGE, DAMAGE_TYPES, DEFENSE_KINDS, compute, normalize, fmt, rollD20, rollDice, spellCast, usesInfo, maxDie, uid, addDice, swapType, importCharacter, NOTE_KEYS, itemCharges, reorderSubset, rollContext, resolveMode, rollReasons, applyDefenses, effectDamage, presetEffect, cleanEffect, EFFECT_PRESETS } from "./rules.js";
+import { ABILITIES, SKILLS, DAMAGE, DAMAGE_TYPES, DEFENSE_KINDS, compute, normalize, fmt, rollD20, rollDice, spellCast, usesInfo, maxDie, uid, addDice, swapType, importCharacter, NOTE_KEYS, itemCharges, reorderSubset, rollContext, resolveMode, rollReasons, applyDefenses, effectDamage, presetEffect, cleanEffect, EFFECT_PRESETS, weaponStats } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import {
   esc, $, $$, toast, openModal, confirmDialog, promptNumber, showD20, showBeams, showDamage, rollLog, enableHoverCards, hideHoverCard,
-  enableLongPress, enableReorder, openForm, getPath, setPath, dateTime, timeAgo, cropImage, download, pickFile
+  enableLongPress, enableReorder, openDiceRoller, openForm, getPath, setPath, dateTime, timeAgo, cropImage, download, pickFile
 } from "./ui.js";
-import { TABS, RENDER, subtitle, hpState, notesList, noteTags } from "./tabs.js";
+import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources } from "./tabs.js";
 import { cardFor, findEntity, itemIcon, effectFields, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
 import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
 import { diffPaths, applyPaths } from "./sync.js";
@@ -559,30 +559,51 @@ export function mountSheet(root, id, initialTab, navigate) {
     return r;
   }
 
-  function dmgButtons(aid, beams, crits, missAll) {
+  function attackProfile(kind, id) {
+    const { c, d } = S;
+    if (kind === "attack") {
+      const at = findEntity(c, "attack", id);
+      const s = d.attacks[id];
+      return at && s ? { name: at.name, hit: s.hit, beams: s.beams, lines: [{ dice: s.dmg, type: s.type }], attack: s.kind === "attack" } : null;
+    }
+    if (kind === "item") {
+      const it = findEntity(c, "item", id);
+      const w = it && it.atkAbility ? d.weapons[id] || weaponStats(c, d, it) : null;
+      return w ? { name: it.name, hit: w.hit, beams: 1, lines: w.lines, attack: true } : null;
+    }
+    if (kind === "spell") {
+      const sp = findEntity(c, "spell", id);
+      if (!sp) return null;
+      const cast = spellCast(c, d, sp, S.lastCast[id] || null, sp.cost === "item" ? S.lastExtra[id] || 0 : 0);
+      return { name: sp.name, hit: spellAtk(d, sp), beams: cast.beams, lines: cast.lines.map(l => ({ dice: l.dice, type: l.type })), attack: !!sp.attack };
+    }
+    return null;
+  }
+
+  function dmgButtons(kind, aid, beams, crits, missAll) {
     if (missAll) return "";
     const b = [];
+    const attr = `data-hit-dmg="${esc(aid)}" data-kind="${kind}"`;
     if (beams > 1) {
       b.push(`<span class="r-btns-l">Урон по попавшим:</span>`);
-      for (let h = Math.max(1, crits); h <= beams; h++) b.push(`<button class="btn sm ${h === beams ? "gold" : ""}" data-hit-dmg="${esc(aid)}" data-n="${h}" data-c="${crits}">${h}</button>`);
-    } else if (crits) b.push(`<button class="btn sm gold" data-hit-dmg="${esc(aid)}" data-n="1" data-c="1">Урон (крит)</button>`);
-    else b.push(`<button class="btn sm" data-hit-dmg="${esc(aid)}" data-n="1" data-c="0">Урон</button>`);
+      for (let h = Math.max(1, crits); h <= beams; h++) b.push(`<button class="btn sm ${h === beams ? "gold" : ""}" ${attr} data-n="${h}" data-c="${crits}">${h}</button>`);
+    } else if (crits) b.push(`<button class="btn sm gold" ${attr} data-n="1" data-c="1">Урон (крит)</button>`);
+    else b.push(`<button class="btn sm" ${attr} data-n="1" data-c="0">Урон</button>`);
     return b.join("");
   }
 
-  function hitDamage(aid, n, crits) {
-    const at = findEntity(S.c, "attack", aid);
-    const s = S.d.attacks[aid];
-    if (!at || !s) return;
-    const extra = effectDamage(S.c);
+  function hitDamage(kind, aid, n, crits) {
+    const p = attackProfile(kind, aid);
+    if (!p) return;
+    const extra = p.attack ? effectDamage(S.c) : [];
     const lines = [];
     for (let i = 0; i < n; i++) {
       const crit = i < crits;
       const tag = n > 1 ? `Луч ${i + 1}${crit ? " · крит" : ""}` : "";
-      lines.push({ dice: s.dmg, type: s.type, crit, tag });
-      extra.forEach(x => lines.push({ dice: x.dice, type: x.type || s.type, crit, tag: (tag ? tag + " · " : "") + x.name }));
+      p.lines.forEach(l => lines.push({ dice: l.dice, type: l.type, crit, tag }));
+      extra.forEach(x => lines.push({ dice: x.dice, type: x.type || (p.lines[0] || {}).type || "bludgeoning", crit, tag: (tag ? tag + " · " : "") + x.name }));
     }
-    showDamage(`${at.name}: урон${n > 1 ? ` (${n} ${n < 5 ? "луча" : "лучей"})` : ""}`, lines, false);
+    showDamage(`${p.name}: урон${n > 1 ? ` (${n} ${n < 5 ? "луча" : "лучей"})` : ""}`, lines, false);
   }
 
   function doRoll(spec) {
@@ -597,27 +618,30 @@ export function mountSheet(root, id, initialTab, navigate) {
     }
     if (k === "init") return d20("Инициатива", d.init, "check", "dex");
     if (k === "spellatk") return d20("Атака заклинанием", d.spell.atk, "attack");
-    if (k === "attack") {
-      const at = findEntity(c, "attack", a);
-      const s = d.attacks[a];
-      if (!at || !s) return;
-      if (s.beams > 1) {
+    const AK = { attack: "attack", iattack: "item", sattack: "spell" };
+    const DK = { dmg: "attack", idmg: "item", sdmg: "spell", crit: "attack" };
+    if (AK[k]) {
+      const p = attackProfile(AK[k], a);
+      if (!p) return;
+      const kind = AK[k];
+      if (p.beams > 1) {
         const st = rollSetup("attack", "", takeMode());
-        const rs = Array.from({ length: s.beams }, () => rollD20(s.hit, st.mode));
+        const rs = Array.from({ length: p.beams }, () => rollD20(p.hit, st.mode));
         const parts = rs.flatMap(r => addBonus(r, st));
         const crits = rs.filter(r => r.nat20).length;
-        showBeams(`${at.name}: ${s.beams} ${s.beams < 5 ? "луча" : "лучей"}`, s.hit, rs, st.mode, { why: [...bonusLines(parts), ...st.why], extra: dmgButtons(a, s.beams, crits, rs.every(r => r.nat1)) });
+        showBeams(`${p.name}: ${p.beams} ${p.beams < 5 ? "луча" : "лучей"}`, p.hit, rs, st.mode, { why: [...bonusLines(parts), ...st.why], extra: dmgButtons(kind, a, p.beams, crits, rs.every(r => r.nat1)) });
         consumeOnce(st);
         return;
       }
-      return d20(`${at.name}: атака`, s.hit, "attack", "", r => dmgButtons(a, 1, r.nat20 ? 1 : 0, r.nat1));
+      return d20(`${p.name}: атака`, p.hit, "attack", "", r => dmgButtons(kind, a, 1, r.nat20 ? 1 : 0, r.nat1));
     }
-    if (k === "dmg" || k === "crit") {
-      const at = findEntity(c, "attack", a);
-      const s = d.attacks[a];
-      if (!at || !s) return;
-      const lines = Array.from({ length: k === "crit" ? 1 : s.beams }, () => ({ dice: s.dmg, type: s.type }));
-      return showDamage(`${at.name}: урон${s.beams > 1 && k !== "crit" ? ` (${s.beams} луча)` : ""}`, lines, k === "crit");
+    if (DK[k]) {
+      const p = attackProfile(DK[k], a);
+      if (!p) return;
+      const n = k === "crit" ? 1 : p.beams;
+      const lines = [];
+      for (let i = 0; i < n; i++) p.lines.forEach(l => lines.push({ dice: l.dice, type: l.type, tag: n > 1 ? `Луч ${i + 1}` : "" }));
+      return showDamage(`${p.name}: урон${n > 1 ? ` (${n} ${n < 5 ? "луча" : "лучей"})` : ""}`, lines, k === "crit");
     }
     if (k === "death") {
       if (c.hp.deathFail >= 3) return toast("Персонаж погиб: спасброски больше не нужны", { kind: "bad" });
@@ -958,7 +982,12 @@ export function mountSheet(root, id, initialTab, navigate) {
         b.push(`<button class="btn gold" data-x="use">${icon("check")}Использовать</button>`);
         b.push(`<button class="btn ghost" data-x="restore">${icon("history")}Вернуть</button>`);
       }
-      if ((e.damage || []).length) b.push(`<button class="btn" data-x="item-dmg">${icon("d20")}Бросить кубы</button>`);
+      const w = e.atkAbility ? weaponStats(S.c, d, e) : null;
+      if (w) {
+        b.push(`<button class="btn gold" data-x="w-atk">${icon("d20")}Атака ${fmt(w.hit)}</button>`);
+        b.push(`<button class="btn" data-x="w-dmg">${icon("swords")}Урон</button>`);
+        b.push(`<button class="btn ghost" data-x="w-crit">Крит</button>`);
+      } else if ((e.damage || []).length) b.push(`<button class="btn" data-x="item-dmg">${icon("d20")}Бросить кубы</button>`);
       S.c.spells.filter(sp => sp.cost === "item" && sp.itemId === e.id).forEach(sp => b.push(`<button class="btn" data-x="open-spell" data-sid="${esc(sp.id)}">${icon("sparkle")}${esc(sp.name)}</button>`));
       if (u) b.push(`<button class="btn ghost" data-x="item-add-spell">${icon("plus")}Добавить заклинание</button>`);
       b.push(`<button class="btn" data-x="equip">${e.equipped ? "Снять" : "Экипировать"}</button>`);
@@ -1057,6 +1086,12 @@ export function mountSheet(root, id, initialTab, navigate) {
         return mutate(c => { const it = findEntity(c, "item", eid); if (it) it.attuned = !it.attuned; });
       }
       if (x === "qty-" || x === "qty+") return mutate(c => { const it = findEntity(c, "item", eid); if (it) it.qty = Math.max(0, (Number(it.qty) || 0) + (x === "qty+" ? 1 : -1)); });
+      if (x === "w-atk") return doRoll("iattack:" + eid);
+      if (x === "w-dmg") return doRoll("idmg:" + eid);
+      if (x === "w-crit") {
+        const p = attackProfile("item", eid);
+        return p && showDamage(`${p.name}: урон`, p.lines, true);
+      }
       if (x === "atk") return doRoll("attack:" + eid);
       if (x === "dmg") return doRoll("dmg:" + eid);
       if (x === "crit") return doRoll("crit:" + eid);
@@ -1083,6 +1118,41 @@ export function mountSheet(root, id, initialTab, navigate) {
         c.spells = normalize(c).spells;
       });
       toast(`${icon("wand")} «${esc(sp.name)}» теперь тратит заряды «${esc(it.name)}»`, { kind: "good" });
+    });
+  }
+
+  async function gearTable() {
+    const { GEAR, gearToItem } = await import("./gear.js");
+    const prof = String(S.c.proficiencies.weapons || "").toLowerCase();
+    const m = openModal({
+      title: "Оружие и доспехи",
+      wide: true,
+      cls: "library",
+      body: `<div class="lib-tools"><label class="search-box">${icon("search")}<input type="search" data-q placeholder="Кинжал, рапира, кольчуга..." aria-label="Поиск"></label></div><div class="lib-list" data-list></div><p class="hint small lib-src">Базовое оружие и доспехи из SRD 5.1 (CC-BY-4.0). После добавления предмет можно изменить: сделать магическим, переименовать, добавить свойства.</p>`
+    });
+    const listEl = m.body.querySelector("[data-list]");
+    const draw = q => {
+      const n = q.trim().toLowerCase().replace(/ё/g, "е");
+      let group = "";
+      listEl.innerHTML = GEAR.map((g, i) => ({ g, i })).filter(({ g }) => !n || g.name.toLowerCase().replace(/ё/g, "е").includes(n) || g.nameEn.toLowerCase().includes(n)).map(({ g, i }) => {
+        const head = g.group !== group ? `<div class="atk-group">${esc((group = g.group))}</div>` : "";
+        const stat = g.kind === "weapon" ? `${g.dice} ${(DAMAGE[g.type] || {}).name.toLowerCase()}` : g.kind === "armor" ? `КД ${g.base}${g.dex === "0" ? "" : g.dex === "2" ? " + Лов (макс. 2)" : " + Лов"}` : "+2 КД";
+        return `${head}<button class="lib-head gear-row" data-g="${i}"><span class="lib-names"><b>${esc(g.name)}</b><small>${esc(g.nameEn)} · ${esc(stat)}${g.props ? " · " + esc(g.props) : ""} · ${esc(g.value)}</small></span><span class="btn ghost sm">${icon("plus")}</span></button>`;
+      }).join("") || `<p class="empty">Ничего не нашлось</p>`;
+    };
+    draw("");
+    m.body.querySelector("[data-q]").addEventListener("input", e => draw(e.target.value));
+    m.body.addEventListener("click", e => {
+      const b = e.target.closest("[data-g]");
+      if (!b) return;
+      const g = GEAR[Number(b.dataset.g)];
+      const it = gearToItem(g, uid);
+      if (g.kind === "weapon") it.atkProf = g.group.startsWith("Простое") ? /прост/.test(prof) : /воинск/.test(prof) || prof.includes(g.name.toLowerCase());
+      const ok = mutate(c => {
+        c.items.push(it);
+        c.items = normalize(c).items;
+      });
+      if (ok !== false) toast(`${icon("check")} «${esc(g.name)}» в снаряжении. Надень, чтобы он считался в бою и в КД.`, { kind: "good", timeout: 3200 });
     });
   }
 
@@ -1398,6 +1468,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       ["short-rest", "campfire", "Короткий отдых"],
       ["long-rest", "moon", "Длинный отдых"],
       ["roll-mode", "d20", "Режим броска: " + (S.rollMode === "adv" ? "преимущество" : S.rollMode === "dis" ? "помеха" : "обычный")],
+      ["dice", "d20", "Бросить кубы"],
       ["roll-log", "scroll", "Журнал бросков"],
       ...(r.canEdit ? [["history", "history", "История изменений"]] : []),
       ["share", "link", manage && cloud && a.enforced ? "Поделиться и доступ" : "Поделиться"],
@@ -1424,7 +1495,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     });
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "dedupe-attacks", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
 
   async function runAction(a, el) {
     const { c } = S;
@@ -1437,6 +1508,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "short-rest": return shortRest();
       case "long-rest": return longRest();
       case "roll-log": return rollLogDialog();
+      case "dice": return openDiceRoller();
       case "history": return historyDialog();
       case "accounts": return openAccounts();
       case "share": return openShare({ ...c, id });
@@ -1540,6 +1612,13 @@ export function mountSheet(root, id, initialTab, navigate) {
         return mutate(ch => (ch.notes[sec] || []).forEach(x => { x.collapsed = v; }));
       }
       case "spell-filter": S.ui.spellFilter = el.dataset.k; return renderTab();
+      case "gear-table": return gearTable();
+      case "dedupe-attacks": {
+        const ids = combatSources(c, S.d).dupes.map(x => x.id);
+        if (!ids.length) return;
+        if (!(await confirmDialog(`Удалить ${ids.length} ${ids.length === 1 ? "запись" : ids.length < 5 ? "записи" : "записей"} атак, которые повторяют заклинания или оружие? Старая версия останется в истории.`, { ok: "Удалить" }))) return;
+        return mutate(ch => { ch.attacks = ch.attacks.filter(x => !ids.includes(x.id)); });
+      }
       case "add-effect": return effectPicker();
       case "edit-effect": {
         const ef = (c.effects || []).find(x => x.id === el.dataset.id);
@@ -1696,7 +1775,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     const ae = e.target.closest("#toasts [data-add-effect]");
     if (ae) addEffect(presetEffect(ae.dataset.addEffect, { mine: ae.dataset.mine === "1", concName: ae.dataset.mine === "1" ? ae.dataset.conc : "" }));
     const hit = e.target.closest("#toasts [data-hit-dmg]");
-    if (hit) hitDamage(hit.dataset.hitDmg, Number(hit.dataset.n) || 1, Number(hit.dataset.c) || 0);
+    if (hit) hitDamage(hit.dataset.kind || "attack", hit.dataset.hitDmg, Number(hit.dataset.n) || 1, Number(hit.dataset.c) || 0);
     const crit = e.target.closest("#toasts [data-crit]");
     if (crit) doRoll("crit:" + crit.dataset.crit);
     if (e.target.closest("#toasts [data-conc-roll]")) doRoll("save:con");

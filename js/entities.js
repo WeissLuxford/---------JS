@@ -1,6 +1,6 @@
 import {
   ABILITIES, SKILLS, DAMAGE, SCHOOLS, ACTIONS, RECHARGE, RARITY, ITEM_TYPES, FEATURE_CATS, FEATURE_SOURCES,
-  CONDITIONS, CASTER_TYPES, HIT_DICE, ALIGNMENTS, fmt, spellCast, usesInfo, swapType, uid, addDice, effectSummary
+  CONDITIONS, CASTER_TYPES, HIT_DICE, ALIGNMENTS, fmt, spellCast, usesInfo, swapType, uid, addDice, effectSummary, weaponStats
 } from "./rules.js";
 import { icon, slotMark, actionMark } from "./icons.js";
 import { card, rich, esc, actionFoot, openForm } from "./ui.js";
@@ -43,7 +43,9 @@ const W = s => new RegExp("(^|[^а-яё])(" + s + ")", "i");
 
 const ITEM_WORDS = [
   ["кольц|перстен", "ring"], ["амулет|кулон|ожерель|медальон|талисман", "amulet"], ["плащ|мантия|накидк|роба", "cloak"],
-  ["перчат|рукавиц|наруч", "glove"], ["шлем|капюшон|шляп|корон", "helmet"], ["арбалет", "arrow"], ["лук(?![а-яё])", "bow"],
+  ["перчат|рукавиц|наруч", "glove"], ["шлем", "helmet"], ["шляп|капюшон|берет|цилиндр", "hat"], ["корон|диадем|тиар", "crown"], ["арбалет", "crossbow"], ["лук(?![а-яё])", "bow"],
+  ["колчан", "quiver"], ["стрел|болт", "arrow"], ["копь|пика|трезуб|алебард|глеф", "spear"], ["булав|моргенштерн|палиц", "mace"], ["цеп(?![а-яё])|кистен", "flail"], ["кнут|плеть|хлыст", "whip"], ["праща", "sling"],
+  ["сапог|ботин|обувь|туфл", "boots"], ["пояс|ремен", "belt"], ["отмычк|воровск", "lockpick"], ["трав|корень|цветок|лепест", "herb"], ["гриб", "mushroom"], ["мяс|колбас|окорок", "meat"], ["рыб", "fish"], ["зеркал", "mirror"], ["карты|игральн|колод", "cards"], ["весы", "scales"], ["ручк|чернил", "quill"],
   ["посох|жезл|палочк", "wand"], ["хрустальн|сфер|шар(?![а-яё])", "orb"], ["ключ|отмычк", "key"], ["карта|карты|атлас", "map"],
   ["письм|конверт|записк|приглашен|документ|паспорт|лицензи", "letter"], ["факел|свеч", "torch"], ["бутыл|фляг|флакон", "bottle"],
   ["колокол", "bell"], ["палатк|шатёр|шатер", "tent"], ["кирк|лопат", "pickaxe"], ["лютн|флейт|барабан|скрипк|арф|рожок", "lute"],
@@ -61,7 +63,8 @@ const SPELL_WORDS = [
   ["щит|доспех|защит|ограж|броня|оберег", "shield"], ["лечен|исцел|восстанов|воскреш|жизн|оживл", "heart"], ["свет|сиян|солн|рассвет", "sun"],
   ["тьм|темнот|ночь|тени|тень", "moon"], ["невидим|иллюз|образ|маск|облик|личин|мираж", "mask"], ["телепорт|шаг|портал|врата|перенос|план", "portal"],
   ["полёт|полет|левитац|падени|прыж|крыл", "wings"], ["паут", "web"], ["ветер|ветр|вихр|порыв|смерч|туман|облак", "wind"],
-  ["камен|земл|стен|скал", "rock"], ["раст|лоз|шип|лес|ягод|дуб|кор", "leaf"], ["звер|живот|скакун|фамильяр", "paw"],
+  ["камен|земл|стен|скал", "rock"], ["раст|лоз|шип|ягод|дуб|кор", "leaf"], ["звер|живот|скакун|фамильяр", "paw"], ["дракон", "dragon"], ["призрак|дух(?![а-яё])|эфир|бестелес", "ghost"], ["смерч", "tornado"], ["щупальц", "tentacle"], ["дерев|лес", "tree"],
+  ["землетряс|гора", "mountain"], ["клетк", "cage"], ["двер|запор|стук", "door"], ["пузыр", "bubble"], ["цепн|разряд|шок", "lightning2"], ["руна|глиф", "rune"], ["астрал", "planet"],
   ["обнаруж|зрени|видени|поиск|прорица|ясновид|знани|опознан", "eye"], ["внуш|очаров|подчин|дружб|убежд|приказ|разум|мысл", "brain"],
   ["страх|ужас|проклят", "skull"], ["слов|язык|послан|телепат|голос|связ", "letter"], ["призыв|вызов|знак|символ|глиф|рун", "sigil"],
   ["время|ускор|замедл|спешк", "clock"], ["тишин|звук|гром|крик", "bell"], ["удерж|оков|опута|цеп|клетк|тюрьм", "chain"],
@@ -74,6 +77,12 @@ const FEATURE_WORDS = [
   ["механ|инжене|изобрет", "gear"], ["договор|контракт|пакт", "pact"], ["голос|речь|язык", "letter"], ["скрыт|тень|тен(?![а-яё])", "moon"],
   ["ярост|сил(?![а-яё])", "swords"], ["звер|живот", "paw"], ["удач|везен", "star"], ["огн|пламен", "flame"], ["холод|лёд|лед(?![а-яё])|мороз", "snow"]
 ].map(([w, ic]) => [W(w), ic]);
+
+export const ATTACK_WORDS = [["кулак|безоруж|рукопаш", "fist"], ["укус|клык", "fang"], ["коготь|когти|царап", "claw"], ["хвост|щупальц", "tentacle"]].map(([w, ic]) => [W(w), ic]);
+
+export function attackIcon(name) {
+  return guessIcon(name, ATTACK_WORDS) || guessIcon(name, ITEM_WORDS);
+}
 
 export function guessIcon(name, words) {
   const n = String(name || "").toLowerCase();
@@ -205,8 +214,12 @@ export function itemModel(c, d, it) {
   const t = ITEM_TYPES[it.type] || ITEM_TYPES.misc;
   const r = RARITY[it.rarity] || RARITY.common;
   const u = usesInfo(d, it);
-  const lines = (it.damage || []).map(x => ({ dice: x.dice, type: swapType(c, x.type), swapped: swapType(c, x.type) !== x.type, origType: x.type }));
+  const w = it.atkAbility ? weaponStats(c, d, it) : null;
+  const lines = w ? w.lines.map(x => ({ ...x })) : (it.damage || []).map(x => ({ dice: x.dice, type: swapType(c, x.type), swapped: swapType(c, x.type) !== x.type, origType: x.type }));
+  const armorLine = Number(it.acBase) > 0 ? `КД ${it.acBase}${it.acDex === "0" ? "" : it.acDex === "2" ? " + Лов (макс. 2)" : " + Лов"}` : Number(it.acBonus) ? `${Number(it.acBonus) > 0 ? "+" : ""}${Number(it.acBonus)} к КД` : "";
   const stats = [
+    w ? `<span>${icon("target")}Атака ${fmt(w.hit)}</span>` : "",
+    armorLine ? `<span>${icon("shield")}${esc(armorLine)}</span>` : "",
     Number(it.weight) ? `<span>${icon("hourglass")}Вес: ${fmtNum(it.weight)} фнт${Number(it.qty) > 1 ? ` × ${it.qty}` : ""}</span>` : "",
     it.value ? `<span>${icon("coin")}${esc(it.value)}</span>` : "",
     Number(it.qty) > 1 ? `<span>${icon("bag")}Количество: ${it.qty}</span>` : ""
@@ -216,6 +229,7 @@ export function itemModel(c, d, it) {
   if (u) footer.push({ mark: slotMark("#e9a54a"), text: rechargeText(it, u) });
   const linked = (c.spells || []).filter(sp => sp.cost === "item" && sp.itemId === it.id);
   const breakNote = it.breakOn ? `После последнего заряда бросок d20: на ${it.breakOn} предмет разрушается.` : "";
+  const hint = w && !it.equipped ? "Надень, чтобы оружие появилось на вкладке «Бой»." : (Number(it.acBase) > 0 || Number(it.acBonus)) && !it.equipped ? "Надень, чтобы предмет считался в КД." : "";
   return {
     title: it.name,
     subtitle: `${t.name} · ${r.name}`,
@@ -224,8 +238,9 @@ export function itemModel(c, d, it) {
     badges: [it.equipped ? { text: "Экипировано", color: "#e9c77a" } : null, it.requiresAttunement ? { text: it.attuned ? "Настроено" : "Требует настройки", color: it.attuned ? "#b46bff" : "#8d8577" } : null],
     dice: lines,
     stats,
-    body: rich(it.description) + (linked.length ? `<p class="item-spells"><b>Заклинания:</b> ${linked.map(sp => esc(sp.name)).join(", ")}</p>` : "") + (breakNote ? `<p class="higher">${esc(breakNote)}</p>` : ""),
+    body: rich(it.description) + (linked.length ? `<p class="item-spells"><b>Заклинания:</b> ${linked.map(sp => esc(sp.name)).join(", ")}</p>` : "") + (breakNote ? `<p class="higher">${esc(breakNote)}</p>` : "") + (hint ? `<p class="higher">${esc(hint)}</p>` : ""),
     effect: it.effect,
+    meta: w && w.range ? [{ icon: "range", text: w.range }] : [],
     uses: u,
     usesColor: "#e9a54a",
     footer
@@ -303,14 +318,17 @@ export function statModel(c, d, key) {
   const line = (label, v) => `${label} ${typeof v === "number" ? fmt(v) : esc(v)}`;
   if (key === "ac") {
     const a = c.armor;
-    const dex = a.dexCap === "0" ? 0 : a.dexCap === "2" ? Math.min(d.mods.dex, 2) : d.mods.dex;
-    const parts = [`${esc(a.name || "Доспех")} ${Number(a.base) || 10}`];
-    if (a.dexCap !== "0") parts.push(line("Ловкость", dex) + (a.dexCap === "2" && d.mods.dex > 2 ? " (не больше +2)" : ""));
+    const ai = d.armorItem ? (c.items || []).find(x => x.id === d.armorItem) : null;
+    const cap = ai ? String(ai.acDex || "full") : a.dexCap;
+    const dex = cap === "0" ? 0 : cap === "2" ? Math.min(d.mods.dex, 2) : d.mods.dex;
+    const parts = [ai ? `${esc(ai.name)} ${Number(ai.acBase)}` : `${esc(a.name || "Доспех")} ${Number(a.base) || 10}`];
+    if (cap !== "0") parts.push(line("Ловкость", dex) + (cap === "2" && d.mods.dex > 2 ? " (не больше +2)" : ""));
+    (c.items || []).filter(x => x.equipped && Number(x.acBonus) && (!x.requiresAttunement || x.attuned)).forEach(x => parts.push(`${esc(x.name)} ${Number(x.acBonus) > 0 ? "+" : "−"}${Math.abs(Number(x.acBonus))}`));
     if (a.addAbility) parts.push(line(abName(a.addAbility), d.mods[a.addAbility]));
     if (a.shield) parts.push("Щит +2");
     if (Number(a.bonus)) parts.push(line("Прочее", Number(a.bonus)));
     (c.effects || []).filter(e => e.ac).forEach(e => parts.push(`${esc(e.name)} ${e.ac > 0 ? "+" : "−"}${Math.abs(e.ac)}`));
-    return { title: "Класс доспеха", subtitle: "Насколько сложно попасть", art: { icon: "shield", color: "#e9c77a" }, stats: `<span class="big-num">${d.ac}</span><span>${parts.join(" · ")}</span>`, body: rich("Атака попадает, если результат броска не меньше КД. Нажми на медаль, чтобы поменять доспех.") };
+    return { title: "Класс доспеха", subtitle: "Насколько сложно попасть", art: { icon: "shield", color: "#e9c77a" }, stats: `<span class="big-num">${d.ac}</span><span>${parts.join(" · ")}</span>`, body: rich("Атака попадает, если результат броска не меньше КД. Нажми на медаль, чтобы поменять доспех вручную, или надень доспех с указанным КД в снаряжении: тогда он считается сам.") };
   }
   if (key === "init") {
     return { title: "Инициатива", subtitle: "Порядок ходов в бою", art: { icon: "bolt", color: "#e9c77a" }, stats: `<span class="big-num">${fmt(d.init)}</span><span>${line("Ловкость", d.mods.dex)}${Number(c.initBonus) ? " · " + line("бонус", Number(c.initBonus)) : ""}</span>`, body: rich("Бросок d20 в начале боя. Истощение и состояния, дающие помеху на проверки, учитываются сами.") };
@@ -397,6 +415,7 @@ export const EDITORS = {
       { key: "source", label: "Источник", placeholder: "Колдун, Раса..." },
       { key: "concentration", label: "Концентрация", type: "checkbox" },
       { key: "ritual", label: "Ритуал", type: "checkbox" },
+      { key: "combat", label: "В панели боя", type: "select", options: [["", "Авто (атакующие заговоры)"], ["yes", "Показывать"], ["no", "Не показывать"]] },
       { key: "prepared", label: "Подготовлено", type: "checkbox", hint: "Для жрецов, друидов, волшебников и паладинов. Колдуну и барду не нужно" },
       { key: "attack", label: "Бросок атаки заклинанием", type: "checkbox" },
       { key: "save", label: "Спасбросок цели", type: "select", options: SAVE_OPTS },
@@ -441,7 +460,7 @@ export const EDITORS = {
   },
   item: {
     title: "Предмет",
-    make: (type = "gear") => ({ id: "it-" + uid(), name: "", type, rarity: "common", qty: 1, weight: 0, equipped: false, attuned: false, requiresAttunement: false, action: "", uses: "", recharge: "long", used: 0, damage: [], description: "", effect: "", value: "" }),
+    make: (type = "gear") => ({ id: "it-" + uid(), name: "", type, rarity: "common", qty: 1, weight: 0, equipped: false, attuned: false, requiresAttunement: false, action: "", uses: "", recharge: "long", used: 0, damage: [], description: "", effect: "", value: "", atkAbility: type === "weapon" ? "str" : "", atkProf: true, atkBonus: 0, range: "", acBase: null, acDex: "full", acBonus: 0 }),
     fields: [
       { key: "name", label: "Название", span: 2, max: 120 },
       { key: "type", label: "Тип", type: "select", options: ITEM_TYPES },
@@ -456,7 +475,16 @@ export const EDITORS = {
       { key: "uses", label: "Заряды / использования", hint: usesHint },
       { key: "recharge", label: "Восстановление", type: "select", options: rechargeOpts },
       { key: "breakOn", label: "Ломается на d20", type: "number", nullable: true, hint: "После последнего заряда бросок d20; пусто = не ломается" },
-      { key: "damage", label: "Кубы", type: "dicelist", span: 3 },
+      { key: "damage", label: "Кубы (у оружия первая строка: урон оружия, модификатор прибавится сам)", type: "dicelist", span: 3 },
+      { type: "heading", key: "_hw", label: "Если это оружие: появится в бою, когда надето", span: 3 },
+      { key: "atkAbility", label: "Атака", type: "select", options: [["", "Не оружие"], ["str", "Сила"], ["dex", "Ловкость"], ["finesse", "Сила или Ловкость (фехтовальное)"], ["spell", "Заклинательная"]] },
+      { key: "atkProf", label: "Есть владение", type: "checkbox" },
+      { key: "atkBonus", label: "Магический бонус", type: "number", hint: "+1 к попаданию и урону у оружия +1" },
+      { key: "range", label: "Дистанция", placeholder: "5 фт / 20/60 фт", span: 3 },
+      { type: "heading", key: "_ha", label: "Если это доспех, щит или кольцо защиты: считается в КД, когда надето", span: 3 },
+      { key: "acBase", label: "КД доспеха", type: "number", nullable: true, hint: "Пусто, если не доспех" },
+      { key: "acDex", label: "Ловкость", type: "select", options: [["full", "Полностью (лёгкий)"], ["2", "Не больше +2 (средний)"], ["0", "Без Ловкости (тяжёлый)"]] },
+      { key: "acBonus", label: "Прибавка к КД", type: "number", hint: "Щит +2, кольцо защиты +1" },
       { key: "effect", label: "Строка-итог (жирным)", span: 3 },
       { key: "description", label: "Описание", type: "textarea", rows: 5, span: 3 },
       { key: "icon", label: "Иконка", type: "icon", span: 3 }
@@ -480,7 +508,8 @@ export const EDITORS = {
       { key: "scaling", label: "Рост заговора", type: "select", options: [["none", "Нет"], ["cantrip-dice", "Больше кубов"], ["cantrip-beams", "Больше лучей"]] },
       { key: "count", label: "Атак / лучей", type: "number" },
       { key: "action", label: "Действие", type: "select", options: actionOpts },
-      { key: "notes", label: "Заметки", type: "textarea", rows: 3, span: 3 }
+      { key: "notes", label: "Заметки", type: "textarea", rows: 3, span: 3 },
+      { key: "icon", label: "Иконка", type: "icon", span: 3 }
     ]
   },
   note: {

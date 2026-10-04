@@ -389,7 +389,7 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .tab.on { color: var(--gold-3); border-bottom-color: var(--gold-2); }
 .tab.on .ic { color: var(--gold-2); filter: drop-shadow(0 0 5px rgba(233, 199, 122, .6)); }
 
-.sheet.viewer [data-act^="add-"], .sheet.viewer [data-act="spell-library"], .sheet.viewer [data-act="edit-note"], .sheet.viewer .hp-actions, .sheet.viewer [data-act="spend-hd"], .sheet.viewer .rest-row, .sheet.viewer [data-act="drop-conc"], .sheet.viewer .hero-cam, .sheet.viewer .hp-quick, .sheet.viewer .effects-panel .panel-h .btn, .sheet.viewer [data-act=remove-effect], .sheet.viewer .order-btn, .sheet.viewer .legend .btn { display: none !important; }
+.sheet.viewer [data-act^="add-"], .sheet.viewer [data-act="spell-library"], .sheet.viewer [data-act="gear-table"], .sheet.viewer [data-act="dedupe-attacks"], .sheet.viewer [data-act="edit-note"], .sheet.viewer .hp-actions, .sheet.viewer [data-act="spend-hd"], .sheet.viewer .rest-row [data-act$="-rest"], .sheet.viewer [data-act="drop-conc"], .sheet.viewer .hero-cam, .sheet.viewer .hp-quick, .sheet.viewer .effects-panel .panel-h .btn, .sheet.viewer [data-act=remove-effect], .sheet.viewer .order-btn, .sheet.viewer .legend .btn { display: none !important; }
 .sheet.viewer [data-act="pact-pip"], .sheet.viewer [data-act="slot-pip"], .sheet.viewer [data-act="use-pip"], .sheet.viewer [data-act="toggle-cond"], .sheet.viewer [data-act="exhaustion"], .sheet.viewer [data-act="toggle-save"], .sheet.viewer [data-act="cycle-skill"], .sheet.viewer [data-act="death"], .sheet.viewer [data-act="hp"], .sheet.viewer [data-act="edit-info"], .sheet.viewer [data-act="edit-armor"], .sheet.viewer [data-act="portrait"], .sheet.viewer [data-act="unarchive"] { pointer-events: none; cursor: default; }
 .sheet.viewer .medal[data-act] { border-color: var(--line); }
 .ro-bar small { display: block; color: var(--dim); font-size: 13px; }
@@ -579,7 +579,8 @@ textarea.parchment { background: rgba(8, 6, 4, .4); border-color: rgba(201, 163,
 textarea.big-text { min-height: 260px; }
 
 .combat-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 14px; align-items: start; }
-.rest-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.rest-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.rest-row .btn { padding-left: 6px; padding-right: 6px; justify-content: center; }
 .exh { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .exh span { color: var(--dim); margin-right: 4px; font-size: 15px; }
 .exh .chip { min-width: 34px; justify-content: center; padding: 3px 8px; }
@@ -1171,6 +1172,23 @@ li:has(> .rt-todo) { list-style: none; margin-left: -18px; }
 .chip.eff .ic { width: 14px; height: 14px; }
 .eff-pick span { display: flex; flex-direction: column; align-items: flex-start; text-align: left; }
 .eff-pick small { color: var(--dim); font-size: 13px; }
+
+.atk-group { margin: 10px 2px 6px; font-family: var(--font-head); font-size: 13px; letter-spacing: .06em; color: var(--dim); }
+.atk-group:first-child { margin-top: 0; }
+.atk-list + .atk-group { margin-top: 12px; }
+.atk-hint { margin: 10px 2px 0; font-size: 13.5px; }
+.dupe-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; padding: 8px 10px; border-radius: 9px; border: 1px dashed var(--line-2); color: var(--text-2); font-size: 14px; }
+.dupe-bar span { flex: 1; min-width: 180px; }
+.gear-row { border: 1px solid var(--line); border-radius: 9px; background: rgba(0, 0, 0, .18); }
+.gear-row .btn { pointer-events: none; }
+
+.dice-pad { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 12px; }
+.dice-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; border-radius: 9px; border: 1px solid var(--line); color: var(--text-2); font-size: 13px; }
+.dice-btn .die { width: 34px; height: 34px; }
+.dice-btn:hover { border-color: var(--gold-2); color: var(--gold-3); }
+.dice-btn:active { transform: scale(.95); }
+.dice-mods { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 4px 0 10px; }
+@media (max-width: 420px) { .dice-pad { grid-template-columns: repeat(4, 1fr); } }
 
 @media (max-width: 1180px) {
   .char-grid { grid-template-columns: 250px minmax(0, 1fr); }

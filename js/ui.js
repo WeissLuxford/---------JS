@@ -1,5 +1,5 @@
 import { icon, die, actionMark, ICON_NAMES } from "./icons.js";
-import { DAMAGE, DAMAGE_TYPES, ACTIONS, parseDice, rollDice, fmt } from "./rules.js";
+import { DAMAGE, DAMAGE_TYPES, ACTIONS, parseDice, rollDice, diceToString, fmt } from "./rules.js";
 
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 
@@ -180,6 +180,58 @@ export function showDamage(label, lines, crit = false) {
     { timeout: 5500 }
   );
   return total;
+}
+
+export function showRoll(expr) {
+  const r = rollDice(expr);
+  if (!r) return null;
+  const rolls = r.rolls.length ? `<span class="r-rolls">[${r.rolls.map(x => (x.sign < 0 ? "−" : "") + x.r + (r.rolls.some(y => y.f !== x.f) ? `<sub>d${x.f}</sub>` : "")).join(", ")}]</span>` : "";
+  logRoll({ label: "Бросок " + expr, text: String(r.total) });
+  const top = r.rolls.length === 1 && r.rolls[0].f === 20 ? r.rolls[0].r : null;
+  toast(`<div class="roll ${top === 20 ? "crit" : top === 1 ? "fumble" : ""}">${die(maxFace(expr), "#e9c77a", "")}<div class="r-body"><div class="r-label">Бросок</div><div class="r-line" style="--c:#e9c77a"><span>${esc(expr)}</span>${rolls}</div></div><div class="r-total">${r.total}</div></div>`, { timeout: 6000 });
+  return r;
+}
+
+export function openDiceRoller() {
+  const faces = [4, 6, 8, 10, 12, 20, 100];
+  const m = openModal({
+    title: "Бросок кубов",
+    cls: "small",
+    body: `<div class="dice-pad">${faces.map(f => `<button class="dice-btn" data-f="${f}" aria-label="Добавить d${f}">${die(f === 100 ? 10 : f, "#e9c77a", f === 100 ? "%" : f)}<span>d${f}</span></button>`).join("")}</div>
+      <label class="fld"><span>Что бросить</span><input type="text" data-expr placeholder="2d6+3" autocomplete="off" inputmode="text"></label>
+      <div class="dice-mods">${[-2, -1, 1, 2, 5].map(n => `<button class="qbtn ${n < 0 ? "minus" : "plus"}" data-mod="${n}">${n < 0 ? "−" + Math.abs(n) : "+" + n}</button>`).join("")}</div>
+      <div class="form-actions"><button class="btn ghost" data-clear>Очистить</button><button class="btn gold" data-go>${icon("d20")}Бросить</button></div>
+      <p class="hint">Нажимай на кубы, чтобы собрать бросок, или впиши сам: 2d6+1d4+3. Окно не закрывается, можно бросать снова.</p>`
+  });
+  const input = m.body.querySelector("[data-expr]");
+  const set = p => (input.value = p.dice.length || p.flat ? diceToString(p).replace(/−/g, "-") : "");
+  const cur = () => parseDice(input.value) || { dice: [], flat: 0 };
+  m.body.addEventListener("click", e => {
+    const f = e.target.closest("[data-f]");
+    if (f) {
+      const p = cur();
+      const face = Number(f.dataset.f);
+      const d = p.dice.find(x => x.f === face && x.n > 0);
+      if (d) d.n += 1;
+      else p.dice.push({ n: 1, f: face });
+      return set(p);
+    }
+    const md = e.target.closest("[data-mod]");
+    if (md) {
+      const p = cur();
+      p.flat += Number(md.dataset.mod);
+      return set(p);
+    }
+    if (e.target.closest("[data-clear]")) return (input.value = "");
+    if (e.target.closest("[data-go]")) {
+      const expr = input.value.trim() || "1d20";
+      if (!showRoll(expr)) toast("Не понял бросок. Пример: 2d6+3", { kind: "bad" });
+    }
+  });
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") m.body.querySelector("[data-go]").click();
+  });
+  return m;
 }
 
 export function critExpr(expr) {

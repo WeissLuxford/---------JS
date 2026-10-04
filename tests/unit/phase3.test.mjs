@@ -204,3 +204,31 @@ test("effects: bonuses, AC, speed, resistances and cleaning", () => {
   assert.deepEqual(R.normalize(n), n);
   assert.ok(R.effectSummary(c.effects[0]).includes("+1d4 атаки"));
 });
+
+test("weapons and armor from items, combat panel sources without duplicates", async () => {
+  const { GEAR, gearToItem } = await import(P + "gear.js");
+  const { combatSources } = await import(P + "tabs.js");
+  const base = R.normalize(kirion());
+  const g = name => GEAR.find(x => x.name === name);
+  const dagger = { ...gearToItem(g("Кинжал"), R.uid), equipped: true };
+  const chain = { ...gearToItem(g("Кольчуга"), R.uid), equipped: true };
+  const shield = { ...gearToItem(g("Щит"), R.uid), equipped: true };
+  const c = R.normalize({ ...base, items: [...base.items.filter(it => it.type !== "armor"), dagger, chain, shield] });
+  const d = R.compute(c);
+  assert.equal(d.ac, 16 + 2);
+  const w = d.weapons[c.items.find(x => x.name === "Кинжал" && x.atkAbility).id];
+  assert.equal(w.hit, 2 + 3);
+  assert.equal(w.dmg, "1d4+2");
+  const magic = R.weaponStats(c, d, { ...dagger, atkBonus: 1, atkAbility: "str", atkProf: false });
+  assert.equal(magic.hit, -1 + 1);
+  assert.equal(magic.dmg, "1d4");
+  assert.ok(R.spellInCombat(c.spells.find(s => s.name === "Мистический заряд")));
+  assert.ok(R.spellInCombat(c.spells.find(s => s.name === "Обморожение")));
+  assert.ok(!R.spellInCombat(c.spells.find(s => s.name === "Огненный шар")));
+  assert.ok(R.spellInCombat({ ...c.spells.find(s => s.name === "Огненный шар"), combat: "yes" }));
+  const src = combatSources(c, d);
+  assert.deepEqual(src.dupes.map(a => a.name).sort(), ["Кинжал", "Мистический заряд", "Обморожение"]);
+  assert.deepEqual(src.own.map(a => a.name), ["Лёгкий арбалет"]);
+  assert.equal(R.normalize({ name: "x", items: [{ name: "a", atkAbility: "evil", acBase: "99", acDex: "x" }] }).items[0].atkAbility, "");
+  assert.equal(R.normalize({ name: "x", items: [{ name: "a", acBase: "99" }] }).items[0].acBase, 30);
+});

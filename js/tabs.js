@@ -1,7 +1,7 @@
-import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, fmt, usesInfo, spellCast, effectSummary } from "./rules.js";
+import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, fmt, usesInfo, spellCast, effectSummary, spellInCombat } from "./rules.js";
 import { icon, actionMark, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, pips, rich, plainPreview } from "./ui.js";
-import { spellIcon, itemIcon, featureIcon, fmtNum } from "./entities.js";
+import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum } from "./entities.js";
 
 export const TABS = [
   { key: "char", name: "Персонаж", short: "Герой", icon: "user" },
@@ -176,17 +176,67 @@ export function tabChar(ctx) {
   ${panel("Владения и языки", `<div class="prof-grid">${prof}</div>`, { ic: "wrench" })}`;
 }
 
+function combatRow({ rid, open, name, sub, color, ic, hit, dmg }) {
+  return `<div class="atk-row" data-rid="${esc(rid)}">
+    <button class="atk-name" data-open="${esc(open)}" data-card="${esc(open)}" style="--c:${color}">${icon(ic)}<span><b>${esc(name)}</b><small>${esc(sub || "")}</small></span></button>
+    ${hit}
+    ${dmg}
+  </div>`;
+}
+
+function dmgChip(roll, beams, dice, type) {
+  if (!dice) return "";
+  const dt = DAMAGE[type] || DAMAGE.bludgeoning;
+  return `<button class="chip dmg" data-roll="${esc(roll)}" style="--c:${dt.color}">${beams > 1 ? beams + "× " : ""}${esc(dice)} <span>${esc(dt.name.toLowerCase())}</span></button>`;
+}
+
 function attackRow(ctx, at) {
   const s = ctx.d.attacks[at.id];
   const dt = DAMAGE[s.type] || DAMAGE.bludgeoning;
   const hit = s.kind === "save"
     ? `<span class="chip dc">СЛ ${s.dc} ${abShort(s.save)}</span>`
     : `<button class="chip hit" data-roll="attack:${esc(at.id)}">${s.beams > 1 ? `<small>${s.beams}×</small>` : ""}${fmt(s.hit)}</button>`;
-  return `<div class="atk-row" data-rid="${esc(at.id)}">
-    <button class="atk-name" data-open="attack:${esc(at.id)}" data-card="attack:${esc(at.id)}" style="--c:${dt.color}">${icon(dt.icon)}<span><b>${esc(at.name)}</b><small>${esc(at.range || "")}</small></span></button>
-    ${hit}
-    <button class="chip dmg" data-roll="dmg:${esc(at.id)}" style="--c:${dt.color}">${s.beams > 1 ? s.beams + "× " : ""}${esc(s.dmg)} <span>${esc(dt.name.toLowerCase())}</span></button>
-  </div>`;
+  return combatRow({ rid: at.id, open: "attack:" + at.id, name: at.name, sub: at.range, color: dt.color, ic: at.icon || attackIcon(at.name) || dt.icon, hit, dmg: dmgChip("dmg:" + at.id, s.beams, s.dmg, s.type) });
+}
+
+function weaponRow(ctx, it) {
+  const w = ctx.d.weapons[it.id];
+  const dt = DAMAGE[w.type] || DAMAGE.bludgeoning;
+  const hit = `<button class="chip hit" data-roll="iattack:${esc(it.id)}">${fmt(w.hit)}</button>`;
+  return combatRow({ rid: it.id, open: "item:" + it.id, name: it.name, sub: w.range, color: dt.color, ic: itemIcon(it), hit, dmg: dmgChip("idmg:" + it.id, 1, w.dmg + (w.lines.length > 1 ? " + …" : ""), w.type) });
+}
+
+function spellRow(ctx, sp) {
+  const { c, d } = ctx;
+  const cast = spellCast(c, d, sp);
+  const first = cast.lines.find(l => l.type !== "healing" && l.type !== "temp") || cast.lines[0];
+  const ic = spellIcon(c, sp);
+  const hit = sp.attack
+    ? `<button class="chip hit" data-roll="sattack:${esc(sp.id)}">${cast.beams > 1 ? `<small>${cast.beams}×</small>` : ""}${fmt(spellAtk(d, sp))}</button>`
+    : sp.save ? `<span class="chip dc">СЛ ${spellDc(d, sp)} ${abShort(sp.save)}</span>` : `<span></span>`;
+  return combatRow({ rid: sp.id, open: "spell:" + sp.id, name: sp.name, sub: [Number(sp.level) ? `${sp.level} круг` : "заговор", sp.range].filter(Boolean).join(" · "), color: ic.color, ic: ic.icon, hit, dmg: first ? dmgChip("sdmg:" + sp.id, cast.beams, first.dice, first.type) : "" });
+}
+
+const nameKey = s => String(s || "").trim().toLowerCase().replace(/ё/g, "е");
+
+export function combatSources(c, d) {
+  const weapons = (c.items || []).filter(it => d.weapons[it.id]);
+  const spells = (c.spells || []).filter(spellInCombat);
+  const taken = new Set([...weapons, ...spells].map(x => nameKey(x.name)));
+  const dupes = c.attacks.filter(a => taken.has(nameKey(a.name)));
+  return { weapons, spells, own: c.attacks.filter(a => !dupes.includes(a)), dupes };
+}
+
+function attacksPanel(ctx) {
+  const { c, d } = ctx;
+  const src = combatSources(c, d);
+  const group = (title, key, html) => (html ? `${title ? `<div class="atk-group">${title}</div>` : ""}<div class="atk-list" data-reorder="${key}">${html}</div>` : "");
+  const body = group(src.weapons.length && (src.spells.length || src.own.length) ? "Оружие" : "", "items", src.weapons.map(it => weaponRow(ctx, it)).join("")) +
+    group(src.spells.length && (src.weapons.length || src.own.length) ? "Заклинания" : "", "spells", src.spells.map(sp => spellRow(ctx, sp)).join("")) +
+    group(src.own.length && (src.weapons.length || src.spells.length) ? "Свои атаки" : "", "attacks", src.own.map(a => attackRow(ctx, a)).join(""));
+  const dupes = src.dupes.length ? `<div class="dupe-bar">${icon("info")}<span>${esc(src.dupes.map(a => a.name).join(", "))}: эти записи атак повторяют заклинания или оружие, поэтому спрятаны.</span><button class="btn ghost sm" data-act="dedupe-attacks">${icon("trash")}Удалить копии</button></div>` : "";
+  const hint = `<p class="hint atk-hint">Оружие появляется само, когда оно надето и у него указана атака. Заклинания: атакующие заговоры, остальные по галочке «В панели боя».</p>`;
+  return panel("Атаки", `${dupes}${body || `<p class="empty">Атак пока нет</p>`}${hint}`, { ic: "swords", actions: orderBtn(ctx) + addBtn("add-attack", "Атака"), cls: "p-attacks" });
 }
 
 function slotsBlock(ctx) {
@@ -267,7 +317,6 @@ function conditionsPanel(ctx) {
 
 export function tabCombat(ctx) {
   const { c } = ctx;
-  const attacks = c.attacks.map(a => attackRow(ctx, a)).join("") || `<p class="empty">Атак пока нет</p>`;
   const slots = slotsBlock(ctx);
   const res = resourceRows(ctx);
   return `
@@ -275,8 +324,9 @@ export function tabCombat(ctx) {
   <div class="combat-grid">
     <div class="col">
       <div class="rest-row">
-        <button class="btn" data-act="short-rest">${icon("campfire")}Короткий отдых</button>
-        <button class="btn" data-act="long-rest">${icon("moon")}Длинный отдых</button>
+        <button class="btn" data-act="dice">${icon("d20")}Кубы</button>
+        <button class="btn" data-act="short-rest">${icon("campfire")}Короткий</button>
+        <button class="btn" data-act="long-rest">${icon("moon")}Длинный</button>
       </div>
       ${concentrationBar(c)}
       ${hpPanel(ctx)}
@@ -285,7 +335,7 @@ export function tabCombat(ctx) {
     </div>
     <div class="col">
       ${inspirationBtn(c)}
-      ${panel("Атаки", `<div class="atk-list" data-reorder="attacks">${attacks}</div>`, { ic: "swords", actions: orderBtn(ctx) + addBtn("add-attack", "Атака"), cls: "p-attacks" })}
+      ${attacksPanel(ctx)}
       ${slots || res ? panel("Ресурсы", `${slots}${res}`, { ic: "hourglass", cls: "p-res" }) : ""}
     </div>
   </div>`;
@@ -439,7 +489,7 @@ export function tabInventory(ctx) {
     ${panel("Предметы", `
       <div class="chips filter">${INV_FILTERS.map(([k, l]) => `<button class="chip toggle ${f === k ? "on" : ""}" data-act="inv-filter" data-k="${k}">${l}</button>`).join("")}</div>
       <div class="inv-sort"><label class="fld compact"><span>Сортировка</span><select data-ui="inv-sort">${INV_SORTS.map(([k, l]) => `<option value="${k}" ${(ui.invSort || "added") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label><button class="chip toggle ${ui.invEqFirst !== false ? "on" : ""}" data-act="inv-eq-first" aria-pressed="${ui.invEqFirst !== false ? "true" : "false"}">Надетое сначала</button></div>
-      <div class="inv-grid" data-reorder="items">${grid || `<p class="empty">Пусто</p>`}</div>`, { ic: "bag", actions: orderBtn(ctx) + addBtn("add-item", "Предмет") })}`;
+      <div class="inv-grid" data-reorder="items">${grid || `<p class="empty">Пусто</p>`}</div>`, { ic: "bag", actions: orderBtn(ctx) + `<button class="btn ghost sm" data-act="gear-table">${icon("swords")}Таблица</button>` + addBtn("add-item", "Предмет") })}`;
 }
 
 const NOTE_SECTIONS = [["patron", "Покровитель", "pact"], ["quests", "Задания", "flag"], ["people", "Люди", "people"], ["misc", "Прочее", "notebook"]];
