@@ -50,6 +50,25 @@ export const DAMAGE = {
 
 export const DAMAGE_TYPES = Object.keys(DAMAGE).filter(k => k !== "healing" && k !== "temp");
 
+export const EFFECT_PRESETS = {
+  bless: { name: "Благословение", attack: "1d4", save: "1d4", rounds: 10, conc: true, note: "+1d4 к атакам и спасброскам" },
+  bane: { name: "Порча", attack: "-1d4", save: "-1d4", rounds: 10, conc: true, note: "−1d4 к атакам и спасброскам" },
+  guidance: { name: "Указание", check: "1d4", rounds: 10, once: true, conc: true, note: "+1d4 к одной проверке" },
+  bardic: { name: "Вдохновение барда", attack: "1d6", save: "1d6", check: "1d6", rounds: 100, once: true, note: "+1d6 к одному броску d20" },
+  shieldOfFaith: { name: "Щит веры", ac: 2, rounds: 100, conc: true, note: "+2 к КД" },
+  shield: { name: "Щит", ac: 5, rounds: 1, note: "+5 к КД до начала твоего хода" },
+  haste: { name: "Ускорение", ac: 2, speedX2: true, adv: ["save:dex"], rounds: 10, conc: true, note: "+2 КД, скорость вдвое, преимущество на спасброски Ловкости" },
+  hex: { name: "Сглаз", dmg: "1d6", dmgType: "necrotic", rounds: 600, conc: true, note: "+1d6 некротического урона по цели" },
+  huntersMark: { name: "Метка охотника", dmg: "1d6", rounds: 600, conc: true, note: "+1d6 урона по цели" },
+  enlarge: { name: "Увеличение", dmg: "1d4", adv: ["check:str", "save:str"], rounds: 10, conc: true, note: "+1d4 к урону оружием, преимущество на Силу" },
+  reduce: { name: "Уменьшение", dmg: "-1d4", dis: ["check:str", "save:str"], rounds: 10, conc: true, note: "−1d4 к урону оружием, помеха на Силу" },
+  rage: { name: "Ярость", dmg: "2", adv: ["check:str", "save:str"], resist: ["bludgeoning", "piercing", "slashing"], rounds: 10, note: "+2 к урону, сопротивление дробящему, колющему, рубящему" },
+  dodge: { name: "Уклонение", adv: ["save:dex"], rounds: 1, note: "Атаки по тебе с помехой, преимущество на спасброски Ловкости" },
+  protection: { name: "Защита от энергии", resist: ["fire"], rounds: 600, conc: true, note: "Сопротивление выбранному типу урона (поменяй в «Изменить»)" }
+};
+
+export const EFFECT_ROLLS = { attack: "атаки", save: "спасброски", check: "проверки" };
+
 export const DEFENSE_KINDS = { resist: "Сопротивление", vuln: "Уязвимость", immune: "Иммунитет" };
 
 export const SCHOOLS = {
@@ -329,6 +348,7 @@ export function newCharacter(name = "Новый персонаж") {
     resistances: "",
     defenses: { resist: [], vuln: [], immune: [] },
     inspiration: false,
+    effects: [],
     proficiencies: { armor: "", weapons: "", tools: "", languages: "" },
     attacks: [],
     spells: [],
@@ -379,6 +399,45 @@ export function parseDefenses(text) {
 
 const cleanTypes = v => (Array.isArray(v) ? v.filter((t, i) => DAMAGE_TYPES.includes(t) && v.indexOf(t) === i) : []);
 
+const ADV_RE = /^(attack|save|check)(:(str|dex|con|int|wis|cha))?$/;
+const diceOrEmpty = v => {
+  const t = String(v ?? "").trim().slice(0, 20);
+  return t && parseDice(t) ? t : "";
+};
+
+export function cleanEffect(e, i = 0) {
+  const x = e && typeof e === "object" && !Array.isArray(e) ? e : {};
+  const rounds = x.rounds === null || x.rounds === "" || x.rounds === undefined ? null : Math.max(0, Math.round(num(x.rounds)));
+  return {
+    id: cleanId(x.id, "ef", i),
+    name: String(x.name ?? "").slice(0, 80) || "Эффект",
+    preset: x.preset in EFFECT_PRESETS ? x.preset : "",
+    attack: diceOrEmpty(x.attack),
+    save: diceOrEmpty(x.save),
+    check: diceOrEmpty(x.check),
+    dmg: diceOrEmpty(x.dmg),
+    dmgType: DAMAGE_TYPES.includes(x.dmgType) ? x.dmgType : "",
+    ac: Math.round(num(x.ac)),
+    speed: Math.round(num(x.speed)),
+    speedX2: !!x.speedX2,
+    adv: (Array.isArray(x.adv) ? x.adv : []).filter(k => typeof k === "string" && ADV_RE.test(k)),
+    dis: (Array.isArray(x.dis) ? x.dis : []).filter(k => typeof k === "string" && ADV_RE.test(k)),
+    resist: cleanTypes(x.resist),
+    rounds,
+    once: !!x.once,
+    mine: !!x.mine,
+    concName: String(x.concName ?? "").slice(0, 120),
+    until: ["short", "long"].includes(x.until) ? x.until : "",
+    note: String(x.note ?? "").slice(0, 300)
+  };
+}
+
+export function presetEffect(key, extra = {}) {
+  const p = EFFECT_PRESETS[key];
+  if (!p) return null;
+  return cleanEffect({ ...p, preset: key, id: "ef-" + uid(), ...extra });
+}
+
 export const NOTE_KEYS = ["patron", "quests", "people", "misc"];
 
 const NUMERIC_HP = ["current", "temp", "bonusPerLevel", "hitDiceUsed", "deathSuccess", "deathFail"];
@@ -411,6 +470,7 @@ export function normalize(c) {
   const def = src.defenses && typeof src.defenses === "object" && !Array.isArray(src.defenses) ? src.defenses : null;
   out.defenses = def ? { resist: cleanTypes(def.resist), vuln: cleanTypes(def.vuln), immune: cleanTypes(def.immune) } : parseDefenses(out.resistances);
   out.inspiration = !!out.inspiration;
+  out.effects = (Array.isArray(src.effects) ? src.effects : []).map((e, i) => cleanEffect(e, i));
   out.speed = num(out.speed, 30);
   out.initBonus = num(out.initBonus);
   out.exhaustion = Math.max(0, Math.min(6, Math.round(num(out.exhaustion))));
@@ -485,9 +545,13 @@ export function compute(c) {
   const hpMax = ex >= 4 ? Math.max(1, Math.floor(fullMax / 2)) : fullMax;
   const baseSpeed = Number(c.speed) || 0;
   const stopped = ex >= 5 || ["grappled", "restrained", "paralyzed", "stunned", "unconscious", "petrified"].some(k => cond[k]);
-  const speed = stopped ? 0 : ex >= 2 ? Math.floor(baseSpeed / 2) : baseSpeed;
+  const effects = Array.isArray(c.effects) ? c.effects : [];
+  const boosted = Math.max(0, baseSpeed + effects.reduce((sum, e) => sum + (Number(e.speed) || 0), 0)) * (effects.some(e => e.speedX2) ? 2 : 1);
+  const speed = stopped ? 0 : ex >= 2 ? Math.floor(boosted / 2) : boosted;
   const dfn = c.defenses || { resist: [], vuln: [], immune: [] };
-  const defenses = { resist: cond.petrified ? DAMAGE_TYPES.slice() : (dfn.resist || []).slice(), vuln: (dfn.vuln || []).slice(), immune: (dfn.immune || []).slice() };
+  const extraResist = effects.flatMap(e => e.resist || []);
+  const defenses = { resist: cond.petrified ? DAMAGE_TYPES.slice() : [...new Set([...(dfn.resist || []), ...extraResist])], vuln: (dfn.vuln || []).slice(), immune: (dfn.immune || []).slice() };
+  const acBonus = effects.reduce((sum, e) => sum + (Number(e.ac) || 0), 0);
   const spellMod = mods[c.spellAbility] ?? 0;
   const spell = { ability: c.spellAbility, mod: spellMod, dc: 8 + pb + spellMod, atk: pb + spellMod };
   const pact = c.casterType === "pact" ? pactSlots(level) : null;
@@ -500,7 +564,7 @@ export function compute(c) {
     if (it.attuned) attuned++;
   }
   weight += Object.values(c.coins).reduce((s, v) => s + (Number(v) || 0), 0) / 50;
-  const d = { level, pb, mods, saves, skills, passive, ac, hpMax, fullMax, autoMax, speed, baseSpeed, defenses, spell, pact, slots, carry, weight: Math.round(weight * 10) / 10, attuned, tier: cantripTier(level) };
+  const d = { level, pb, mods, saves, skills, passive, ac: ac + acBonus, baseAc: ac, hpMax, fullMax, autoMax, speed, baseSpeed, defenses, spell, pact, slots, carry, weight: Math.round(weight * 10) / 10, attuned, tier: cantripTier(level) };
   d.init = mods.dex + (Number(c.initBonus) || 0);
   d.hitDice = { total: level, left: Math.max(0, level - (Number(c.hp.hitDiceUsed) || 0)), die: c.hitDie };
   d.uses = {};
@@ -582,7 +646,33 @@ export function rollContext(c, kind, ability) {
       if (fail.length) autoFail = fail.join(", ");
     }
   }
-  return { adv, dis, warn, autoFail };
+  const rollKind = kind === "death" ? "save" : kind;
+  const hit = list => list.includes(rollKind) || (ability && list.includes(`${rollKind}:${ability}`));
+  const bonus = [];
+  for (const e of (c && Array.isArray(c.effects) ? c.effects : [])) {
+    if (hit(e.adv || [])) adv.push(e.name);
+    if (hit(e.dis || [])) dis.push(e.name);
+    const expr = e[rollKind];
+    if (expr && EFFECT_ROLLS[rollKind]) bonus.push({ id: e.id, name: e.name, expr, once: !!e.once });
+  }
+  return { adv, dis, warn, autoFail, bonus };
+}
+
+export function effectDamage(c) {
+  return (Array.isArray(c.effects) ? c.effects : []).filter(e => e.dmg).map(e => ({ dice: e.dmg, type: e.dmgType, name: e.name }));
+}
+
+export function effectSummary(e) {
+  const parts = [];
+  for (const [k, l] of Object.entries(EFFECT_ROLLS)) if (e[k]) parts.push(`${/^[-−]/.test(e[k]) ? e[k] : "+" + e[k]} ${l}`);
+  if (e.ac) parts.push(`${e.ac > 0 ? "+" : ""}${e.ac} КД`);
+  if (e.dmg) parts.push(`${/^[-−]/.test(e.dmg) ? e.dmg : "+" + e.dmg} урон${e.dmgType ? " (" + (DAMAGE[e.dmgType] || {}).name.toLowerCase() + ")" : ""}`);
+  if (e.speedX2) parts.push("скорость ×2");
+  if (e.speed) parts.push(`${e.speed > 0 ? "+" : ""}${e.speed} фт скорости`);
+  if ((e.adv || []).length) parts.push("преимущество");
+  if ((e.dis || []).length) parts.push("помеха");
+  if ((e.resist || []).length) parts.push("сопротивление: " + e.resist.map(t => (DAMAGE[t] || {}).name.toLowerCase()).join(", "));
+  return parts.join(", ");
 }
 
 export function resolveMode(manual, ctx) {

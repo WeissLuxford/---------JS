@@ -176,3 +176,31 @@ test("reorder: subset keeps other items in place and survives a rebase", async (
   const remoteOrder = { items: L(["d", "c", "b", "a"]) };
   assert.equal(ids(applyPaths(JSON.parse(JSON.stringify(remoteOrder)), diffPaths(base, edit)).items), "dcba");
 });
+
+test("effects: bonuses, AC, speed, resistances and cleaning", () => {
+  const base = R.normalize(kirion());
+  const c = R.normalize({ ...base, effects: [R.presetEffect("bless"), R.presetEffect("shieldOfFaith"), R.presetEffect("haste"), R.presetEffect("hex"), R.presetEffect("rage")] });
+  const d = R.compute(c);
+  assert.equal(d.ac, 14 + 2 + 2);
+  assert.equal(d.baseAc, 14);
+  assert.equal(d.speed, 60);
+  assert.ok(d.defenses.resist.includes("slashing") && d.defenses.resist.includes("fire"));
+  const atk = R.rollContext(c, "attack");
+  assert.deepEqual(atk.bonus.map(b => b.expr), ["1d4"]);
+  assert.equal(R.rollContext(c, "check", "int").bonus.length, 0);
+  assert.equal(R.rollContext(c, "death").bonus[0].name, "Благословение");
+  assert.equal(R.resolveMode("normal", R.rollContext(c, "save", "dex")), "adv");
+  assert.equal(R.resolveMode("normal", R.rollContext(c, "save", "wis")), "normal");
+  assert.deepEqual(R.effectDamage(c).map(x => x.dice + x.type), ["1d6necrotic", "2"]);
+  const dirty = R.normalize({ name: "x", effects: [{ name: "<b>", attack: "abc", ac: "3", adv: ["attack", "evil", "save:dex"], resist: ["fire", "nope"], rounds: "-5", dmgType: "zzz" }, "junk"] }).effects;
+  assert.equal(dirty.length, 2);
+  assert.equal(dirty[0].attack, "");
+  assert.equal(dirty[0].ac, 3);
+  assert.deepEqual(dirty[0].adv, ["attack", "save:dex"]);
+  assert.deepEqual(dirty[0].resist, ["fire"]);
+  assert.equal(dirty[0].rounds, 0);
+  assert.equal(dirty[0].dmgType, "");
+  const n = R.normalize(c);
+  assert.deepEqual(R.normalize(n), n);
+  assert.ok(R.effectSummary(c.effects[0]).includes("+1d4 атаки"));
+});

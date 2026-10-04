@@ -1,6 +1,6 @@
 import {
   ABILITIES, SKILLS, DAMAGE, SCHOOLS, ACTIONS, RECHARGE, RARITY, ITEM_TYPES, FEATURE_CATS, FEATURE_SOURCES,
-  CONDITIONS, CASTER_TYPES, HIT_DICE, ALIGNMENTS, fmt, spellCast, usesInfo, swapType, uid, addDice
+  CONDITIONS, CASTER_TYPES, HIT_DICE, ALIGNMENTS, fmt, spellCast, usesInfo, swapType, uid, addDice, effectSummary
 } from "./rules.js";
 import { icon, slotMark, actionMark } from "./icons.js";
 import { card, rich, esc, actionFoot, openForm } from "./ui.js";
@@ -284,6 +284,21 @@ const EXHAUSTION = ["Нет", "Помеха на проверки характе
 
 const defNames = list => list.map(t => (DAMAGE[t] || {}).name || t).join(", ");
 
+export function effectModel(c, id) {
+  const e = (c.effects || []).find(x => x.id === id);
+  if (!e) return null;
+  const sum = effectSummary(e);
+  const left = e.rounds == null ? "Пока не снимешь" : e.rounds >= 10 ? `Осталось около ${e.rounds >= 600 ? Math.round(e.rounds / 600) + " ч" : Math.round(e.rounds / 10) + " мин"}` : `Осталось раундов: ${e.rounds}`;
+  return {
+    title: e.name,
+    subtitle: "Эффект",
+    art: { icon: "sparkle", color: "#c07cff" },
+    badges: [e.mine ? { text: "Твоя концентрация", color: "#c07cff" } : null, e.once ? { text: "Один раз", color: "#e9c77a" } : null],
+    body: rich([sum ? `**Действует:** ${sum}` : "", e.note && e.note !== sum ? e.note : "", left].filter(Boolean).join("\n\n")),
+    footer: [{ mark: actionMark("ring", "#c07cff"), text: "Учитывается в бросках сам" }]
+  };
+}
+
 export function statModel(c, d, key) {
   const line = (label, v) => `${label} ${typeof v === "number" ? fmt(v) : esc(v)}`;
   if (key === "ac") {
@@ -294,6 +309,7 @@ export function statModel(c, d, key) {
     if (a.addAbility) parts.push(line(abName(a.addAbility), d.mods[a.addAbility]));
     if (a.shield) parts.push("Щит +2");
     if (Number(a.bonus)) parts.push(line("Прочее", Number(a.bonus)));
+    (c.effects || []).filter(e => e.ac).forEach(e => parts.push(`${esc(e.name)} ${e.ac > 0 ? "+" : "−"}${Math.abs(e.ac)}`));
     return { title: "Класс доспеха", subtitle: "Насколько сложно попасть", art: { icon: "shield", color: "#e9c77a" }, stats: `<span class="big-num">${d.ac}</span><span>${parts.join(" · ")}</span>`, body: rich("Атака попадает, если результат броска не меньше КД. Нажми на медаль, чтобы поменять доспех.") };
   }
   if (key === "init") {
@@ -334,6 +350,7 @@ export function modelFor(c, d, ref, opts = {}) {
   if (kind === "ability") return abilityModel(c, d, id);
   if (kind === "condition") return conditionModel(id);
   if (kind === "stat") return statModel(c, d, id);
+  if (kind === "effect") return effectModel(c, id);
   const e = findEntity(c, kind, id);
   if (!e) return null;
   if (kind === "spell") return spellModel(c, d, e, opts.slotLevel, opts.extra || 0);
@@ -471,6 +488,30 @@ export const EDITORS = {
     make: () => ({ id: "nt-" + uid(), title: "", subtitle: "", status: "", attitude: "", text: "" })
   }
 };
+
+const ROLL_FLAGS = [["attack", "Атаки"], ["save", "Все спасброски"], ["check", "Все проверки"], ["save:str", "Спасброски Силы"], ["save:dex", "Спасброски Ловкости"], ["save:con", "Спасброски Телосложения"], ["save:wis", "Спасброски Мудрости"], ["check:str", "Проверки Силы"], ["check:dex", "Проверки Ловкости"]];
+
+export function effectFields() {
+  return [
+    { key: "name", label: "Название", span: 2, max: 80 },
+    { key: "rounds", label: "Длительность, раундов", type: "number", nullable: true, hint: "10 = 1 минута, 600 = 1 час, пусто = пока не снимешь" },
+    { key: "attack", label: "К атакам", placeholder: "1d4 или 2" },
+    { key: "save", label: "К спасброскам", placeholder: "1d4" },
+    { key: "check", label: "К проверкам", placeholder: "1d4" },
+    { key: "ac", label: "К КД", type: "number" },
+    { key: "speed", label: "К скорости, фт", type: "number" },
+    { key: "speedX2", label: "Скорость вдвое", type: "checkbox" },
+    { key: "dmg", label: "К урону атак", placeholder: "1d6" },
+    { key: "dmgType", label: "Тип доп. урона", type: "select", options: [["", "Как у атаки"], ...Object.entries(DAMAGE).filter(([k]) => k !== "healing" && k !== "temp").map(([k, t]) => [k, t.name])] },
+    { key: "until", label: "Снимается отдыхом", type: "select", options: [["", "Длинным"], ["short", "Коротким"]] },
+    { key: "adv", label: "Преимущество на", type: "flags", options: ROLL_FLAGS, span: 3 },
+    { key: "dis", label: "Помеха на", type: "flags", options: ROLL_FLAGS, span: 3 },
+    { key: "resist", label: "Сопротивление урону", type: "types", span: 3 },
+    { key: "once", label: "Один раз (снимается после первого броска)", type: "checkbox", span: 2 },
+    { key: "mine", label: "Моя концентрация", type: "checkbox", hint: "Снимется, когда концентрация прервётся" },
+    { key: "note", label: "Заметка", span: 3 }
+  ];
+}
 
 export function noteFields(section) {
   const f = [

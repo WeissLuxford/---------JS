@@ -1,4 +1,4 @@
-import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, fmt, usesInfo, spellCast } from "./rules.js";
+import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, fmt, usesInfo, spellCast, effectSummary } from "./rules.js";
 import { icon, actionMark, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, pips, rich, plainPreview } from "./ui.js";
 import { spellIcon, itemIcon, featureIcon, fmtNum } from "./entities.js";
@@ -98,8 +98,8 @@ function concentrationBar(c) {
 
 function activeConditions(c) {
   const list = CONDITIONS.filter(k => c.conditions[k.key]);
-  if (!list.length && !c.exhaustion) return "";
-  return `<div class="cond-active">${list.map(k => `<span class="chip bad" data-card="condition:${k.key}">${esc(k.name)}</span>`).join("")}${c.exhaustion ? `<span class="chip bad" data-card="stat:exhaustion">Истощение ${esc(c.exhaustion)}</span>` : ""}</div>`;
+  if (!list.length && !c.exhaustion && !(c.effects || []).length) return "";
+  return `<div class="cond-active">${list.map(k => `<span class="chip bad" data-card="condition:${k.key}">${esc(k.name)}</span>`).join("")}${c.exhaustion ? `<span class="chip bad" data-card="stat:exhaustion">Истощение ${esc(c.exhaustion)}</span>` : ""}${(c.effects || []).map(e => `<span class="chip eff" data-card="effect:${esc(e.id)}">${icon("sparkle")}${esc(e.name)}</span>`).join("")}</div>`;
 }
 
 function defenseLines(c) {
@@ -232,6 +232,26 @@ function combatStrip(ctx) {
   </div>`;
 }
 
+export function roundsText(n) {
+  if (n == null) return "пока не снимешь";
+  if (n >= 600) return `${Math.round(n / 600)} ч`;
+  if (n >= 10) return `${Math.round(n / 10)} мин`;
+  return `${n} ${n === 1 ? "раунд" : n < 5 ? "раунда" : "раундов"}`;
+}
+
+function effectsPanel(ctx) {
+  const { c } = ctx;
+  const list = c.effects || [];
+  const rows = list.map(e => `<div class="eff-row" data-rid="${esc(e.id)}" data-card="effect:${esc(e.id)}">
+      <button class="eff-name" data-act="edit-effect" data-id="${esc(e.id)}"><b>${esc(e.name)}</b><small>${esc(effectSummary(e) || e.note || "без чисел")}</small></button>
+      <span class="eff-left ${e.rounds != null && e.rounds <= 1 ? "low" : ""}">${esc(roundsText(e.rounds))}${e.once ? " · 1 раз" : ""}${e.mine ? " · К" : ""}</span>
+      <button class="icon-btn" data-act="remove-effect" data-id="${esc(e.id)}" title="Снять" aria-label="Снять «${esc(e.name)}»">${icon("close")}</button>
+    </div>`).join("");
+  const timed = list.some(e => e.rounds != null);
+  const actions = `${timed ? `<button class="btn ghost sm" data-act="next-round" title="Уменьшить длительность эффектов на 1 раунд">${icon("hourglass")}Раунд</button>` : ""}<button class="btn ghost sm" data-act="add-effect">${icon("plus")}Эффект</button>`;
+  return panel("Эффекты", `${rows ? `<div class="eff-list">${rows}</div>${timed ? `<div class="eff-foot"><button class="btn ghost sm" data-act="end-combat">${icon("check")}Бой окончен: снять эффекты до минуты</button></div>` : ""}` : `<p class="hint eff-empty">Благословение, Сглаз, Щит и другие: прибавляются к броскам, КД и урону сами.</p>`}`, { ic: "sparkle", cls: "effects-panel", actions });
+}
+
 function conditionsPanel(ctx) {
   const { c, ui } = ctx;
   const active = CONDITIONS.filter(k => c.conditions[k.key]);
@@ -260,6 +280,7 @@ export function tabCombat(ctx) {
       </div>
       ${concentrationBar(c)}
       ${hpPanel(ctx)}
+      ${effectsPanel(ctx)}
       ${conditionsPanel(ctx)}
     </div>
     <div class="col">

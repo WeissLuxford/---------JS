@@ -651,6 +651,10 @@ function fieldHtml(f, v) {
   if (f.type === "textarea") {
     return `<label class="fld"${span} for="${id}"><span>${esc(f.label)}</span><textarea id="${id}" data-k="${esc(f.key)}" rows="${f.rows || 4}" placeholder="${esc(f.placeholder || "")}">${esc(v ?? "")}</textarea>${hint}</label>`;
   }
+  if (f.type === "flags") {
+    const set = new Set(Array.isArray(v) ? v : []);
+    return `<fieldset class="fld types"${span} data-k="${esc(f.key)}" data-flags><legend>${esc(f.label)}</legend><div class="type-chips">${f.options.map(([k, l]) => `<label class="type-chip" style="--c:#e9c77a"><input type="checkbox" value="${esc(k)}" ${set.has(k) ? "checked" : ""}><span>${esc(l)}</span></label>`).join("")}</div>${hint}</fieldset>`;
+  }
   if (f.type === "types") {
     const set = new Set(Array.isArray(v) ? v : []);
     return `<fieldset class="fld types"${span} data-k="${esc(f.key)}" data-types><legend>${esc(f.label)}</legend><div class="type-chips">${DAMAGE_TYPES.map(k => `<label class="type-chip" style="--c:${DAMAGE[k].color}"><input type="checkbox" value="${k}" ${set.has(k) ? "checked" : ""}>${icon(DAMAGE[k].icon)}<span>${esc(DAMAGE[k].name)}</span></label>`).join("")}</div>${hint}</fieldset>`;
@@ -787,6 +791,11 @@ export function openForm({ title, fields, value = {}, onSave, onDelete, saveLabe
       if (f.type === "icon") {
         const ch = form.querySelector(`[data-icons][data-k="${CSS.escape(f.key)}"] input:checked`);
         setPath(out, f.key, ch ? ch.value : "");
+        continue;
+      }
+      if (f.type === "flags") {
+        const box = form.querySelector(`[data-flags][data-k="${CSS.escape(f.key)}"]`);
+        setPath(out, f.key, Array.from(box.querySelectorAll("input:checked")).map(i => i.value));
         continue;
       }
       if (f.type === "types") {

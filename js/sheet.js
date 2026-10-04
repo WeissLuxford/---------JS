@@ -1,11 +1,11 @@
-import { ABILITIES, SKILLS, DAMAGE, DAMAGE_TYPES, DEFENSE_KINDS, compute, normalize, fmt, rollD20, rollDice, spellCast, usesInfo, maxDie, uid, addDice, swapType, importCharacter, NOTE_KEYS, itemCharges, reorderSubset, rollContext, resolveMode, rollReasons, applyDefenses } from "./rules.js";
+import { ABILITIES, SKILLS, DAMAGE, DAMAGE_TYPES, DEFENSE_KINDS, compute, normalize, fmt, rollD20, rollDice, spellCast, usesInfo, maxDie, uid, addDice, swapType, importCharacter, NOTE_KEYS, itemCharges, reorderSubset, rollContext, resolveMode, rollReasons, applyDefenses, effectDamage, presetEffect, cleanEffect, EFFECT_PRESETS } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import {
   esc, $, $$, toast, openModal, confirmDialog, promptNumber, showD20, showBeams, showDamage, rollLog, enableHoverCards, hideHoverCard,
   enableLongPress, enableReorder, openForm, getPath, setPath, dateTime, timeAgo, cropImage, download, pickFile
 } from "./ui.js";
 import { TABS, RENDER, subtitle, hpState, notesList, noteTags } from "./tabs.js";
-import { cardFor, findEntity, itemIcon, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
+import { cardFor, findEntity, itemIcon, effectFields, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
 import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
 import { diffPaths, applyPaths } from "./sync.js";
 import { describeChanges } from "./changes.js";
@@ -387,7 +387,15 @@ export function mountSheet(root, id, initialTab, navigate) {
       return false;
     }
     snapshot("Перед правкой");
+    const prevConc = S.c.concentration;
     fn(S.c);
+    if (prevConc && S.c.concentration !== prevConc && Array.isArray(S.c.effects)) {
+      const gone = S.c.effects.filter(e => e.mine && e.concName === prevConc);
+      if (gone.length) {
+        S.c.effects = S.c.effects.filter(e => !gone.includes(e));
+        toast(`${icon("spiral")} Концентрация прервана, снято: ${esc(gone.map(e => e.name).join(", "))}`, { kind: "info" });
+      }
+    }
     changed(opts);
     return true;
   }
@@ -512,13 +520,42 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   function rollSetup(kind, ability, manual) {
     const ctx = rollContext(S.c, kind, ability);
-    return { mode: resolveMode(manual, ctx), why: rollReasons(manual, ctx), fail: ctx.autoFail };
+    return { mode: resolveMode(manual, ctx), why: rollReasons(manual, ctx), fail: ctx.autoFail, bonus: ctx.bonus };
+  }
+
+  function addBonus(r, st) {
+    const parts = st.bonus.map(b => {
+      const x = rollDice(b.expr);
+      return { ...b, value: x ? x.total : 0 };
+    });
+    r.total += parts.reduce((sum, p) => sum + p.value, 0);
+    return parts;
+  }
+
+  function bonusLines(list) {
+    const by = new Map();
+    for (const p of list) {
+      const cur = by.get(p.name) || { expr: p.expr, values: [] };
+      cur.values.push(p.value);
+      by.set(p.name, cur);
+    }
+    return [...by].map(([name, v]) => `${name}: ${v.values.map(x => (x < 0 ? "−" : "+") + Math.abs(x)).join(", ")} (${v.expr.replace(/^-/, "−")})`);
+  }
+
+  function consumeOnce(st) {
+    const ids = st.bonus.filter(b => b.once).map(b => b.id);
+    if (!ids.length || readOnly()) return;
+    const names = st.bonus.filter(b => b.once).map(b => b.name);
+    mutate(c => { c.effects = c.effects.filter(e => !ids.includes(e.id)); });
+    toast(`${icon("sparkle")} Потрачено: ${esc([...new Set(names)].join(", "))}`, { timeout: 2200 });
   }
 
   function d20(label, modifier, kind, ability, extra) {
     const st = rollSetup(kind, ability, takeMode());
     const r = rollD20(modifier, st.mode);
-    showD20(label, modifier, r, st.mode, { why: st.why, fail: st.fail, extra: typeof extra === "function" ? extra(r) : extra || "" });
+    const parts = addBonus(r, st);
+    showD20(label, modifier, r, st.mode, { why: [...bonusLines(parts), ...st.why], fail: st.fail, extra: typeof extra === "function" ? extra(r) : extra || "" });
+    consumeOnce(st);
     return r;
   }
 
@@ -537,7 +574,14 @@ export function mountSheet(root, id, initialTab, navigate) {
     const at = findEntity(S.c, "attack", aid);
     const s = S.d.attacks[aid];
     if (!at || !s) return;
-    const lines = Array.from({ length: n }, (_, i) => ({ dice: s.dmg, type: s.type, crit: i < crits, tag: n > 1 ? `Луч ${i + 1}${i < crits ? " · крит" : ""}` : "" }));
+    const extra = effectDamage(S.c);
+    const lines = [];
+    for (let i = 0; i < n; i++) {
+      const crit = i < crits;
+      const tag = n > 1 ? `Луч ${i + 1}${crit ? " · крит" : ""}` : "";
+      lines.push({ dice: s.dmg, type: s.type, crit, tag });
+      extra.forEach(x => lines.push({ dice: x.dice, type: x.type || s.type, crit, tag: (tag ? tag + " · " : "") + x.name }));
+    }
     showDamage(`${at.name}: урон${n > 1 ? ` (${n} ${n < 5 ? "луча" : "лучей"})` : ""}`, lines, false);
   }
 
@@ -560,8 +604,10 @@ export function mountSheet(root, id, initialTab, navigate) {
       if (s.beams > 1) {
         const st = rollSetup("attack", "", takeMode());
         const rs = Array.from({ length: s.beams }, () => rollD20(s.hit, st.mode));
+        const parts = rs.flatMap(r => addBonus(r, st));
         const crits = rs.filter(r => r.nat20).length;
-        showBeams(`${at.name}: ${s.beams} ${s.beams < 5 ? "луча" : "лучей"}`, s.hit, rs, st.mode, { why: st.why, extra: dmgButtons(a, s.beams, crits, rs.every(r => r.nat1)) });
+        showBeams(`${at.name}: ${s.beams} ${s.beams < 5 ? "луча" : "лучей"}`, s.hit, rs, st.mode, { why: [...bonusLines(parts), ...st.why], extra: dmgButtons(a, s.beams, crits, rs.every(r => r.nat1)) });
+        consumeOnce(st);
         return;
       }
       return d20(`${at.name}: атака`, s.hit, "attack", "", r => dmgButtons(a, 1, r.nat20 ? 1 : 0, r.nat1));
@@ -578,7 +624,9 @@ export function mountSheet(root, id, initialTab, navigate) {
       if (c.hp.stable || c.hp.deathSuccess >= 3) return toast("Персонаж стабилизирован", { kind: "good" });
       const st = rollSetup("death", "", takeMode());
       const r = rollD20(0, st.mode);
-      showD20("Спасбросок от смерти", 0, r, st.mode, { why: st.why });
+      const parts = addBonus(r, st);
+      showD20("Спасбросок от смерти", 0, r, st.mode, { why: [...bonusLines(parts), ...st.why] });
+      consumeOnce(st);
       let outcome = "";
       mutate(ch => {
         const hp = ch.hp;
@@ -710,6 +758,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       mutate(c => {
         c.pactUsed = 0;
         resetUses(c, ["short"]);
+        c.effects = (c.effects || []).filter(e => e.rounds == null && e.until !== "short");
       });
       m.close();
       toast(`${icon("campfire")} Короткий отдых завершён`, { kind: "good" });
@@ -727,6 +776,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       c.pactUsed = 0;
       c.slotsUsed = {};
       c.concentration = "";
+      c.effects = [];
       if (c.exhaustion > 0) c.exhaustion -= 1;
       resetUses(c, ["short", "long", "dawn"]);
     });
@@ -781,6 +831,7 @@ export function mountSheet(root, id, initialTab, navigate) {
         c.concentration = e.name;
       }
     });
+    offerEffect(sp);
     toast(`${icon("wand")} <b>${esc(sp.name)}</b>: ${n} ${chargeWord(n)} из «${esc(info.item.name)}», осталось ${Math.max(0, info.left - n)}.${esc(concNote)}`, { kind: "info" });
     const brk = Number(info.item.breakOn);
     if (emptied && brk) {
@@ -824,6 +875,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       }
     });
     toast(`${icon("sparkle")} <b>${esc(sp.name)}</b>${castLevel ? ` (${castLevel} круг)` : ""}.${esc(concNote)}`, { kind: "info" });
+    offerEffect(sp);
   }
 
   function useEntity(kind, e, delta = 1) {
@@ -986,7 +1038,11 @@ export function mountSheet(root, id, initialTab, navigate) {
       if (x === "spell-dmg" || x === "spell-crit") {
         const cast = spellCast(S.c, S.d, e, S.lastCast[e.id] || null, e.cost === "item" ? S.lastExtra[e.id] || 0 : 0);
         const lines = [];
-        for (let i = 0; i < cast.beams; i++) lines.push(...cast.lines);
+        const extra = e.attack ? effectDamage(S.c) : [];
+        for (let i = 0; i < cast.beams; i++) {
+          lines.push(...cast.lines);
+          extra.forEach(x => lines.push({ dice: x.dice, type: x.type || (cast.lines[0] || {}).type || "force", tag: x.name }));
+        }
         return showDamage(`${e.name}${cast.level && cast.level !== Number(e.level) ? ` (${cast.level} круг)` : ""}`, lines, x === "spell-crit");
       }
       if (x === "use") return useEntity(kind, e, 1);
@@ -1028,6 +1084,61 @@ export function mountSheet(root, id, initialTab, navigate) {
       });
       toast(`${icon("wand")} «${esc(sp.name)}» теперь тратит заряды «${esc(it.name)}»`, { kind: "good" });
     });
+  }
+
+  function addEffect(ef) {
+    if (!ef) return;
+    mutate(c => {
+      c.effects = [...(c.effects || []).filter(x => !(ef.preset && x.preset === ef.preset)), ef];
+    });
+    toast(`${icon("sparkle")} Эффект «${esc(ef.name)}» добавлен`, { kind: "good", timeout: 2400 });
+  }
+
+  function effectPicker() {
+    const m = openModal({
+      title: "Добавить эффект",
+      cls: "small",
+      body: `<div class="menu-list">${Object.entries(EFFECT_PRESETS).map(([k, p]) => `<button class="menu-item eff-pick" data-pre="${k}">${icon("sparkle")}<span><b>${esc(p.name)}</b><small>${esc(p.note || "")}</small></span></button>`).join("")}<button class="menu-item eff-pick" data-pre="">${icon("edit")}<span><b>Свой эффект</b><small>Любые бонусы, помехи и длительность</small></span></button></div>`
+    });
+    m.body.addEventListener("click", e => {
+      const b = e.target.closest("[data-pre]");
+      if (!b) return;
+      m.close();
+      if (!b.dataset.pre) return editEffect(null);
+      addEffect(presetEffect(b.dataset.pre));
+    });
+  }
+
+  function editEffect(ef) {
+    const value = ef ? clone(ef) : cleanEffect({ id: "ef-" + uid(), name: "", rounds: 10 });
+    openForm({
+      title: ef ? "Изменить эффект" : "Свой эффект",
+      fields: effectFields(),
+      value,
+      onSave: val => {
+        if (!String(val.name || "").trim()) {
+          toast("Нужно название", { kind: "bad" });
+          return false;
+        }
+        const clean = cleanEffect({ ...val, id: value.id, concName: val.mine ? value.concName || S.c.concentration : "" });
+        mutate(c => {
+          const list = c.effects || [];
+          const i = list.findIndex(x => x.id === clean.id);
+          if (i >= 0) list[i] = clean;
+          else list.push(clean);
+          c.effects = list;
+        });
+      },
+      onDelete: ef ? () => mutate(c => { c.effects = c.effects.filter(x => x.id !== ef.id); }) : null
+    });
+  }
+
+  function offerEffect(sp) {
+    const key = Object.keys(EFFECT_PRESETS).find(k => EFFECT_PRESETS[k].name.toLowerCase() === String(sp.name || "").trim().toLowerCase());
+    if (!key) return;
+    const mine = !!sp.concentration;
+    if (["hex", "huntersMark", "shield"].includes(key)) return addEffect(presetEffect(key, { mine, concName: mine ? sp.name : "" }));
+    toast(`${icon("sparkle")} «${esc(sp.name)}» на тебе? <button class="btn sm" data-add-effect="${key}" data-mine="${mine ? 1 : 0}" data-conc="${esc(sp.name)}">Добавить эффект себе</button>`, { timeout: 8000 });
   }
 
   async function openLibrary(item) {
@@ -1313,7 +1424,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     });
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
 
   async function runAction(a, el) {
     const { c } = S;
@@ -1429,6 +1540,26 @@ export function mountSheet(root, id, initialTab, navigate) {
         return mutate(ch => (ch.notes[sec] || []).forEach(x => { x.collapsed = v; }));
       }
       case "spell-filter": S.ui.spellFilter = el.dataset.k; return renderTab();
+      case "add-effect": return effectPicker();
+      case "edit-effect": {
+        const ef = (c.effects || []).find(x => x.id === el.dataset.id);
+        return ef && editEffect(ef);
+      }
+      case "remove-effect": return mutate(ch => { ch.effects = ch.effects.filter(x => x.id !== el.dataset.id); });
+      case "next-round": {
+        const ended = [];
+        mutate(ch => {
+          ch.effects = ch.effects.map(x => (x.rounds == null ? x : { ...x, rounds: x.rounds - 1 })).filter(x => {
+            if (x.rounds != null && x.rounds <= 0) {
+              ended.push(x.name);
+              return false;
+            }
+            return true;
+          });
+        });
+        return toast(`${icon("hourglass")} Следующий раунд${ended.length ? `. Закончилось: ${esc(ended.join(", "))}` : ""}`, { timeout: 2400 });
+      }
+      case "end-combat": return mutate(ch => { ch.effects = ch.effects.filter(x => x.rounds == null || x.rounds > 10); });
       case "toggle-order":
         S.ui.ordering = !S.ui.ordering;
         if (S.ui.ordering) {
@@ -1562,6 +1693,8 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   const onToastClick = e => {
     if (S.disposed) return;
+    const ae = e.target.closest("#toasts [data-add-effect]");
+    if (ae) addEffect(presetEffect(ae.dataset.addEffect, { mine: ae.dataset.mine === "1", concName: ae.dataset.mine === "1" ? ae.dataset.conc : "" }));
     const hit = e.target.closest("#toasts [data-hit-dmg]");
     if (hit) hitDamage(hit.dataset.hitDmg, Number(hit.dataset.n) || 1, Number(hit.dataset.c) || 0);
     const crit = e.target.closest("#toasts [data-crit]");

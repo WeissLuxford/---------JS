@@ -127,7 +127,7 @@ function scheduleReprobe(delay) {
 }
 
 async function detectRules() {
-  const v = await probeRules();
+  const v = navigator.onLine === false ? null : await probeRules();
   if (v !== null) {
     remember(v);
     return v;

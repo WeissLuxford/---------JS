@@ -51,4 +51,13 @@ async function start() {
   route();
 }
 
+function registerWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  const local = ["localhost", "127.0.0.1"].includes(location.hostname);
+  if (location.protocol !== "https:" && !local) return;
+  if (local && new URLSearchParams(location.search).has("nosw")) return;
+  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+}
+
+registerWorker();
 start();

@@ -21,6 +21,7 @@
 | `resistances` | строка | заметка о защите, только для чтения глазами |
 | `defenses` | `{resist[], vuln[], immune[]}` | типы урона из `DAMAGE_TYPES`; если поля нет, `normalize()` выводит его из текста `resistances` |
 | `inspiration` | boolean | вдохновение |
+| `effects` | список эффектов | `{id, name, preset, attack, save, check, dmg, dmgType, ac, speed, speedX2, adv[], dis[], resist[], rounds, once, mine, concName, until, note}`; `adv`/`dis` вида `attack`, `save`, `save:dex`, `check:str`; `rounds` null = пока не снимут; `mine` + `concName` снимаются вместе с концентрацией; чистит `cleanEffect()` |
 | `hp` | `{current, temp, maxOverride, bonusPerLevel, hitDiceUsed, deathSuccess, deathFail, stable}` | максимум хитов считается, если нет `maxOverride` |
 | `slotsUsed` | `{уровень: потрачено}` | обычные ячейки |
 | `pactUsed` | число | потраченные ячейки договора |
