@@ -15,6 +15,7 @@ import { installMagic } from "./sheet-magic.js";
 import { installTurn } from "./sheet-turn.js";
 import { installCards } from "./sheet-cards.js";
 import { installDialogs } from "./sheet-dialogs.js";
+import { installLevelUp } from "./sheet-levelup.js";
 
 export function mountSheet(root, id, initialTab, navigate) {
   const S = {
@@ -50,6 +51,7 @@ export function mountSheet(root, id, initialTab, navigate) {
   installTurn(X);
   installCards(X);
   installDialogs(X);
+  installLevelUp(X);
   let lastError = "";
   const unStatus = onStatus(st => {
     lastStatus = st;
@@ -497,7 +499,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     return m;
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "dedupe-attacks", "cover", "collect-ammo", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
 
   const UNDO = {
     "hp-quick": el => (Number(el.dataset.n) < 0 ? `Урон ${-Number(el.dataset.n)}` : `Лечение ${el.dataset.n}`),
@@ -541,6 +543,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "long-rest": return X.longRest();
       case "roll-log": return X.rollLogDialog();
       case "dice": return openDiceRoller();
+      case "level-up": return X.openLevelUp();
       case "install": {
         const { installApp } = await import("./pwa.js");
         return installApp();
@@ -903,6 +906,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (S.disposed) return;
     if (e.target.closest("#undo-bar [data-undo]")) return X.doUndo();
     if (e.target.closest("#toasts [data-rem-death]")) X.doRoll("death");
+    if (e.target.closest("#toasts [data-lu-lib]")) X.openLibrary(null);
     const hs = e.target.closest("#toasts [data-heal-self]");
     if (hs) X.applyHp("heal", Number(hs.dataset.healSelf) || 0);
     const tf = e.target.closest("#toasts [data-temp-force]");

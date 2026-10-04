@@ -6,7 +6,7 @@ const INFO = {
   race: "Раса", subrace: "Подраса", cls: "Класс", subclass: "Подкласс", level: "Уровень", background: "Предыстория",
   alignment: "Мировоззрение", age: "Возраст", xp: "Опыт", setting: "Сеттинг", patron: "Покровитель", pactBoon: "Дар договора", player: "Игрок"
 };
-const HP = { current: "Хиты", temp: "Временные хиты", maxOverride: "Макс. хиты", bonusPerLevel: "Доп. хиты за уровень", hitDiceUsed: "Потрачено костей хитов", deathSuccess: "Успехи спасбросков от смерти", deathFail: "Провалы спасбросков от смерти", stable: "Стабилизация" };
+const HP = { current: "Хиты", temp: "Временные хиты", maxOverride: "Макс. хиты", bonusPerLevel: "Доп. хиты за уровень", rollAdj: "Поправка хитов от бросков", hitDiceUsed: "Потрачено костей хитов", deathSuccess: "Успехи спасбросков от смерти", deathFail: "Провалы спасбросков от смерти", stable: "Стабилизация" };
 const PERSONALITY = { appearance: "Внешность", traits: "Черты характера", ideals: "Идеалы", bonds: "Привязанности", flaws: "Слабости", backstory: "Предыстория (текст)", allies: "Союзники" };
 const PROF = { armor: "Владение доспехами", weapons: "Владение оружием", tools: "Инструменты", languages: "Языки" };
 const COINS = { pp: "ПМ", gp: "ЗМ", ep: "ЭМ", sp: "СМ", cp: "ММ" };

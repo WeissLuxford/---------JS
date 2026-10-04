@@ -85,7 +85,7 @@ export function hpPanel(ctx) {
 function xpRow(c) {
   const x = xpInfo(c);
   if (!x.next) return "";
-  return `<div class="xp-row ${x.canLevel ? "ready" : ""}"><div class="xp-bar"><i style="width:${x.pct}%"></i></div><span class="xp-t">${x.canLevel ? `Опыта хватает на ${x.levelByXp} уровень!` : `Опыт ${x.xp} / ${x.next} до ${x.level + 1} уровня`}</span><button class="btn ghost sm" data-act="add-xp">${icon("plus")}Опыт</button></div>`;
+  return `<div class="xp-row ${x.canLevel ? "ready" : ""}"><div class="xp-bar"><i style="width:${x.pct}%"></i></div><span class="xp-t">${x.canLevel ? `Опыта хватает на ${x.levelByXp} уровень!` : `Опыт ${x.xp} / ${x.next} до ${x.level + 1} уровня`}</span>${x.canLevel ? `<button class="btn gold sm" data-act="level-up">${icon("star")}Повысить уровень</button>` : ""}<button class="btn ghost sm" data-act="add-xp">${icon("plus")}Опыт</button></div>`;
 }
 
 function inspirationBtn(c) {

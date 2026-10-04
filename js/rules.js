@@ -453,7 +453,7 @@ export function newCharacter(name = "Новый персонаж") {
     speed: 30,
     initBonus: 0,
     senses: "",
-    hp: { current: 8, temp: 0, maxOverride: null, bonusPerLevel: 0, hitDiceUsed: 0, deathSuccess: 0, deathFail: 0, stable: false },
+    hp: { current: 8, temp: 0, maxOverride: null, bonusPerLevel: 0, rollAdj: 0, hitDiceUsed: 0, deathSuccess: 0, deathFail: 0, stable: false },
     slotsUsed: {},
     pactUsed: 0,
     conditions: {},
@@ -557,7 +557,7 @@ export function presetEffect(key, extra = {}) {
 
 export const NOTE_KEYS = ["patron", "quests", "people", "misc"];
 
-const NUMERIC_HP = ["current", "temp", "bonusPerLevel", "hitDiceUsed", "deathSuccess", "deathFail"];
+const NUMERIC_HP = ["current", "temp", "bonusPerLevel", "rollAdj", "hitDiceUsed", "deathSuccess", "deathFail"];
 
 export function normalize(c) {
   const src = c && typeof c === "object" && !Array.isArray(c) ? c : {};
@@ -678,7 +678,7 @@ export function compute(c) {
   const ex = Number(c.exhaustion) || 0;
   const die = maxDie(c.hitDie);
   const perLevel = Math.floor(die / 2) + 1;
-  const autoMax = Math.max(1, die + mods.con) + Math.max(0, level - 1) * Math.max(1, perLevel + mods.con) + level * (Number(c.hp.bonusPerLevel) || 0);
+  const autoMax = Math.max(1, Math.max(1, die + mods.con) + Math.max(0, level - 1) * Math.max(1, perLevel + mods.con) + level * (Number(c.hp.bonusPerLevel) || 0) + (Number(c.hp.rollAdj) || 0));
   const fullMax = c.hp.maxOverride != null && c.hp.maxOverride !== "" ? Number(c.hp.maxOverride) : autoMax;
   const hpMax = ex >= 4 ? Math.max(1, Math.floor(fullMax / 2)) : fullMax;
   const baseSpeed = Number(c.speed) || 0;

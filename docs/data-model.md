@@ -23,7 +23,7 @@
 | `inspiration` | boolean | вдохновение |
 | `accent` | gold/crimson/emerald/ice/amethyst/copper/steel | цвет акцента листа (`ACCENTS`) |
 | `effects` | список эффектов | `{id, name, preset, attack, save, check, dmg, dmgType, ac, speed, speedX2, adv[], dis[], resist[], rounds, once, mine, concName, until, note}`; `adv`/`dis` вида `attack`, `save`, `save:dex`, `check:str`; `rounds` null = пока не снимут; `mine` + `concName` снимаются вместе с концентрацией; чистит `cleanEffect()` |
-| `hp` | `{current, temp, maxOverride, bonusPerLevel, hitDiceUsed, deathSuccess, deathFail, stable}` | максимум хитов считается, если нет `maxOverride` |
+| `hp` | `{current, temp, maxOverride, bonusPerLevel, hitDiceUsed, deathSuccess, deathFail, stable}` | максимум хитов считается, если нет `maxOverride`; `rollAdj` поправка от бросков хитов при повышении уровня |
 | `slotsUsed` | `{уровень: потрачено}` | обычные ячейки |
 | `pactUsed` | число | потраченные ячейки договора |
 | `conditions` | `{key: true}` | состояния |

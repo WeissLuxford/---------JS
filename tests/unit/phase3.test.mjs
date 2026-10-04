@@ -258,3 +258,29 @@ test("coins: pay with change, refuse when short; XP progress; ammo link; accent"
   assert.deepEqual(R.rollContext(cov, "save", "dex").bonus.map(b => b.expr), ["5"]);
   assert.equal(R.rollContext(cov, "save", "wis").bonus.length, 0);
 });
+
+test("level up plan for a warlock and rolled hit points", async () => {
+  const { detectClass, levelUpPlan, CLASSES } = await import(P + "classes.js");
+  const c = R.normalize(kirion());
+  const cls = detectClass(c);
+  assert.equal(cls.key, "warlock");
+  const p6 = levelUpPlan(c, cls, 5);
+  assert.equal(p6.to, 6);
+  assert.equal(p6.asi, false);
+  assert.ok(p6.choose.some(x => x.kind === "spell" && x.n === 1));
+  assert.ok(p6.notes.some(n => n.includes("покровителя 6")));
+  const p7 = levelUpPlan(c, cls, 6);
+  assert.ok(p7.choose.some(x => x.kind === "invocation" && x.n === 1));
+  const p8 = levelUpPlan(c, cls, 7);
+  assert.equal(p8.asi, true);
+  const p4 = levelUpPlan(c, cls, 3);
+  assert.ok(p4.choose.some(x => x.kind === "cantrip"));
+  assert.ok(levelUpPlan(c, cls, 10).choose.some(x => x.text.includes("арканум")));
+  assert.equal(levelUpPlan(c, { key: "fighter", ...CLASSES.fighter }, 5).asi, true);
+  assert.ok(levelUpPlan(c, { key: "fighter", ...CLASSES.fighter }, 4).notes.some(n => n.includes("Дополнительная атака")));
+  assert.equal(detectClass(R.normalize({ name: "x", info: { cls: "Волшебница" } })).key, "wizard");
+  assert.equal(detectClass(R.normalize({ name: "x", info: { cls: "Механик" } })), null);
+  assert.equal(R.compute(c).hpMax, 43);
+  assert.equal(R.compute({ ...c, hp: { ...c.hp, rollAdj: -3 } }).hpMax, 40);
+  assert.equal(R.compute({ ...c, info: { ...c.info, level: 6 } }).hpMax, 51);
+});

@@ -287,6 +287,7 @@ export function installDialogs(X) {
       ["long-rest", "moon", "Длинный отдых"],
       ["roll-mode", "d20", "Режим броска: " + (S.rollMode === "adv" ? "преимущество" : S.rollMode === "dis" ? "помеха" : "обычный")],
       ["dice", "d20", "Бросить кубы"],
+      ...(S.d.level < 20 && r.canEdit ? [["level-up", "star", "Повысить уровень"]] : []),
       ["switch-char", "people", "Другой персонаж"],
       ["rules-ref", "book", "Шпаргалка правил"],
       ...(canInstall() ? [["install", "phone", "Установить как приложение"]] : []),
