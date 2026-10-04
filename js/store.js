@@ -6,7 +6,7 @@ import { initAccess, currentUid, getAccess } from "./access.js";
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
 const LS_CHARS = "dnd.chars";
 const LS_HIST = "dnd.hist.";
-const HISTORY_LIMIT = 40;
+const HISTORY_LIMIT = 60;
 const OFFLINE_MSG = "Нет связи: изменения сохранятся, когда появится интернет";
 
 let fs = null;
@@ -50,28 +50,51 @@ function readLocal() {
   }
 }
 
-function writeLocal(map) {
-  try {
-    localStorage.setItem(LS_CHARS, JSON.stringify(map));
-  } catch (e) {
-    pruneLocalHistory();
+function writeLocal(map, keepId) {
+  const json = JSON.stringify(map);
+  let saved = false;
+  let pruned = false;
+  for (let attempt = 0; attempt < 8 && !saved; attempt++) {
     try {
-      localStorage.setItem(LS_CHARS, JSON.stringify(map));
-    } catch {
-      setStatus({ state: "error", error: "Память браузера переполнена: изменения не сохранены. Скачай персонажа в файл или уменьши портрет." });
-      throw e;
+      localStorage.setItem(LS_CHARS, json);
+      saved = true;
+    } catch (e) {
+      if (!pruneLocalHistory(keepId)) {
+        setStatus({ state: "error", error: "Память браузера переполнена: изменения не сохранены. Скачай персонажа в файл или уменьши портрет." });
+        throw e;
+      }
+      pruned = true;
     }
   }
-  localListeners.forEach(fn => fn(map));
+  if (!saved) {
+    setStatus({ state: "error", error: "Память браузера переполнена: изменения не сохранены" });
+    throw new Error("quota");
+  }
+  if (pruned) setStatus({ state: "saved", error: "Память браузера почти заполнена: удалены старые версии из истории" });
+  localListeners.forEach(fn => fn(map, { self: true }));
 }
 
-function pruneLocalHistory() {
+function pruneLocalHistory(keepId) {
   try {
-    for (let i = localStorage.length - 1; i >= 0; i--) {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith(LS_HIST)) localStorage.removeItem(k);
+      if (k && k.startsWith(LS_HIST)) keys.push(k);
+    }
+    keys.sort((a, b) => (a === LS_HIST + keepId) - (b === LS_HIST + keepId));
+    for (const k of keys) {
+      const list = JSON.parse(localStorage.getItem(k) || "[]");
+      if (!Array.isArray(list) || !list.length) {
+        localStorage.removeItem(k);
+        continue;
+      }
+      const half = list.slice(0, Math.floor(list.length / 2));
+      if (half.length) localStorage.setItem(k, JSON.stringify(half));
+      else localStorage.removeItem(k);
+      return true;
     }
   } catch {}
+  return false;
 }
 
 function storageOk() {
@@ -154,10 +177,14 @@ export function subscribeList(cb, scope = "mine") {
     }
     return listFrom(fs.query(fs.collection(db, "characters"), fs.where("ownerUid", "==", uid)), cb);
   }
-  const emit = map => cb(Object.entries(map).map(([id, c]) => ({ ...c, id })), {});
-  emit(readLocal());
+  let live = true;
+  const emit = map => live && cb(Object.entries(map).map(([id, c]) => ({ ...c, id })), {});
+  queueMicrotask(() => emit(readLocal()));
   localListeners.add(emit);
-  return () => localListeners.delete(emit);
+  return () => {
+    live = false;
+    localListeners.delete(emit);
+  };
 }
 
 export function subscribeInvites(email, cb) {
@@ -191,16 +218,25 @@ export function subscribeChar(id, cb) {
       return () => {};
     }
   }
-  let last = "";
-  const emit = map => {
+  let last = null;
+  let live = true;
+  const emit = (map, meta = {}) => {
+    if (!live) return;
     const json = map[id] ? JSON.stringify(map[id]) : "";
     if (json === last) return;
     last = json;
-    cb(map[id] ? { ...clone(map[id]), id } : null, {});
+    cb(map[id] ? { ...clone(map[id]), id } : null, { self: !!meta.self });
   };
-  emit(readLocal());
+  queueMicrotask(() => emit(readLocal()));
   localListeners.add(emit);
-  return () => localListeners.delete(emit);
+  return () => {
+    live = false;
+    localListeners.delete(emit);
+  };
+}
+
+export function pendingWrites() {
+  return pending;
 }
 
 function stripId(c) {
@@ -218,7 +254,7 @@ export async function saveChanges(id, changes, full) {
     doc.updatedAt = now;
     doc.updatedBy = who();
     map[id] = doc;
-    writeLocal(map);
+    writeLocal(map, id);
     setStatus({ state: "saved", error: "" });
     return;
   }
@@ -361,7 +397,18 @@ export async function getCharOnce(id) {
   return snap.exists() ? { ...snap.data(), id } : null;
 }
 
-export async function addHistory(id, data, reason) {
+let pruneTick = 0;
+
+async function pruneCloudHistory(id) {
+  if (pruneTick++ % 5) return;
+  try {
+    const q = fs.query(fs.collection(db, "characters", id, "history"), fs.orderBy("at", "desc"), fs.limit(HISTORY_LIMIT + 40));
+    const snap = await fs.getDocs(q);
+    await Promise.all(snap.docs.slice(HISTORY_LIMIT).map(d => fs.deleteDoc(d.ref).catch(() => {})));
+  } catch {}
+}
+
+export async function addHistory(id, data, reason, { prune = false } = {}) {
   const body = stripId(data);
   delete body.portrait;
   delete body.updatedBy;
@@ -369,6 +416,7 @@ export async function addHistory(id, data, reason) {
   try {
     if (mode === "cloud") {
       await fs.addDoc(fs.collection(db, "characters", id, "history"), entry);
+      if (prune) pruneCloudHistory(id);
     } else {
       const key = LS_HIST + id;
       let list = [];

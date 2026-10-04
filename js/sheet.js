@@ -6,7 +6,7 @@ import {
 } from "./ui.js";
 import { TABS, RENDER, subtitle } from "./tabs.js";
 import { cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS } from "./entities.js";
-import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, getAcl, addRecent, deleteCharacter } from "./store.js";
+import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, getAcl, addRecent, deleteCharacter, pendingWrites } from "./store.js";
 import { diffPaths, applyPaths } from "./sync.js";
 import { describeChanges } from "./changes.js";
 import { describeWho, isMe, KIND_ICONS } from "./device.js";
@@ -50,6 +50,7 @@ export function mountSheet(root, id, initialTab, navigate) {
   };
 
   root.innerHTML = `<div class="loading">${icon("d20")}<span>Загружаю лист...</span></div>`;
+  let lastRole = "";
 
   let lastStatus = null;
   let lastError = "";
@@ -107,7 +108,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     S.d = compute(S.c);
     if (inputFocused()) S.pendingRender = true;
     else rerenderKeepingModal();
-    if (!meta.pendingWrites) toast(`${icon("cloud")} Лист обновлён: кто-то внёс изменения`, { kind: "info" });
+    if (!meta.pendingWrites && !meta.self) toast(`${icon("cloud")} Лист обновлён: кто-то внёс изменения`, { kind: "info" });
   });
 
   function rights() {
@@ -121,8 +122,6 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (S.isEditor) return { canEdit: true, role: "editor" };
     return { canEdit: false, role: S.c && !S.c.ownerUid ? "orphan" : "viewer" };
   }
-
-  let lastRole = "";
 
   async function checkEditor() {
     const a = S.access;
@@ -235,7 +234,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "pp": return String(d.passive.perception);
       case "pi": return String(d.passive.insight);
       case "pinv": return String(d.passive.investigation);
-      case "hp": return String(Math.max(0, Number(c.hp.current) || 0));
+      case "hp": return String(curHp());
       case "hpmax": return String(d.hpMax);
       case "dc": return String(d.spell.dc);
       case "satk": return fmt(d.spell.atk);
@@ -260,7 +259,7 @@ export function mountSheet(root, id, initialTab, navigate) {
         el.classList.add("flash");
       }
     });
-    const pct = Math.max(0, Math.min(100, ((Number(S.c.hp.current) || 0) / Math.max(1, S.d.hpMax)) * 100));
+    const pct = Math.max(0, Math.min(100, (curHp() / Math.max(1, S.d.hpMax)) * 100));
     $$("[data-hpbar]", root).forEach(el => {
       el.style.width = pct + "%";
       el.parentElement.classList.toggle("low", pct <= 25);
@@ -275,13 +274,12 @@ export function mountSheet(root, id, initialTab, navigate) {
     const now = Date.now();
     if (now - (lastSnapshot.get(id) || 0) < SNAPSHOT_GAP) return;
     lastSnapshot.set(id, now);
-    addHistory(id, clone(S.c), reason);
+    addHistory(id, clone(S.c), reason, { prune: ["owner", "admin"].includes(rights().role) });
   }
 
   function changed({ render = true } = {}) {
     if (S.disposed) return;
     S.d = compute(S.c);
-    if ((Number(S.c.hp.current) || 0) > S.d.hpMax) S.c.hp.current = S.d.hpMax;
     clearTimeout(S.saveTimer);
     S.saveTimer = setTimeout(flush, 650);
     if (render) renderTab();
@@ -301,7 +299,9 @@ export function mountSheet(root, id, initialTab, navigate) {
     try {
       await saveChanges(id, changes, sent);
       S.retry = 0;
+      S.saveFailed = false;
     } catch {
+      S.saveFailed = true;
       S.base = applyPaths(clone(S.base), diffPaths(sent, prevBase));
       S.retry = Math.min((S.retry || 1000) * 2, 30000);
       if (!S.disposed || getMode() === "local") S.saveTimer = setTimeout(flush, S.retry);
@@ -323,6 +323,15 @@ export function mountSheet(root, id, initialTab, navigate) {
     changed(opts);
   }
 
+  function curHp(c = S.c) {
+    return Math.max(0, Math.min(S.d.hpMax, Number(c.hp.current) || 0));
+  }
+
+  function clampHp(c = S.c) {
+    const d = compute(c);
+    if ((Number(c.hp.current) || 0) > d.hpMax) c.hp.current = d.hpMax;
+  }
+
   function setHp(c, value) {
     const was = Number(c.hp.current) || 0;
     const v = Math.max(0, Math.min(S.d.hpMax, Math.round(value)));
@@ -340,11 +349,21 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (el.tagName === "TEXTAREA" && el.classList.contains("autogrow")) grow(el);
     if (e.type === "input" && (el.tagName === "SELECT" || el.type === "checkbox")) return;
     let v = el.type === "checkbox" ? el.checked : el.value;
+    const path = el.dataset.path;
     if (el.hasAttribute("data-num")) v = v === "" ? 0 : Number(v);
-    if (getPath(S.c, el.dataset.path) === v) return;
+    if (path.startsWith("coins.")) v = Math.max(0, Math.floor(Number(v) || 0));
+    const affectsHp = path.startsWith("abilities.") || path === "info.level";
+    if (getPath(S.c, path) === v) {
+      if (e.type === "change" && affectsHp && (Number(S.c.hp.current) || 0) > S.d.hpMax) {
+        clampHp();
+        changed({ render: false });
+      }
+      return;
+    }
     snapshot("Перед правкой");
-    setPath(S.c, el.dataset.path, v);
-    if (el.dataset.path.startsWith("abilities.")) S.c.abilities = normalize(S.c).abilities;
+    setPath(S.c, path, v);
+    if (path.startsWith("abilities.")) S.c.abilities = normalize(S.c).abilities;
+    if (e.type === "change" && affectsHp) clampHp();
     changed({ render: el.hasAttribute("data-rerender") });
   };
 
@@ -438,7 +457,7 @@ export function mountSheet(root, id, initialTab, navigate) {
   async function hpDialog(mode) {
     const titles = { dmg: "Урон", heal: "Лечение", temp: "Временные хиты" };
     const res = await promptNumber(mode ? titles[mode] : "Хиты", {
-      label: `Сейчас: ${S.c.hp.current} / ${S.d.hpMax}${S.c.hp.temp ? ` (+${S.c.hp.temp} врем.)` : ""}`,
+      label: `Сейчас: ${curHp()} / ${S.d.hpMax}${S.c.hp.temp ? ` (+${S.c.hp.temp} врем.)` : ""}`,
       value: "",
       buttons: mode
         ? [{ label: titles[mode], value: mode, cls: mode === "dmg" ? "danger" : mode === "heal" ? "heal" : "gold" }]
@@ -450,11 +469,13 @@ export function mountSheet(root, id, initialTab, navigate) {
     let concLost = "";
     mutate(c => {
       const hp = c.hp;
+      hp.current = curHp(c);
       if (res.action === "dmg") {
         const fromTemp = Math.min(hp.temp || 0, n);
         hp.temp = (hp.temp || 0) - fromTemp;
         const rest = n - fromTemp;
         if (hp.current <= 0 && rest > 0) {
+          if (hp.stable) hp.deathSuccess = 0;
           hp.stable = false;
           hp.deathFail = Math.min(3, hp.deathFail + 1);
         } else {
@@ -481,12 +502,12 @@ export function mountSheet(root, id, initialTab, navigate) {
   function spendHitDie() {
     const { c, d } = S;
     if (d.hitDice.left <= 0) return toast("Кости хитов закончились");
-    if ((Number(c.hp.current) || 0) <= 0) return toast("Без сознания нельзя тратить кости хитов", { kind: "bad" });
+    if (curHp() <= 0) return toast("Без сознания нельзя тратить кости хитов", { kind: "bad" });
     const r = rollDice(`1d${maxDie(c.hitDie)}`);
     const heal = Math.max(0, r.total + d.mods.con);
     mutate(ch => {
       ch.hp.hitDiceUsed = (Number(ch.hp.hitDiceUsed) || 0) + 1;
-      setHp(ch, ch.hp.current + heal);
+      setHp(ch, curHp(ch) + heal);
     });
     toast(`${icon("heart")} Кость хитов: ${r.total} ${fmt(d.mods.con)} = <b>+${heal}</b> хитов`, { kind: "good" });
   }
@@ -736,8 +757,14 @@ export function mountSheet(root, id, initialTab, navigate) {
     });
   }
 
+  function changedKeys(before, after) {
+    const keys = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
+    return [...keys].filter(k => JSON.stringify(before ? before[k] : undefined) !== JSON.stringify(after ? after[k] : undefined));
+  }
+
   function editEntity(kind, e, makeArg) {
     const key = LIST_KEY[kind];
+    const initial = e ? clone(e) : null;
     openEditor(kind, e, {
       makeArg,
       onSave: val => {
@@ -755,7 +782,11 @@ export function mountSheet(root, id, initialTab, navigate) {
         mutate(c => {
           const list = c[key];
           const i = list.findIndex(x => x.id === val.id);
-          if (i >= 0) list[i] = val;
+          if (i >= 0 && initial) {
+            const next = { ...list[i] };
+            for (const k of changedKeys(initial, val)) next[k] = clone(val[k] === undefined ? null : val[k]);
+            list[i] = next;
+          } else if (i >= 0) list[i] = val;
           else list.push(val);
           const n = normalize(c);
           c[key] = n[key];
@@ -767,6 +798,7 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   function editNote(section, n) {
     const value = n || EDITORS.note.make();
+    const initial = clone(value);
     openForm({
       title: n ? "Изменить запись" : "Новая запись",
       fields: noteFields(section),
@@ -774,27 +806,33 @@ export function mountSheet(root, id, initialTab, navigate) {
       onSave: val => mutate(c => {
         const list = c.notes[section];
         const i = list.findIndex(x => x.id === val.id);
-        if (i >= 0) list[i] = val;
-        else list.unshift(val);
+        if (i >= 0) {
+          const next = { ...list[i] };
+          for (const k of changedKeys(initial, val)) next[k] = val[k];
+          list[i] = next;
+        } else list.unshift(val);
       }),
       onDelete: n ? () => mutate(c => { c.notes[section] = c.notes[section].filter(x => x.id !== n.id); }) : null
     });
   }
 
   function editInfo() {
+    const fields = infoFields().filter(f => f.type !== "heading");
+    const initial = clone(S.c);
     openForm({
       title: "Основное",
       fields: infoFields(),
       value: S.c,
       onSave: val => {
         mutate(c => {
-          for (const f of infoFields()) {
-            if (f.type === "heading") continue;
-            setPath(c, f.key, getPath(val, f.key));
+          for (const f of fields) {
+            const v = getPath(val, f.key);
+            if (JSON.stringify(v) !== JSON.stringify(getPath(initial, f.key))) setPath(c, f.key, v);
           }
           if (!String(c.name || "").trim()) c.name = "Без имени";
           const n = normalize(c);
           for (const k of ["info", "hp", "speed", "initBonus", "hitDie", "casterType", "spellAbility", "damageSwap"]) c[k] = n[k];
+          clampHp(c);
         }, { render: false });
         renderAll(true);
       }
@@ -802,12 +840,13 @@ export function mountSheet(root, id, initialTab, navigate) {
   }
 
   function editArmor() {
+    const initial = clone(S.c.armor);
     openForm({
       title: "Класс доспеха",
       fields: armorFields(),
       value: S.c,
       onSave: val => mutate(c => {
-        c.armor = { ...c.armor, ...val.armor };
+        for (const k of changedKeys(initial, val.armor)) c.armor[k] = val.armor[k];
         c.armor = normalize(c).armor;
       })
     });
@@ -853,6 +892,7 @@ export function mountSheet(root, id, initialTab, navigate) {
   }
 
   function replaceWith(data, reason) {
+    data = { ...data, ownerUid: S.c.ownerUid, ownerName: S.c.ownerName };
     addHistory(id, clone(S.c), reason);
     lastSnapshot.set(id, Date.now());
     const portrait = S.c.portrait;
@@ -1056,10 +1096,18 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "death": {
         const k = el.dataset.k;
         const i = Number(el.dataset.i);
-        return mutate(ch => {
+        let stabilized = false;
+        mutate(ch => {
           ch.hp[k] = ch.hp[k] > i ? i : i + 1;
-          if (ch.hp.deathSuccess < 3) ch.hp.stable = false;
+          if (ch.hp.deathSuccess >= 3) {
+            ch.hp.stable = true;
+            ch.hp.deathSuccess = 0;
+            ch.hp.deathFail = 0;
+            stabilized = true;
+          } else if (k === "deathSuccess") ch.hp.stable = false;
         });
+        if (stabilized) toast("Три успеха: персонаж стабилизирован", { kind: "good" });
+        return;
       }
       case "toggle-save": return mutate(ch => { ch.saves[el.dataset.k] = !ch.saves[el.dataset.k]; });
       case "cycle-skill": return mutate(ch => { ch.skills[el.dataset.k] = ((Number(ch.skills[el.dataset.k]) || 0) + 1) % 3; });
@@ -1139,9 +1187,10 @@ export function mountSheet(root, id, initialTab, navigate) {
   };
 
   const onBeforeUnload = e => {
-    if (!hasUnsaved() && !(lastStatus && getMode() === "cloud" && ["saving", "offline"].includes(lastStatus.state))) return;
-    flush();
-    if (getMode() === "cloud" || hasUnsaved()) {
+    const unsaved = hasUnsaved();
+    if (unsaved) flush();
+    const risky = getMode() === "cloud" ? unsaved || pendingWrites() > 0 : S.saveFailed || hasUnsaved();
+    if (risky) {
       e.preventDefault();
       e.returnValue = "";
     }

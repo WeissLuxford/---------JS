@@ -35,7 +35,7 @@ function portraitHtml(c) {
 
 export function hpPanel(ctx) {
   const { c, d } = ctx;
-  const cur = Math.max(0, Number(c.hp.current) || 0);
+  const cur = Math.max(0, Math.min(d.hpMax, Number(c.hp.current) || 0));
   const pct = Math.max(0, Math.min(100, (cur / Math.max(1, d.hpMax)) * 100));
   const tmp = Number(c.hp.temp) || 0;
   const dying = cur <= 0;

@@ -171,7 +171,9 @@ export function promptNumber(title, { label = "", value = "", buttons }) {
       resolve({ value: Number.isFinite(v) ? v : 0, action: buttons[i].value });
     };
     m.body.querySelectorAll("[data-i]").forEach(b => (b.onclick = () => done(Number(b.dataset.i))));
-    input.addEventListener("keydown", e => e.key === "Enter" && done(0));
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter" && buttons.length === 1) done(0);
+    });
   });
 }
 

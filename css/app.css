@@ -818,6 +818,7 @@ button.pip:hover { border-color: #fff; }
 .toast .ic { color: var(--gold-2); }
 .toast .btn { margin-left: 6px; }
 body.no-scroll .toast { pointer-events: none; }
+body.no-scroll #toasts .toast:nth-last-child(n+3) { display: none; }
 body.no-scroll .toast .btn { pointer-events: auto; }
 .roll { display: flex; align-items: center; gap: 12px; }
 .roll .die { width: 48px; height: 48px; flex: none; }
@@ -874,7 +875,7 @@ body.no-scroll .toast .btn { pointer-events: auto; }
   .tab.on { border-top-color: var(--gold-2); }
   .tab-body { padding: 12px 10px calc(var(--tabbar-h) + 24px + env(safe-area-inset-bottom)); }
   #toasts { bottom: calc(var(--tabbar-h) + 12px + env(safe-area-inset-bottom)); }
-  body.no-scroll #toasts { top: max(8px, env(safe-area-inset-top)); bottom: auto; flex-direction: column; }
+  body.no-scroll #toasts { top: max(8px, env(safe-area-inset-top)); bottom: auto; flex-direction: column; left: 12px; transform: none; width: calc(100vw - 72px); max-height: 40vh; overflow: hidden; }
   .char-grid { grid-template-columns: 1fr; gap: 0; }
   .col-center { order: -1; }
   .col-right .rows { display: flex; }
@@ -921,20 +922,26 @@ body.no-scroll .toast .btn { pointer-events: auto; }
 
 @media (max-width: 380px) {
   .abil-grid { grid-template-columns: repeat(2, 1fr); }
-  .sync { display: none; }
+  .roll-mode { display: none; }
+  .sync { width: 22px; }
   .tb-portrait { width: 36px; height: 36px; }
 }
 
 @media (pointer: coarse) {
   .prof { width: 32px; height: 36px; }
-  .pips.big { gap: 4px; }
-  .pips.big .pip { width: 32px; height: 32px; transform: none; border: 0; background: none; box-shadow: none; display: inline-grid; place-items: center; }
+  .pips.big { gap: 0; }
+  .res-row .pips.big { flex: 1 1 auto; }
+  .res-row .slot-n { margin-left: auto; }
+  .pips.big .pip { width: 30px; height: 32px; transform: none; border: 0; background: none; box-shadow: none; display: inline-grid; place-items: center; }
   .pips.big .pip::before { content: ""; width: 16px; height: 16px; transform: rotate(45deg); border-radius: 2px; border: 1.3px solid color-mix(in srgb, var(--c) 60%, transparent); }
   .pips.big .pip.on::before { background: var(--c); border-color: var(--c); box-shadow: 0 0 6px color-mix(in srgb, var(--c) 70%, transparent); }
   .coin input { min-height: 36px; }
   .chip { min-height: 36px; }
   .btn.sm { min-height: 38px; }
   .ds { width: 30px; height: 30px; }
+  .abil-score { min-height: 36px; }
+  .row-name { min-height: 38px; }
+  .exh .chip { min-width: 36px; }
   .dl-row input[type=text], .dl-row select { font-size: 16px; }
 }
 

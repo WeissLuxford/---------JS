@@ -22,6 +22,8 @@ export function mountHome(root, navigate) {
   let offInv = () => {};
   let offAll = () => {};
   let subKey = "";
+  let graceOver = false;
+  let graceTimer = null;
 
   const offStatus = onStatus(st => {
     const next = st.mode === "local" ? st.error || "Только в этом браузере" : st.state === "error" || st.state === "offline" ? st.error : "";
@@ -125,7 +127,11 @@ export function mountHome(root, navigate) {
   function paint() {
     if (disposed) return;
     const cloud = getMode() === "cloud";
-    if ((cloud && !access.ready) || mine === null || (fromCache && !mine.length && navigator.onLine !== false && access.signedIn)) {
+    if ((cloud && !access.ready) || mine === null || (fromCache && !mine.length && navigator.onLine !== false && !graceOver)) {
+      if (fromCache && !graceTimer) graceTimer = setTimeout(() => {
+        graceOver = true;
+        paint();
+      }, 6000);
       root.innerHTML = `<div class="loading">${icon("d20")}<span>Открываю архивы...</span></div>`;
       return;
     }
@@ -153,6 +159,7 @@ export function mountHome(root, navigate) {
         <header class="home-head">
           <div class="home-title">${icon("d20")}<div><h1>Листы персонажей</h1><p>D&amp;D 5e в стиле Baldur's Gate 3</p></div></div>
           ${statusText ? `<div class="home-status">${icon("cloudOff")}${esc(statusText)}</div>` : ""}
+          ${fromCache && !mine.length ? `<div class="home-status">${icon("cloudOff")}Нет связи с облаком: список появится, когда будет интернет</div>` : ""}
           ${accountBar()}
         </header>
         ${mySection}
@@ -267,6 +274,7 @@ export function mountHome(root, navigate) {
 
   return () => {
     disposed = true;
+    clearTimeout(graceTimer);
     offMine();
     offInv();
     offAll();

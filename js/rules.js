@@ -338,10 +338,22 @@ const num = (v, def = 0) => {
   return Number.isFinite(n) ? n : def;
 };
 
-const cleanId = (v, prefix) => {
-  const s = String(v ?? "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60);
-  return s || prefix + "-" + uid();
+function hash36(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+const cleanId = (v, prefix, index) => {
+  const raw = String(v ?? "");
+  const s = raw.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60);
+  if (s && s === raw) return s;
+  return `${prefix}-${raw ? hash36(raw) : "n" + index}`;
 };
+
+const cleanDamage = list => (Array.isArray(list) ? list : [])
+  .filter(d => d && typeof d === "object")
+  .map(d => ({ dice: String(d.dice ?? ""), type: typeof d.type === "string" ? d.type : "bludgeoning", addMod: !!d.addMod }));
 
 const NUMERIC_HP = ["current", "temp", "bonusPerLevel", "hitDiceUsed", "deathSuccess", "deathFail"];
 
@@ -377,15 +389,18 @@ export function normalize(c) {
   out.concentration = String(out.concentration ?? "");
   const prefixes = { attacks: "at", spells: "sp", features: "ft", items: "it" };
   for (const k of Object.keys(prefixes)) {
-    out[k] = (Array.isArray(out[k]) ? out[k] : []).filter(x => x && typeof x === "object").map(x => ({ ...x, id: cleanId(x.id, prefixes[k]), name: String(x.name ?? "") }));
+    out[k] = (Array.isArray(out[k]) ? out[k] : []).filter(x => x && typeof x === "object").map((x, i) => ({ ...x, id: cleanId(x.id, prefixes[k], i), name: String(x.name ?? "") }));
   }
   out.items = out.items.map(it => ({ ...it, qty: Math.max(0, num(it.qty, 1)), weight: Math.max(0, num(it.weight)) }));
   for (const k of ["attacks", "spells", "features", "items"]) {
     out[k] = out[k].map(x => ({ ...x, used: Math.max(0, num(x.used)) }));
   }
-  out.spells = out.spells.map(sp => ({ ...sp, level: Math.max(0, Math.min(9, Math.round(num(sp.level)))) }));
+  out.spells = out.spells.map(sp => ({ ...sp, level: Math.max(0, Math.min(9, Math.round(num(sp.level)))), damage: cleanDamage(sp.damage) }));
+  out.features = out.features.map(f => ({ ...f, damage: cleanDamage(f.damage) }));
+  out.items = out.items.map(it => ({ ...it, damage: cleanDamage(it.damage) }));
+  out.attacks = out.attacks.map(at => ({ ...at, damage: typeof at.damage === "string" ? at.damage : String(at.damage ?? "") }));
   for (const k of ["patron", "quests", "people"]) {
-    out.notes[k] = (Array.isArray(out.notes[k]) ? out.notes[k] : []).filter(x => x && typeof x === "object").map(x => ({ ...x, id: cleanId(x.id, "nt") }));
+    out.notes[k] = (Array.isArray(out.notes[k]) ? out.notes[k] : []).filter(x => x && typeof x === "object").map((x, i) => ({ ...x, id: cleanId(x.id, "nt-" + k, i) }));
   }
   out.notes.misc = String(out.notes.misc ?? "");
   for (const k of ["saves", "skills", "slotsUsed", "conditions"]) {
@@ -494,12 +509,15 @@ export function usesInfo(d, entity) {
 
 export function importCharacter(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const raw = data.format === "dnd-sheet" ? data.character : data;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw) || typeof raw.name !== "string" || !raw.abilities || typeof raw.abilities !== "object") return null;
+  const raw = data.character && typeof data.character === "object" && !Array.isArray(data.character) ? data.character : data;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw) || typeof raw.name !== "string") return null;
   const c = normalize(raw);
   delete c.id;
   delete c.updatedAt;
   delete c.createdAt;
+  delete c.updatedBy;
+  delete c.ownerUid;
+  delete c.ownerName;
   c.archived = false;
   if (!raw.hp || raw.hp.current == null) c.hp.current = compute(c).hpMax;
   return c;
