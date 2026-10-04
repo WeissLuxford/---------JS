@@ -270,8 +270,8 @@ export function skillModel(c, d, key) {
   return {
     title: s.name,
     subtitle: `Навык · ${abName(s.ab)}`,
-    art: { icon: "d20", color: "#e9c77a" },
-    badges: [{ text: p === 2 ? "Компетентность" : p === 1 ? "Владение" : "Без владения", color: p ? "#e9c77a" : "#8d8577" }],
+    art: { icon: "d20", color: "var(--gold-2)" },
+    badges: [{ text: p === 2 ? "Компетентность" : p === 1 ? "Владение" : "Без владения", color: p ? "var(--gold-2)" : "#8d8577" }],
     stats: `<span class="big-num">${fmt(d.skills[key])}</span><span>${abShort(s.ab)} ${fmt(d.mods[s.ab])}${p ? ` · мастерство ${fmt(p === 2 ? d.pb * 2 : d.pb)}` : ""}</span>`,
     body: rich(s.desc + (key === "perception" ? `\n\nПассивная Внимательность: ${d.passive.perception}.` : "")),
     footer: [{ mark: actionMark("ring", "#e9c77a"), text: "Нажми, чтобы бросить" }]
@@ -283,7 +283,7 @@ export function abilityModel(c, d, key) {
   return {
     title: a.name,
     subtitle: "Характеристика",
-    art: { icon: "star", color: "#e9c77a" },
+    art: { icon: "star", color: "var(--gold-2)" },
     stats: `<span class="big-num">${esc(c.abilities[key])}</span><span>Модификатор ${fmt(d.mods[key])} · Спасбросок ${fmt(d.saves[key])}${c.saves[key] ? " (владение)" : ""}</span>`,
     body: rich(a.desc)
   };
@@ -329,10 +329,10 @@ export function statModel(c, d, key) {
     if (a.shield && !d.shieldItem) parts.push("Щит +2");
     if (Number(a.bonus)) parts.push(line("Прочее", Number(a.bonus)));
     (c.effects || []).filter(e => e.ac).forEach(e => parts.push(`${esc(e.name)} ${e.ac > 0 ? "+" : "−"}${Math.abs(e.ac)}`));
-    return { title: "Класс доспеха", subtitle: "Насколько сложно попасть", art: { icon: "shield", color: "#e9c77a" }, stats: `<span class="big-num">${d.ac}</span><span>${parts.join(" · ")}</span>`, body: rich("Атака попадает, если результат броска не меньше КД. Нажми на медаль, чтобы поменять доспех вручную, или надень доспех с указанным КД в снаряжении: тогда он считается сам.") };
+    return { title: "Класс доспеха", subtitle: "Насколько сложно попасть", art: { icon: "shield", color: "var(--gold-2)" }, stats: `<span class="big-num">${d.ac}</span><span>${parts.join(" · ")}</span>`, body: rich("Атака попадает, если результат броска не меньше КД. Нажми на медаль, чтобы поменять доспех вручную, или надень доспех с указанным КД в снаряжении: тогда он считается сам.") };
   }
   if (key === "init") {
-    return { title: "Инициатива", subtitle: "Порядок ходов в бою", art: { icon: "bolt", color: "#e9c77a" }, stats: `<span class="big-num">${fmt(d.init)}</span><span>${line("Ловкость", d.mods.dex)}${Number(c.initBonus) ? " · " + line("бонус", Number(c.initBonus)) : ""}</span>`, body: rich("Бросок d20 в начале боя. Истощение и состояния, дающие помеху на проверки, учитываются сами.") };
+    return { title: "Инициатива", subtitle: "Порядок ходов в бою", art: { icon: "bolt", color: "var(--gold-2)" }, stats: `<span class="big-num">${fmt(d.init)}</span><span>${line("Ловкость", d.mods.dex)}${Number(c.initBonus) ? " · " + line("бонус", Number(c.initBonus)) : ""}</span>`, body: rich("Бросок d20 в начале боя. Истощение и состояния, дающие помеху на проверки, учитываются сами.") };
   }
   if (key === "speed") {
     const why = [];
@@ -340,10 +340,10 @@ export function statModel(c, d, key) {
     if (ex >= 5) why.push(`Истощение ${ex}: скорость 0`);
     else if (ex >= 2) why.push(`Истощение ${ex}: вдвое меньше`);
     CONDITIONS.filter(k => c.conditions[k.key] && ["grappled", "restrained", "paralyzed", "stunned", "unconscious", "petrified"].includes(k.key)).forEach(k => why.push(`${k.name}: скорость 0`));
-    return { title: "Скорость", subtitle: "Сколько футов за ход", art: { icon: "boot", color: "#e9c77a" }, stats: `<span class="big-num">${d.speed} фт</span><span>Обычная ${d.baseSpeed} фт</span>`, body: rich(why.length ? why.map(w => "- " + w).join("\n") : "Ничто не замедляет.") };
+    return { title: "Скорость", subtitle: "Сколько футов за ход", art: { icon: "boot", color: "var(--gold-2)" }, stats: `<span class="big-num">${d.speed} фт</span><span>Обычная ${d.baseSpeed} фт</span>`, body: rich(why.length ? why.map(w => "- " + w).join("\n") : "Ничто не замедляет.") };
   }
   if (key === "pb") {
-    return { title: "Бонус мастерства", subtitle: `${d.level} уровень`, art: { icon: "star", color: "#e9c77a" }, stats: `<span class="big-num">${fmt(d.pb)}</span><span>+2 на 1-4, +3 на 5-8, +4 на 9-12, +5 на 13-16, +6 на 17-20</span>`, body: rich("Прибавляется к атакам и навыкам, которыми персонаж владеет, к спасброскам с владением и к СЛ заклинаний.") };
+    return { title: "Бонус мастерства", subtitle: `${d.level} уровень`, art: { icon: "star", color: "var(--gold-2)" }, stats: `<span class="big-num">${fmt(d.pb)}</span><span>+2 на 1-4, +3 на 5-8, +4 на 9-12, +5 на 13-16, +6 на 17-20</span>`, body: rich("Прибавляется к атакам и навыкам, которыми персонаж владеет, к спасброскам с владением и к СЛ заклинаний.") };
   }
   if (key === "hp") {
     const die = Number(String(c.hitDie).replace(/\D/g, "")) || 8;

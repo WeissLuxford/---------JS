@@ -8,7 +8,7 @@ import { diffPaths, applyPaths } from "./sync.js";
 import { onAccess, getAccess, myEmail, signIn, IN_APP } from "./access.js";
 import { openAccounts } from "./admin.js";
 import { openShare } from "./share.js";
-import { SNAPSHOT_GAP, lastSnapshot, clone, sameContent, loadUiPrefs, accentStyle, loadJson, loadTurn, saveUiPrefs } from "./sheet-util.js";
+import { SNAPSHOT_GAP, lastSnapshot, clone, sameContent, loadUiPrefs, accentStyle, applyAccent, loadJson, loadTurn, saveUiPrefs } from "./sheet-util.js";
 import { installRolls } from "./sheet-rolls.js";
 import { installUndo } from "./sheet-undo.js";
 import { installMagic } from "./sheet-magic.js";
@@ -209,6 +209,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     const y = window.scrollY;
     const c = S.c;
     document.title = `${c.name} · Лист персонажа`;
+    applyAccent(c.accent);
     root.innerHTML = `
       <div class="sheet ${readOnly() ? "viewer" : ""}" style="${accentStyle(c.accent)}">
         <header class="topbar">
@@ -967,6 +968,7 @@ export function mountSheet(root, id, initialTab, navigate) {
   return () => {
     if (hasUnsaved()) flush();
     S.disposed = true;
+    applyAccent("");
     if (S.openModalApi) S.openModalApi.close();
     unsub && unsub();
     unStatus();

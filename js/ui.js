@@ -323,31 +323,70 @@ export function showDamage(label, lines, crit = false, { after } = {}) {
   return { total, byType };
 }
 
-export function showRoll(expr) {
-  const r = rollDice(expr);
-  if (!r) return null;
-  const rolls = r.rolls.length ? `<span class="r-rolls">[${r.rolls.map(x => (x.sign < 0 ? "−" : "") + x.r + (r.rolls.some(y => y.f !== x.f) ? `<sub>d${x.f}</sub>` : "")).join(", ")}]</span>` : "";
-  logRoll({ label: "Бросок " + expr, text: String(r.total) });
-  const top = r.rolls.length === 1 && r.rolls[0].f === 20 ? r.rolls[0].r : null;
-  const t = toast(`<div class="roll ${top === 20 ? "crit" : top === 1 ? "fumble" : ""}">${die(maxFace(expr), "#e9c77a", "")}<div class="r-body"><div class="r-label">Бросок</div><div class="r-line" style="--c:#e9c77a"><span>${esc(expr)}</span>${rolls}</div></div><div class="r-total" data-final="${r.total}">${r.total}</div></div>`, { timeout: 6000 });
-  rollFx(t.el, { crit: top === 20, fumble: top === 1 });
-  return r;
+export const DIE_COLORS = { 4: "#4fcf6a", 6: "#4cc4d9", 8: "#a86ee6", 10: "#e55ca6", 12: "#e5533d", 20: "#f08a2c", 100: "#d7b35a" };
+
+const TRAY_MAX = 60;
+
+function trayHtml(r, live) {
+  const shown = r.rolls.slice(0, TRAY_MAX);
+  const dice = shown.map((x, i) => {
+    const face = live ? 1 + Math.floor(Math.random() * x.f) : x.r;
+    const top = x.f === 20 && r.rolls.length === 1 ? (x.r === 20 ? "crit" : x.r === 1 ? "fumble" : "") : "";
+    return `<span class="tray-die ${x.sign < 0 ? "neg" : ""} ${live ? "" : top}" style="--i:${i}" title="d${x.f}">${x.sign < 0 ? "<em>−</em>" : ""}${die(x.f === 100 ? 10 : x.f, DIE_COLORS[x.f] || "#e9c77a", face)}</span>`;
+  }).join("");
+  const more = r.rolls.length > TRAY_MAX ? `<span class="tray-more">ещё ${r.rolls.length - TRAY_MAX}</span>` : "";
+  const flat = r.flat ? `<span class="tray-flat">${r.flat < 0 ? "−" : "+"}${Math.abs(r.flat)}</span>` : "";
+  const total = live ? Math.max(0, Math.round(r.total * (0.5 + Math.random()))) : r.total;
+  return `<div class="tray-dice">${dice}${more}${flat}</div><div class="tray-total"><span>Всего</span><b>${total}</b></div>`;
 }
 
 export function openDiceRoller() {
   const faces = [4, 6, 8, 10, 12, 20, 100];
   const m = openModal({
     title: "Бросок кубов",
-    cls: "small",
-    body: `<div class="dice-pad">${faces.map(f => `<button class="dice-btn" data-f="${f}" aria-label="Добавить d${f}">${die(f === 100 ? 10 : f, "#e9c77a", f === 100 ? "%" : f)}<span>d${f}</span></button>`).join("")}</div>
+    cls: "small dice-roller",
+    body: `<div class="dice-tray empty" data-tray aria-live="polite"><p>Собери бросок кнопками ниже и нажми «Бросить»</p></div>
+      <div class="dice-pad">${faces.map(f => `<button class="dice-btn" data-f="${f}" style="--c:${DIE_COLORS[f]}" aria-label="Добавить d${f}">${die(f === 100 ? 10 : f, DIE_COLORS[f], f === 100 ? "%" : f)}<span>d${f}</span></button>`).join("")}</div>
       <label class="fld"><span>Что бросить</span><input type="text" data-expr placeholder="2d6+3" autocomplete="off" inputmode="text"></label>
       <div class="dice-mods">${[-2, -1, 1, 2, 5].map(n => `<button class="qbtn ${n < 0 ? "minus" : "plus"}" data-mod="${n}">${n < 0 ? "−" + Math.abs(n) : "+" + n}</button>`).join("")}</div>
       <div class="form-actions"><button class="btn ghost" data-clear>Очистить</button><button class="btn gold" data-go>${icon("d20")}Бросить</button></div>
       <p class="hint">Нажимай на кубы, чтобы собрать бросок, или впиши сам: 2d6+1d4+3. Окно не закрывается, можно бросать снова.</p>`
   });
   const input = m.body.querySelector("[data-expr]");
+  const tray = m.body.querySelector("[data-tray]");
   const set = p => (input.value = p.dice.length || p.flat ? diceToString(p).replace(/−/g, "-") : "");
   const cur = () => parseDice(input.value) || { dice: [], flat: 0 };
+  let timer = null;
+  const roll = expr => {
+    const r = rollDice(expr);
+    if (!r) return toast("Не понял бросок. Пример: 2d6+3", { kind: "bad" });
+    clearTimeout(timer);
+    logRoll({ label: "Бросок " + expr, text: String(r.total) });
+    const one = r.rolls.length === 1 && r.rolls[0].f === 20 ? r.rolls[0].r : null;
+    tray.classList.remove("empty", "crit-fx", "fumble-fx", "rolling");
+    const land = () => {
+      tray.classList.remove("rolling");
+      tray.innerHTML = trayHtml(r, false);
+      if (one === 20) {
+        tray.classList.add("crit-fx");
+        playSound("crit");
+      } else if (one === 1) {
+        tray.classList.add("fumble-fx");
+        playSound("fumble");
+      }
+    };
+    if (!fxSettings().anim || reduced()) return land();
+    playSound("roll");
+    tray.classList.add("rolling");
+    const start = Date.now();
+    const tick = () => {
+      if (!tray.isConnected) return;
+      if (Date.now() - start >= 620) return land();
+      tray.innerHTML = trayHtml(r, true);
+      timer = setTimeout(tick, 70);
+    };
+    tick();
+  };
   m.body.addEventListener("click", e => {
     const f = e.target.closest("[data-f]");
     if (f) {
@@ -364,11 +403,13 @@ export function openDiceRoller() {
       p.flat += Number(md.dataset.mod);
       return set(p);
     }
-    if (e.target.closest("[data-clear]")) return (input.value = "");
-    if (e.target.closest("[data-go]")) {
-      const expr = input.value.trim() || "1d20";
-      if (!showRoll(expr)) toast("Не понял бросок. Пример: 2d6+3", { kind: "bad" });
+    if (e.target.closest("[data-clear]")) {
+      clearTimeout(timer);
+      tray.className = "dice-tray empty";
+      tray.innerHTML = "<p>Собери бросок кнопками ниже и нажми «Бросить»</p>";
+      return (input.value = "");
     }
+    if (e.target.closest("[data-go]")) roll(input.value.trim() || "1d20");
   });
   input.addEventListener("keydown", e => {
     if (e.key === "Enter") m.body.querySelector("[data-go]").click();

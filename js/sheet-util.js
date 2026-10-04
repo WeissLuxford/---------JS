@@ -37,6 +37,17 @@ export function accentStyle(key) {
   return `--gold:${a};--gold-2:${b};--gold-3:${c};--line:${rgba(a, 0.24)};--line-2:${rgba(a, 0.45)}`;
 }
 
+const ACCENT_VARS = ["--gold", "--gold-2", "--gold-3", "--line", "--line-2"];
+
+export function applyAccent(key) {
+  const st = document.documentElement.style;
+  ACCENT_VARS.forEach(v => st.removeProperty(v));
+  accentStyle(key).split(";").filter(Boolean).forEach(x => {
+    const i = x.indexOf(":");
+    st.setProperty(x.slice(0, i), x.slice(i + 1));
+  });
+}
+
 export function loadJson(key) {
   try {
     const v = JSON.parse(localStorage.getItem(key) || "{}");
