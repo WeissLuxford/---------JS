@@ -278,8 +278,8 @@ export function turnBar(ctx) {
   return `<div class="turn-bar" data-turn>${TURN.map(([k, l]) => {
     const a = ACTIONS[k];
     const used = !!t[k];
-    return `<button class="turn-slot ${used ? "used" : ""}" data-act="turn-toggle" data-k="${k}" style="--c:${a.color}" aria-pressed="${used ? "true" : "false"}" title="${used ? "Потрачено. Нажми, чтобы вернуть" : "Доступно. Нажми, чтобы отметить"}"><span class="turn-mark">${actionMark(a.shape, a.color)}</span><span>${l}</span></button>`;
-  }).join("")}<button class="btn sm turn-new" data-act="new-turn" title="Вернуть действия и отсчитать раунд у эффектов">${icon("history")}Новый ход</button></div>`;
+    return `<button class="turn-slot ${used ? "used" : ""}" data-act="turn-open" data-k="${k}" style="--c:${a.color}" aria-label="${l}: ${used ? "потрачено" : "доступно"}. Показать, что можно сделать" title="Что можно сделать"><span class="turn-mark">${actionMark(a.shape, a.color)}</span><span>${l}</span></button>`;
+  }).join("")}<button class="turn-slot move" data-act="turn-open" data-k="move" style="--c:#c9b48a" title="Движение и прыжки"><span class="turn-mark">${icon("boot")}</span><span>Движение</span></button><button class="btn sm turn-new" data-act="new-turn" title="Вернуть действия и отсчитать раунд у эффектов">${icon("history")}Новый ход</button></div>`;
 }
 
 function combatStrip(ctx) {

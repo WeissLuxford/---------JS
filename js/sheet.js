@@ -1,11 +1,11 @@
-import { ABILITIES, SKILLS, DAMAGE, DAMAGE_TYPES, DEFENSE_KINDS, compute, normalize, fmt, rollD20, rollDice, spellCast, usesInfo, maxDie, uid, addDice, swapType, importCharacter, NOTE_KEYS, itemCharges, reorderSubset, rollContext, resolveMode, rollReasons, applyDefenses, effectDamage, presetEffect, cleanEffect, EFFECT_PRESETS, weaponStats } from "./rules.js";
-import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
+import { ABILITIES, SKILLS, DAMAGE, DAMAGE_TYPES, DEFENSE_KINDS, compute, normalize, fmt, rollD20, rollDice, spellCast, usesInfo, maxDie, uid, addDice, swapType, importCharacter, NOTE_KEYS, itemCharges, reorderSubset, rollContext, resolveMode, rollReasons, applyDefenses, effectDamage, presetEffect, cleanEffect, EFFECT_PRESETS, weaponStats, STANDARD_ACTIONS, movementInfo, ACTIONS } from "./rules.js";
+import { icon, actionMark, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import {
   esc, $, $$, toast, openModal, confirmDialog, promptNumber, showD20, showBeams, showDamage, rollLog, enableHoverCards, hideHoverCard,
   enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, openForm, getPath, setPath, dateTime, timeAgo, cropImage, download, pickFile
 } from "./ui.js";
 import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources, turnBar } from "./tabs.js";
-import { cardFor, findEntity, itemIcon, effectFields, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
+import { cardFor, findEntity, itemIcon, spellIcon, featureIcon, attackIcon, effectFields, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
 import { subscribeChar, saveChanges, addHistory, listHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
 import { diffPaths, applyPaths } from "./sync.js";
 import { describeChanges } from "./changes.js";
@@ -580,6 +580,97 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (!["action", "bonus", "reaction"].includes(kind) || S.ui.turn[kind]) return;
     S.ui.turn[kind] = true;
     saveTurn();
+  }
+
+  function spellReady(sp) {
+    const lvl = Number(sp.level) || 0;
+    if (sp.cost === "item") {
+      const info = itemSpellInfo(S.c, S.d, sp);
+      return info && info.uses ? (info.left >= info.min ? `${info.left} ${chargeWord(info.left)}` : false) : false;
+    }
+    if (sp.cost === "uses") {
+      const u = usesInfo(S.d, sp);
+      return u ? (u.left > 0 ? `${u.left}/${u.max}` : false) : "";
+    }
+    if (lvl === 0 || sp.cost === "free") return "";
+    if (S.d.pact) return lvl <= S.d.pact.level && pactLeft() > 0 ? `ячейка ${S.d.pact.level} круга` : false;
+    return availableSlotLevels(lvl).length ? "" : false;
+  }
+
+  function actionMenu(kind) {
+    const { c, d } = S;
+    const a = ACTIONS[kind];
+    const used = !!S.ui.turn[kind];
+    const rows = [];
+    const row = (ref, ic, color, name, sub, off = false) => rows.push({ html: `<button class="am-row ${off ? "off" : ""}" data-am-open="${esc(ref)}" style="--c:${color}">${icon(ic)}<span><b>${esc(name)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</span></button>` });
+    const groups = [];
+    const flush = title => {
+      if (rows.length) groups.push(`<div class="am-group">${esc(title)}</div>${rows.splice(0).map(r => r.html).join("")}`);
+    };
+    if (kind === "action") {
+      const src = combatSources(c, d);
+      src.weapons.filter(it => (it.action || "action") === kind).forEach(it => row("item:" + it.id, itemIcon(it), "#cbbfa8", it.name, `атака ${fmt(d.weapons[it.id].hit)} · ${d.weapons[it.id].dmg}`));
+      src.own.filter(at => (at.action || "action") === kind).forEach(at => {
+        const st = d.attacks[at.id];
+        row("attack:" + at.id, at.icon || attackIcon(at.name) || "swords", (DAMAGE[st.type] || {}).color || "#cbbfa8", at.name, st.kind === "save" ? `СЛ ${st.dc}` : `атака ${fmt(st.hit)} · ${st.dmg}`);
+      });
+      flush("Атаки");
+    }
+    c.spells.filter(sp => (sp.action || "action") === kind).forEach(sp => {
+      const ready = spellReady(sp);
+      const ic = spellIcon(c, sp);
+      row("spell:" + sp.id, ic.icon, ic.color, sp.name, [Number(sp.level) ? `${sp.level} круг` : "заговор", ready === false ? "нечем заплатить" : ready].filter(Boolean).join(" · "), ready === false);
+    });
+    flush("Заклинания");
+    c.features.filter(f => f.action === kind).forEach(f => {
+      const u = usesInfo(d, f);
+      row("feature:" + f.id, featureIcon(f), "#c9a0ff", f.name, u ? `${u.left}/${u.max}` : f.effect || "", !!u && u.left <= 0);
+    });
+    c.items.filter(it => it.action === kind && !(kind === "action" && d.weapons[it.id])).forEach(it => {
+      const u = usesInfo(d, it);
+      row("item:" + it.id, itemIcon(it), "#4fcf6a", it.name, u ? `${u.left}/${u.max}` : "", !!u && u.left <= 0);
+    });
+    flush(kind === "action" ? "Умения и предметы" : "Твоё");
+    const mine = groups.length;
+    const std = (STANDARD_ACTIONS[kind] || []).map(x => `<button class="am-row std" data-am-std="${x.key}" style="--c:${a.color}">${icon(x.icon)}<span><b>${esc(x.name)}${x.roll ? ` <i class="am-roll">${icon("d20")}</i>` : ""}</b><small>${esc(x.desc)}</small></span></button>`).join("");
+    const empty = kind === "bonus" && !mine ? `<p class="am-empty">${icon("info")}Своих бонусных действий сейчас нет. Их дают только заклинания, умения или класс.</p>` : "";
+    const hint = kind === "bonus" ? `<p class="hint am-hint">В BG3 прыжок и толчок бонусные действия. По настольным правилам прыжок входит в движение, а толчок заменяет атаку.</p>` : "";
+    const m = openModal({
+      title: a.name,
+      cls: "action-menu",
+      body: `<div class="am-head" style="--c:${a.color}"><span class="am-state ${used ? "used" : ""}">${actionMark(a.shape, a.color)}${used ? "Уже потрачено в этом ходу" : "Доступно в этом ходу"}</span><button class="btn sm ${used ? "gold" : "ghost"}" data-am-toggle>${used ? "Вернуть" : "Отметить потраченным"}</button></div>${empty}${groups.join("")}${std ? `<div class="am-group">Общие действия</div>${std}` : ""}${hint}`
+    });
+    m.body.addEventListener("click", e => {
+      if (e.target.closest("[data-am-toggle]")) {
+        S.ui.turn[kind] = !S.ui.turn[kind];
+        saveTurn();
+        return m.close();
+      }
+      const op = e.target.closest("[data-am-open]");
+      if (op) {
+        m.close();
+        return openEntity(op.dataset.amOpen);
+      }
+      const st = e.target.closest("[data-am-std]");
+      if (!st) return;
+      const x = (STANDARD_ACTIONS[kind] || []).find(y => y.key === st.dataset.amStd);
+      m.close();
+      if (!x) return;
+      markAction(kind);
+      if (x.roll) return doRoll(x.roll);
+      if (x.effect && !readOnly()) return addEffect(presetEffect(x.effect));
+      if (x.key === "dash") return toast(`${icon("boot")} Рывок: ещё ${d.speed} фт перемещения в этом ходу`, { kind: "good" });
+      toast(`${icon("check")} ${esc(x.name)}`, { timeout: 2000 });
+    });
+  }
+
+  function movementMenu() {
+    const info = movementInfo(S.c, S.d);
+    openModal({
+      title: `Движение · ${S.d.speed} фт`,
+      cls: "action-menu",
+      body: `${info.map(x => `<div class="am-row static" style="--c:#c9b48a">${icon(x.name.startsWith("Прыжок") ? "wings" : x.name === "Рывок" ? "bolt" : "boot")}<span><b>${esc(x.name)}: ${esc(x.value)}</b><small>${esc(x.desc)}</small></span></div>`).join("")}<p class="hint am-hint">Перемещение можно делить: пройти часть, ударить, пройти остаток. Трудная местность стоит вдвое.</p>`
+    });
   }
 
   function attackProfile(kind, id) {
@@ -1662,6 +1753,7 @@ export function mountSheet(root, id, initialTab, navigate) {
         if (!(await confirmDialog(`Удалить ${ids.length} ${ids.length === 1 ? "запись" : ids.length < 5 ? "записи" : "записей"} атак, которые повторяют заклинания или оружие? Старая версия останется в истории.`, { ok: "Удалить" }))) return;
         return mutate(ch => { ch.attacks = ch.attacks.filter(x => !ids.includes(x.id)); });
       }
+      case "turn-open": return el.dataset.k === "move" ? movementMenu() : actionMenu(el.dataset.k);
       case "turn-toggle":
         S.ui.turn[el.dataset.k] = !S.ui.turn[el.dataset.k];
         return saveTurn();
