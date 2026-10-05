@@ -11,6 +11,8 @@ import { describeWho, isMe, KIND_ICONS } from "./device.js";
 import { currentUid } from "./access.js";
 import { banAccount } from "./admin.js";
 import { clone, explainOn } from "./sheet-util.js";
+import { wakeOn, wakeSupported } from "./wake.js";
+import { sheetIssues } from "./checks.js";
 import { listBackups, saveBackup, readBackup, backupFile, backupName } from "./backup.js";
 export function installDialogs(X) {
   const { S, root, id, navigate } = X;
@@ -285,6 +287,7 @@ export function installDialogs(X) {
     const a = S.access;
     const cloud = getMode() === "cloud";
     const manage = r.role === "owner" || r.role === "admin" || r.role === "open";
+    const issues = sheetIssues(S.c, S.d);
     const groups = [
       ["Игра", [
         ["short-rest", "campfire", "Короткий отдых"],
@@ -301,6 +304,7 @@ export function installDialogs(X) {
         ...(canInstall() ? [["install", "phone", "Установить как приложение"]] : [])
       ]],
       ["Лист и файлы", [
+        ["sheet-check", "check", "Проверка листа" + (issues.length ? `: ${issues.length}` : "")],
         ...(r.canEdit ? [["history", "history", "История изменений"]] : []),
         ["backups", "history", "Резервные копии"],
         ["share", "link", manage && cloud && a.enforced ? "Поделиться и доступ" : "Поделиться"],
@@ -317,6 +321,7 @@ export function installDialogs(X) {
       ]]
     ].filter(g => g[1].length);
     const switches = () => [
+      ["wake-toggle", "sun", "Экран не гаснет", wakeSupported() ? "Пока открыт лист, телефон не уснёт посреди боя" : "Этот браузер не умеет держать экран включённым", wakeOn()],
       ["explain-toggle", "info", "Пояснения на экране", "Серые подсказки под панелями: что делает кнопка и откуда что берётся", explainOn()],
       ["tips-toggle", "bell", "Подсказки в начале хода", "Напоминания о концентрации, эффектах и спасбросках от смерти", X.tipsOn()],
       ["fx-sound", "bell", "Звуки бросков", "", fxSettings().sound],
@@ -343,6 +348,28 @@ export function installDialogs(X) {
       if (!b) return;
       m.close();
       X.runAction(b.dataset.m, $("[data-act=roll-mode]", root));
+    });
+  }
+
+  function sheetCheckDialog() {
+    const list = sheetIssues(S.c, S.d);
+    const m = openModal({
+      title: "Проверка листа",
+      cls: "small",
+      body: list.length
+        ? `<p class="hint">Здесь то, что расходится с правилами. Сайт ничего не меняет сам: реши, что поправить, а что так задумано Мастером.</p><div class="check-list">${list.map((x, i) => `<div class="check-row ${x.level}">${icon(x.level === "warn" ? "flag" : "info")}<span>${esc(x.text)}</span>${x.open || x.tab ? `<button class="btn ghost sm" data-ck="${i}">Показать</button>` : ""}</div>`).join("")}</div>`
+        : `<p class="empty">${icon("check")} Всё сходится: настройка, доспехи, оружие, ячейки и вес в порядке.</p>`
+    });
+    m.body.addEventListener("click", e => {
+      const b = e.target.closest("[data-ck]");
+      if (!b) return;
+      const x = list[Number(b.dataset.ck)];
+      m.close();
+      if (x.tab) {
+        const t = $(`.tab[data-tab="${x.tab}"]`, root);
+        if (t) t.click();
+      }
+      if (x.open) setTimeout(() => X.openEntity(x.open), 50);
     });
   }
 
@@ -423,5 +450,5 @@ export function installDialogs(X) {
     });
   }
 
-  Object.assign(X, { backupDialog, sceneDialog, coinDialog, searchAll, switchChar, shortRest, longRest, restSummary, historyDialog, rollLogDialog, importDialog, menu, spellAbilityDialog });
+  Object.assign(X, { backupDialog, sceneDialog, coinDialog, searchAll, switchChar, shortRest, longRest, restSummary, historyDialog, rollLogDialog, importDialog, menu, spellAbilityDialog, sheetCheckDialog });
 }

@@ -1,4 +1,4 @@
-import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, containerTree, fmt, usesInfo, spellCast, effectSummary, spellInCombat, xpInfo, ammoFor, sceneInfo } from "./rules.js";
+import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, containerTree, fmt, usesInfo, spellCast, effectSummary, spellInCombat, itemInCombat, featureInCombat, xpInfo, ammoFor, sceneInfo } from "./rules.js";
 import { icon, actionMark, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, pips, rich } from "./ui.js";
 import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum } from "./entities.js";
@@ -240,7 +240,7 @@ const nameKey = s => String(s || "").trim().toLowerCase().replace(/ё/g, "е");
 export function combatSources(c, d) {
   const weapons = (c.items || []).filter(it => d.weapons[it.id]);
   const spells = (c.spells || []).filter(spellInCombat);
-  const pinned = [...(c.features || []).filter(f => f.combat === "yes").map(e => ({ kind: "feature", e })), ...(c.items || []).filter(it => it.combat === "yes" && !d.weapons[it.id]).map(e => ({ kind: "item", e }))];
+  const pinned = [...(c.features || []).filter(featureInCombat).map(e => ({ kind: "feature", e })), ...(c.items || []).filter(it => !d.weapons[it.id] && itemInCombat(it, d)).map(e => ({ kind: "item", e }))];
   const taken = new Set([...weapons, ...spells].map(x => nameKey(x.name)));
   const dupes = c.attacks.filter(a => taken.has(nameKey(a.name)));
   return { weapons, spells, pinned, own: c.attacks.filter(a => !dupes.includes(a)), dupes };
@@ -273,7 +273,7 @@ function attacksPanel(ctx) {
   const spent = Object.values((ctx.ui && ctx.ui.ammoSpent) || {}).reduce((a, b) => a + b, 0);
   const collect = spent ? `<div class="ammo-bar">${icon("arrow")}<span>Выпущено боеприпасов: ${spent}. После боя можно собрать половину.</span><button class="btn ghost sm" data-act="collect-ammo">Собрать ${Math.floor(spent / 2)}</button></div>` : "";
   const dupes = src.dupes.length ? `<div class="dupe-bar">${icon("info")}<span>${esc(src.dupes.map(a => a.name).join(", "))}: эти записи атак повторяют заклинания или оружие, поэтому спрятаны.</span><button class="btn ghost sm" data-act="dedupe-attacks">${icon("trash")}Удалить копии</button></div>` : "";
-  const hint = `<p class="hint atk-hint explain">Оружие появляется само, когда оно надето и у него указана атака. Заклинания: атакующие заговоры, остальные по галочке «В панели боя». Умения и предметы: «Показывать в бою» в их настройках.</p>`;
+  const hint = `<p class="hint atk-hint explain">Сюда само попадает надетое оружие, заклинания с уроном (у тех, кто готовит заклинания, только подготовленные), надетые вещи с действием и зарядами и умения с уроном. Убрать или закрепить: «В панели боя» в настройках записи.</p>`;
   return panel("Атаки", `${dupes}${body || emptyState("Атак пока нет")}${collect}${hint}`, { ic: "swords", actions: orderBtn(ctx) + addBtn("add-attack", "Атака"), cls: "p-attacks" });
 }
 

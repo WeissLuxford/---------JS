@@ -1,6 +1,6 @@
 import {
   ABILITIES, SKILLS, DAMAGE, SCHOOLS, ACTIONS, RECHARGE, RARITY, ITEM_TYPES, FEATURE_CATS, FEATURE_SOURCES,
-  CONDITIONS, CASTER_TYPES, HIT_DICE, ALIGNMENTS, ACCENTS, fmt, spellCast, usesInfo, swapType, uid, addDice, effectSummary, weaponStats
+  CONDITIONS, CASTER_TYPES, HIT_DICE, ALIGNMENTS, ACCENTS, fmt, spellCast, usesInfo, swapType, uid, addDice, effectSummary, weaponStats, asWeapon
 } from "./rules.js";
 import { icon, slotMark, actionMark } from "./icons.js";
 import { card, rich, esc, actionFoot, openForm } from "./ui.js";
@@ -237,7 +237,7 @@ export function itemModel(c, d, it) {
   const t = ITEM_TYPES[it.type] || ITEM_TYPES.misc;
   const r = RARITY[it.rarity] || RARITY.common;
   const u = usesInfo(d, it);
-  const w = it.atkAbility ? weaponStats(c, d, it) : null;
+  const w = asWeapon(it) ? weaponStats(c, d, asWeapon(it)) : null;
   const lines = w ? w.lines.map(x => ({ ...x })) : (it.damage || []).map(x => ({ dice: x.dice, type: swapType(c, x.type), swapped: swapType(c, x.type) !== x.type, origType: x.type }));
   const armorLine = Number(it.acBase) > 0 ? `КД ${it.acBase}${it.acDex === "0" ? "" : it.acDex === "2" ? " + Лов (макс. 2)" : " + Лов"}` : Number(it.acBonus) ? `${Number(it.acBonus) > 0 ? "+" : ""}${Number(it.acBonus)} к КД` : "";
   const stats = [
@@ -439,7 +439,7 @@ export const EDITORS = {
       { key: "source", label: "Источник", placeholder: "Колдун, Раса..." },
       { key: "concentration", label: "Концентрация", type: "checkbox" },
       { key: "ritual", label: "Ритуал", type: "checkbox" },
-      { key: "combat", label: "В панели боя", type: "select", options: [["", "Авто (атакующие заговоры)"], ["yes", "Показывать"], ["no", "Не показывать"]] },
+      { key: "combat", label: "В панели боя", type: "select", options: [["", "Авто (с уроном и подготовлено)"], ["yes", "Показывать"], ["no", "Не показывать"]] },
       { key: "prepared", label: "Подготовлено", type: "checkbox", hint: "Для жрецов, друидов, волшебников и паладинов. Колдуну и барду не нужно" },
       { key: "attack", label: "Бросок атаки заклинанием", type: "checkbox" },
       { key: "save", label: "Спасбросок цели", type: "select", options: SAVE_OPTS },
@@ -477,7 +477,7 @@ export const EDITORS = {
       { key: "duration", label: "Длительность" },
       { key: "save", label: "Спасбросок цели", type: "select", options: SAVE_OPTS },
       { key: "damage", label: "Кубы (урон, лечение, врем. хиты)", type: "dicelist", span: 3 },
-      { key: "combat", label: "Показывать в бою", type: "select", options: [["", "Нет"], ["yes", "Да, закрепить"]] },
+      { key: "combat", label: "В панели боя", type: "select", options: [["", "Авто"], ["yes", "Показывать"], ["no", "Не показывать"]] },
       { key: "effect", label: "Строка-итог (жирным)", span: 3 },
       { key: "description", label: "Описание", type: "textarea", rows: 6, span: 3 },
       { key: "icon", label: "Иконка", type: "icon", span: 3 }
@@ -502,7 +502,7 @@ export const EDITORS = {
       { key: "breakOn", label: "Ломается на d20", type: "number", nullable: true, hint: "После последнего заряда бросок d20; пусто = не ломается" },
       { key: "damage", label: "Кубы (у оружия первая строка: урон оружия, модификатор прибавится сам)", type: "dicelist", span: 3 },
       { type: "heading", key: "_hw", label: "Если это оружие: появится в бою, когда надето", span: 3 },
-      { key: "atkAbility", label: "Атака", type: "select", options: [["", "Не оружие"], ["str", "Сила"], ["dex", "Ловкость"], ["finesse", "Сила или Ловкость (фехтовальное)"], ["spell", "Заклинательная"]] },
+      { key: "atkAbility", label: "Атака", type: "select", options: [["", "Авто: у оружия по названию, иначе нет"], ["str", "Сила"], ["dex", "Ловкость"], ["finesse", "Сила или Ловкость (фехтовальное)"], ["spell", "Заклинательная"]] },
       { key: "atkProf", label: "Есть владение", type: "checkbox" },
       { key: "atkBonus", label: "Магический бонус", type: "number", hint: "+1 к попаданию и урону у оружия +1" },
       { key: "range", label: "Дистанция", placeholder: "5 фт / 20/60 фт", span: 2 },
@@ -511,7 +511,7 @@ export const EDITORS = {
       { key: "acBase", label: "КД доспеха", type: "number", nullable: true, hint: "Пусто, если не доспех" },
       { key: "acDex", label: "Ловкость", type: "select", options: [["full", "Полностью (лёгкий)"], ["2", "Не больше +2 (средний)"], ["0", "Без Ловкости (тяжёлый)"]] },
       { key: "acBonus", label: "Прибавка к КД", type: "number", hint: "Щит +2, кольцо защиты +1" },
-      { key: "combat", label: "Показывать в бою", type: "select", options: [["", "Нет"], ["yes", "Да, закрепить"]] },
+      { key: "combat", label: "В панели боя", type: "select", options: [["", "Авто"], ["yes", "Показывать"], ["no", "Не показывать"]] },
       { type: "heading", key: "_hc", label: "Если в это можно класть вещи: рюкзак, мешок, сундук", span: 3 },
       { key: "isContainer", label: "Это контейнер", type: "checkbox" },
       { key: "capacity", label: "Вмещает, фнт", type: "number", hint: "0: без предела" },

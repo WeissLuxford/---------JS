@@ -1,6 +1,6 @@
 import { compute, normalize, fmt, usesInfo, addDice, swapType, NOTE_KEYS, reorderSubset, presetEffect, xpInfo } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
-import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, getPath, setPath, download } from "./ui.js";
+import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, reducedMotion, getPath, setPath, download } from "./ui.js";
 import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources } from "./tabs.js";
 import { cardFor, findEntity } from "./entities.js";
 import { subscribeChar, saveChanges, addHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
@@ -19,6 +19,8 @@ import { installCards } from "./sheet-cards.js";
 import { installDialogs } from "./sheet-dialogs.js";
 import { installLevelUp } from "./sheet-levelup.js";
 import { installNotes, loadRecent } from "./sheet-notes.js";
+import { keepAwake, setWake, wakeOn, wakeSupported } from "./wake.js";
+import { sheetIssues } from "./checks.js";
 
 export function mountSheet(root, id, initialTab, navigate) {
   const S = {
@@ -315,6 +317,53 @@ export function mountSheet(root, id, initialTab, navigate) {
       el.classList.toggle("over", S.d.weight > S.d.carry);
       el.firstElementChild.style.width = Math.min(100, (S.d.weight / Math.max(1, S.d.carry)) * 100) + "%";
     });
+    hpFeel();
+    const issues = readOnly() ? [] : sheetIssues(S.c, S.d);
+    $$("[data-act=menu]", root).forEach(b => {
+      b.classList.toggle("has-issues", issues.length > 0);
+      b.title = issues.length ? `Меню. Проверка листа: ${issues.length}` : "Меню";
+    });
+  }
+
+  function hpFeel() {
+    const hp = S.c.hp;
+    const now = curHp() + (Number(hp.temp) || 0);
+    const prev = S.hpPrev;
+    S.hpPrev = now;
+    const down = curHp() <= 0;
+    const dying = down && !hp.stable && (Number(hp.deathFail) || 0) < 3;
+    document.body.classList.toggle("hp-down", down);
+    document.body.classList.toggle("hp-dying", dying);
+    heartbeat(dying);
+    if (prev == null || prev === now) return;
+    const kind = now < prev ? "hit" : "heal";
+    const fx = fxSettings();
+    if (fx.sound && !(kind === "hit" && dying)) playSound(kind);
+    if (!fx.anim || reducedMotion()) return;
+    $$(".hp-big, .hp-mini, .hp-bar", root).forEach(el => {
+      el.classList.remove("hp-hit", "hp-heal");
+      void el.offsetWidth;
+      el.classList.add("hp-" + kind);
+    });
+    document.body.classList.remove("fx-hit", "fx-heal");
+    void document.body.offsetWidth;
+    document.body.classList.add("fx-" + kind);
+    clearTimeout(S.fxTimer);
+    S.fxTimer = setTimeout(() => document.body.classList.remove("fx-hit", "fx-heal"), 900);
+  }
+
+  function heartbeat(on) {
+    if (!on) {
+      clearInterval(S.beatTimer);
+      S.beatTimer = 0;
+      return;
+    }
+    if (S.beatTimer) return;
+    const beat = () => {
+      if (!S.disposed && fxSettings().sound && document.visibilityState === "visible") playSound("heartbeat");
+    };
+    beat();
+    S.beatTimer = setInterval(beat, 1500);
   }
 
   function snapshot(reason) {
@@ -788,6 +837,11 @@ export function mountSheet(root, id, initialTab, navigate) {
         return toast(on ? "Пояснения на экране включены" : "Пояснения на экране выключены", { timeout: 1800 });
       }
       case "spell-ability": return X.spellAbilityDialog();
+      case "sheet-check": return X.sheetCheckDialog();
+      case "wake-toggle": {
+        const on = setWake(!wakeOn());
+        return toast(!wakeSupported() ? "Этот браузер не умеет держать экран включённым" : on ? "Экран не гаснет, пока открыт лист" : "Экран гаснет как обычно", { timeout: 2200 });
+      }
       case "add-effect": return X.effectPicker();
       case "edit-effect": {
         const ef = (c.effects || []).find(x => x.id === el.dataset.id);
@@ -1027,7 +1081,13 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (html) openModal({ body: html, cls: "entity info-card" });
   });
 
+  keepAwake(true);
+
   return () => {
+    keepAwake(false);
+    heartbeat(false);
+    clearTimeout(S.fxTimer);
+    document.body.classList.remove("hp-down", "hp-dying", "fx-hit", "fx-heal");
     if (hasUnsaved()) flush();
     clearInterval(backupTimer);
     clearTimeout(backupFirst);

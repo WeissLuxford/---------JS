@@ -1,4 +1,4 @@
-import { SKILLS, DAMAGE, DAMAGE_TYPES, fmt, rollD20, rollDice, spellCast, maxDie, rollContext, resolveMode, rollReasons, applyDefenses, effectDamage, weaponStats, ammoFor } from "./rules.js";
+import { SKILLS, DAMAGE, DAMAGE_TYPES, fmt, rollD20, rollDice, spellCast, maxDie, rollContext, resolveMode, rollReasons, applyDefenses, effectDamage, weaponStats, asWeapon, ammoFor } from "./rules.js";
 import { icon } from "./icons.js";
 import { esc, $, toast, promptNumber, showD20, showBeams, showDamage } from "./ui.js";
 import { turnBar } from "./tabs.js";
@@ -124,7 +124,7 @@ export function installRolls(X) {
     }
     if (kind === "item") {
       const it = findEntity(c, "item", id);
-      const w = it && it.atkAbility ? d.weapons[id] || weaponStats(c, d, it) : null;
+      const w = asWeapon(it) ? d.weapons[id] || weaponStats(c, d, asWeapon(it)) : null;
       return w ? { name: it.name, hit: w.hit, beams: 1, lines: w.lines, attack: true, weapon: true, ability: w.ability, action: it.action || "action" } : null;
     }
     if (kind === "spell") {

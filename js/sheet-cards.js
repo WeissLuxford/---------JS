@@ -1,4 +1,4 @@
-import { normalize, fmt, spellCast, usesInfo, addDice, swapType, effectDamage, weaponStats } from "./rules.js";
+import { normalize, fmt, spellCast, usesInfo, addDice, swapType, effectDamage, weaponStats, asWeapon } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, $, toast, openModal, openForm, getPath, setPath, cropImage, pickFile } from "./ui.js";
 import { SECTION_NAME, linkTargets } from "./notes.js";
@@ -73,7 +73,7 @@ export function installCards(X) {
         b.push(`<button class="btn gold" data-x="use">${icon("check")}Использовать</button>`);
         b.push(`<button class="btn ghost" data-x="restore">${icon("history")}Вернуть</button>`);
       }
-      const w = e.atkAbility ? weaponStats(S.c, d, e) : null;
+      const w = asWeapon(e) ? weaponStats(S.c, d, asWeapon(e)) : null;
       if (w) {
         b.push(`<button class="btn gold" data-x="w-atk">${icon("d20")}Атака ${fmt(w.hit)}</button>`);
         b.push(`<button class="btn" data-x="w-dmg">${icon("swords")}Урон</button>`);

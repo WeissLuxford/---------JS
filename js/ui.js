@@ -234,7 +234,19 @@ export function playSound(kind) {
   } else if (kind === "fumble") {
     tone(a, { type: "sawtooth", from: 170, to: 48, dur: 0.55, vol: 0.09, filter: 700 });
     noise(a, { dur: 0.18, vol: 0.14, freq: 160, q: 0.8, type: "lowpass" });
+  } else if (kind === "hit") {
+    tone(a, { type: "sine", from: 140, to: 55, dur: 0.28, vol: 0.16 });
+    noise(a, { dur: 0.12, vol: 0.12, freq: 420, q: 0.9, type: "lowpass" });
+  } else if (kind === "heal") {
+    [523.3, 659.3, 784].forEach((f, i) => tone(a, { type: "sine", from: f, at: i * 0.09, dur: 0.7, vol: 0.045 }));
+  } else if (kind === "heartbeat") {
+    tone(a, { type: "sine", from: 75, to: 48, dur: 0.16, vol: 0.2 });
+    tone(a, { type: "sine", from: 68, to: 44, at: 0.24, dur: 0.2, vol: 0.15 });
   }
+}
+
+export function reducedMotion() {
+  return reduced();
 }
 
 function reduced() {

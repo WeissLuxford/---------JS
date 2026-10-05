@@ -1,3 +1,4 @@
+import { GEAR } from "./gear.js";
 export const ABILITIES = [
   { key: "str", name: "Сила", short: "СИЛ", desc: "Физическая мощь: атаки и урон оружием ближнего боя, Атлетика, переноска тяжестей." },
   { key: "dex", name: "Ловкость", short: "ЛОВ", desc: "Проворство и реакция: КД без тяжёлой брони, инициатива, дальнобойное и фехтовальное оружие." },
@@ -729,7 +730,7 @@ export function normalize(c) {
     if ("acBonus" in x) x.acBonus = Math.round(num(x.acBonus));
     if ("range" in x) x.range = String(x.range ?? "").slice(0, 60);
     if ("ammoId" in x) x.ammoId = String(x.ammoId ?? "").slice(0, 60);
-    if ("combat" in x) x.combat = x.combat === "yes" ? "yes" : "";
+    if ("combat" in x) x.combat = ["yes", "no"].includes(x.combat) ? x.combat : "";
     return x;
   });
   out.spells = out.spells.map(sp => ("combat" in sp ? { ...sp, combat: ["yes", "no"].includes(sp.combat) ? sp.combat : "" } : sp));
@@ -739,7 +740,7 @@ export function normalize(c) {
   }
   out.spells = out.spells.map(sp => ({ ...sp, level: Math.max(0, Math.min(9, Math.round(num(sp.level)))), damage: cleanDamage(sp.damage) }));
   out.spells = out.spells.map(sp => (sp.cost === "item" ? { ...sp, itemId: String(sp.itemId ?? ""), charges: Math.max(1, Math.round(num(sp.charges, 1))), maxCharges: Math.max(1, Math.round(num(sp.maxCharges, num(sp.charges, 1)))) } : sp));
-  out.features = out.features.map(f => ({ ...f, damage: cleanDamage(f.damage), ...("combat" in f ? { combat: f.combat === "yes" ? "yes" : "" } : {}) }));
+  out.features = out.features.map(f => ({ ...f, damage: cleanDamage(f.damage), ...("combat" in f ? { combat: ["yes", "no"].includes(f.combat) ? f.combat : "" } : {}) }));
   out.attacks = out.attacks.map(at => ("ammoId" in at ? { ...at, ammoId: String(at.ammoId ?? "").slice(0, 60) } : at));
   out.items = out.items.map(it => {
     const preset = "isContainer" in it ? null : containerPreset(it.name);
@@ -865,8 +866,53 @@ export function compute(c) {
   d.attacks = {};
   for (const at of c.attacks) d.attacks[at.id] = attackStats(c, d, at);
   d.weapons = {};
-  for (const it of c.items || []) if (it.atkAbility && it.equipped) d.weapons[it.id] = weaponStats(c, d, it);
+  for (const it of c.items || []) {
+    if (!it.equipped || it.combat === "no") continue;
+    const w = asWeapon(it);
+    if (w) d.weapons[it.id] = weaponStats(c, d, w);
+  }
   return d;
+}
+
+const lowName = s => String(s || "").toLowerCase().replace(/ё/g, "е");
+
+export function gearWeapon(name) {
+  const n = lowName(name);
+  if (!n) return null;
+  let best = null;
+  for (const g of GEAR) {
+    if (g.kind !== "weapon") continue;
+    const k = lowName(g.name);
+    if (new RegExp(`(^|[^а-яa-z])${k}([^а-яa-z]|$)`).test(n) && (!best || k.length > best.name.length)) best = g;
+  }
+  return best;
+}
+
+export function asWeapon(it) {
+  if (!it) return null;
+  if (it.atkAbility) return it;
+  if (it.type !== "weapon") return null;
+  const g = gearWeapon(it.name);
+  const own = (it.damage || []).filter(x => x && x.dice);
+  const ranged = /лук|арбалет|праща|духов|дротик/i.test(it.name || "");
+  return {
+    ...it,
+    atkAbility: g ? g.ability : ranged ? "dex" : "str",
+    damage: own.length ? it.damage : g ? [{ dice: g.dice, type: g.type, addMod: false }] : [],
+    range: it.range || (g ? g.range : "")
+  };
+}
+
+export function itemInCombat(it, d) {
+  if (it.combat === "yes") return true;
+  if (it.combat === "no" || !it.equipped || (d && d.weapons[it.id])) return false;
+  return ["action", "bonus", "reaction"].includes(it.action) && (!!usesInfo(d, it) || (it.damage || []).some(x => x && x.dice));
+}
+
+export function featureInCombat(f) {
+  if (f.combat === "yes") return true;
+  if (f.combat === "no") return false;
+  return ["action", "bonus", "reaction"].includes(f.action) && (f.damage || []).some(x => x && x.dice && x.type !== "healing" && x.type !== "temp");
 }
 
 export function attackStats(c, d, at) {
@@ -897,7 +943,8 @@ export function weaponStats(c, d, it) {
 export function spellInCombat(sp) {
   if (sp.combat === "yes") return true;
   if (sp.combat === "no" || sp.cost === "item") return false;
-  return Number(sp.level) === 0 && (sp.attack || !!sp.save) && (sp.damage || []).some(x => x.type !== "healing" && x.type !== "temp");
+  if (Number(sp.level) > 0 && sp.prepared === false) return false;
+  return (sp.attack || !!sp.save) && (sp.damage || []).some(x => x.type !== "healing" && x.type !== "temp");
 }
 
 export function spellCast(c, d, sp, slotLevel, extra = 0) {
