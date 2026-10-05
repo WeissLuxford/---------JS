@@ -1,7 +1,7 @@
 import { normalize, newCharacter, compute, importCharacter } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, timeAgo, toast, openForm, openModal, pickFile, confirmDialog } from "./ui.js";
-import { installBanner, installApp, hideInstallBanner } from "./pwa.js";
+import { installBanner, installApp } from "./pwa.js";
 import { subscribeList, subscribeInvites, createChar, getMode, onStatus, getRecents, removeRecent, claimCharacter, deleteCharactersOf, listCharactersOf, newCharId, getCharOnce } from "./store.js";
 import { onAccess, signIn, signOut, IN_APP, getAccess, deleteAccountData } from "./access.js";
 import { subtitle } from "./tabs.js";
@@ -275,12 +275,6 @@ export function mountHome(root, navigate) {
 
   const onClick = async e => {
     if (e.target.closest("[data-install]")) return installApp();
-    if (e.target.closest("[data-install-hide]")) {
-      hideInstallBanner();
-      const bar = e.target.closest(".install-bar");
-      if (bar) bar.remove();
-      return;
-    }
     const t = e.target;
     if (t.closest("[data-new]")) return createFlow();
     if (t.closest("[data-signin]")) {

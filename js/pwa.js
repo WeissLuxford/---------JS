@@ -58,14 +58,5 @@ export async function installApp() {
 
 export function installBanner() {
   if (!canInstall()) return "";
-  try {
-    if (localStorage.getItem("dnd.install.hide") === "1") return "";
-  } catch {}
-  return `<div class="install-bar"><img src="icon-192.png" alt="" width="40" height="40"><span><b>Листы D&amp;D как приложение</b><small>Значок на экране телефона, открывается без браузера, работает без интернета.</small></span><button class="btn gold sm" data-install>${esc("Установить")}</button><button class="icon-btn" data-install-hide title="Скрыть" aria-label="Скрыть">${icon("close")}</button></div>`;
-}
-
-export function hideInstallBanner() {
-  try {
-    localStorage.setItem("dnd.install.hide", "1");
-  } catch {}
+  return `<div class="install-bar"><img src="icon-192.png" alt="" width="40" height="40"><span><b>Листы D&amp;D как приложение</b><small>Значок на экране телефона, открывается без браузера, работает без интернета.</small></span><button class="btn gold sm" data-install>${esc("Установить")}</button></div>`;
 }

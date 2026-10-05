@@ -21,10 +21,14 @@ ok("iOS instructions", (await page.locator(".modal-back.in .install-steps").coun
 await page.screenshot({ path: OUT + "pwa-ios.png" });
 await page.goBack();
 await sleep(300);
-await page.click("[data-install-hide]");
+ok("no close button on banner", (await page.locator(".install-bar .icon-btn").count()) === 0);
+const fits = await page.$eval(".install-bar", el => { const a = el.getBoundingClientRect(); const b = el.querySelector("[data-install]").getBoundingClientRect(); return b.right <= a.right && b.top >= a.top; });
+ok("install button inside banner", fits);
+await page.screenshot({ path: OUT + "pwa-banner.png", clip: await page.$eval(".install-bar", el => { const r = el.getBoundingClientRect(); return { x: 0, y: r.top - 8, width: 390, height: r.height + 16 }; }) });
+await page.evaluate(() => localStorage.setItem("dnd.install.hide", "1"));
 await page.reload();
 await page.waitForSelector(".home");
-ok("banner hidden after dismiss", (await page.locator(".install-bar").count()) === 0);
+ok("banner stays in browser even after old dismiss", (await page.locator(".install-bar").count()) === 1);
 await page.goto("http://localhost:8765/#/c/kirion-thorndike/combat");
 await page.waitForSelector(".sheet");
 await page.click("[data-act=menu]");

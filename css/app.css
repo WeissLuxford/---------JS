@@ -1330,10 +1330,9 @@ li:has(> .rt-todo) { list-style: none; margin-left: -18px; }
 .switch-list small { color: var(--dim); font-size: 13px; }
 @media (max-width: 760px) { .tb-search { display: none; } #undo-bar { top: calc(62px + env(safe-area-inset-top)); } }
 
-.install-bar { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; margin-top: 14px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line-2); background: linear-gradient(90deg, rgba(201, 163, 91, .14), rgba(201, 163, 91, .04)); }
+.install-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; margin-top: 14px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line-2); background: linear-gradient(90deg, rgba(201, 163, 91, .14), rgba(201, 163, 91, .04)); }
 .install-bar img { border-radius: 10px; flex: none; box-shadow: 0 0 12px rgba(233, 199, 122, .3); }
-.install-bar span { flex: 1 1 180px; min-width: 0; display: flex; flex-direction: column; padding-right: 30px; }
-.install-bar [data-install-hide] { position: absolute; top: 4px; right: 4px; }
+.install-bar span { flex: 1 1 180px; min-width: 0; display: flex; flex-direction: column; }
 .install-bar [data-install] { margin-left: auto; }
 .install-bar b { color: var(--gold-3); }
 .install-bar small { color: var(--dim); font-size: 14px; }
