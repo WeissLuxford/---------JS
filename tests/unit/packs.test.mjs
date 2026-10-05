@@ -25,3 +25,17 @@ test("pack items land in the container and survive normalize", () => {
   assert.equal(c.items.find(it => it.name === "Факел").qty, 10);
   assert.deepEqual(K.packItems("nope", "", R.uid), []);
 });
+
+test("containers from the gear table are real containers", async () => {
+  const G = await import(P + "gear.js");
+  const pack = G.GEAR.find(g => g.name === "Рюкзак");
+  const it = G.gearToItem(pack, R.uid);
+  assert.equal(it.type, "gear");
+  assert.equal(it.isContainer, true);
+  assert.equal(it.capacity, 30);
+  assert.equal(it.acBonus, undefined);
+  const c = R.normalize({ name: "x", items: [it, ...K.packItems("explorer", it.id, R.uid)] });
+  const d = R.compute(c);
+  assert.equal(d.weight, 5 + 54);
+  assert.ok(G.GEAR.filter(g => g.kind === "gear").every(g => g.capacity > 0 && g.value));
+});

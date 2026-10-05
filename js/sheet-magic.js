@@ -183,7 +183,7 @@ export function installMagic(X) {
         ch.features = normalize(ch).features;
       }),
       onAddItem: it => X.mutate(ch => {
-        ch.items.push(it);
+        ch.items.push(...(Array.isArray(it) ? it : [it]));
         ch.items = normalize(ch).items;
       })
     });

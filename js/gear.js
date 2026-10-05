@@ -50,12 +50,20 @@ export const GEAR = [
   A("Кольчуга", "Chain mail", "Тяжёлый доспех", 16, "0", 55, "75 зм", "Сила 13, помеха на Скрытность"),
   A("Наборный доспех", "Splint", "Тяжёлый доспех", 17, "0", 60, "200 зм", "Сила 15, помеха на Скрытность"),
   A("Латы", "Plate", "Тяжёлый доспех", 18, "0", 65, "1500 зм", "Сила 15, помеха на Скрытность"),
-  { kind: "shield", name: "Щит", nameEn: "Shield", group: "Щит", acBonus: 2, weight: 6, value: "10 зм", props: "+2 к КД" }
+  { kind: "shield", name: "Щит", nameEn: "Shield", group: "Щит", acBonus: 2, weight: 6, value: "10 зм", props: "+2 к КД" },
+  { kind: "gear", name: "Рюкзак", nameEn: "Backpack", group: "Контейнеры", capacity: 30, weight: 5, value: "2 зм", props: "Вмещает 1 кубический фут или 30 фунтов снаряжения. Снаружи можно привязать спальник и верёвку." },
+  { kind: "gear", name: "Мешок", nameEn: "Sack", group: "Контейнеры", capacity: 30, weight: 0.5, value: "1 мм", props: "Вмещает 1 кубический фут или 30 фунтов снаряжения." },
+  { kind: "gear", name: "Поясной кошель", nameEn: "Pouch", group: "Контейнеры", capacity: 6, weight: 1, value: "5 см", props: "Вмещает 1/5 кубического фута или 6 фунтов: монеты, мелочи, 20 снарядов для пращи." },
+  { kind: "gear", name: "Мешочек с компонентами", nameEn: "Component pouch", group: "Контейнеры", capacity: 6, weight: 2, value: "25 зм", props: "Водонепроницаемый поясной мешочек со всеми материальными компонентами без цены. Можно использовать вместо магической фокусировки." },
+  { kind: "gear", name: "Колчан", nameEn: "Quiver", group: "Контейнеры", capacity: 2, weight: 1, value: "1 зм", props: "Вмещает 20 стрел." },
+  { kind: "gear", name: "Футляр для карт и свитков", nameEn: "Map or scroll case", group: "Контейнеры", capacity: 1, weight: 1, value: "1 зм", props: "Кожаный тубус: до 10 свёрнутых листов бумаги или 5 листов пергамента." },
+  { kind: "gear", name: "Сундук", nameEn: "Chest", group: "Контейнеры", capacity: 300, weight: 25, value: "5 зм", props: "Вмещает 12 кубических футов или 300 фунтов снаряжения. С собой обычно не носят." }
 ];
 
 export function gearToItem(g, uid) {
   const base = { id: "it-" + uid(), name: g.name, rarity: "common", qty: 1, weight: g.weight, value: g.value, equipped: false, attuned: false, requiresAttunement: false, action: "", uses: "", recharge: "long", used: 0, effect: g.props || "", description: `${g.group}${g.nameEn ? ` · ${g.nameEn}` : ""}. Из таблицы SRD 5.1.` };
   if (g.kind === "weapon") return { ...base, type: "weapon", action: "action", damage: [{ dice: g.dice, type: g.type, addMod: false }], atkAbility: g.ability, atkProf: true, atkBonus: 0, range: g.range };
   if (g.kind === "armor") return { ...base, type: "armor", damage: [], acBase: g.base, acDex: g.dex };
+  if (g.kind === "gear") return { ...base, type: "gear", damage: [], effect: "", description: g.props || "", ...(g.capacity ? { isContainer: true, capacity: g.capacity, weightless: false } : {}) };
   return { ...base, type: "armor", damage: [], acBonus: g.acBonus };
 }

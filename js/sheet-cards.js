@@ -87,6 +87,11 @@ export function installCards(X) {
       if (S.c.items.some(x => x.isContainer && x.id !== e.id)) b.push(`<button class="btn ghost" data-x="move">${icon("bag")}${e.container ? `В «${esc((S.c.items.find(x => x.id === e.container) || {}).name || "контейнер")}»` : "Переложить"}</button>`);
       if (e.isContainer && !X.readOnly()) b.push(/компонент/i.test(e.name || "") ? `<button class="btn ghost" data-x="pouch-info">${icon("info")}Что внутри</button>` : `<button class="btn ghost" data-x="pack">${icon("download")}Сложить набор</button>`);
       if (e.isContainer) b.push(`<button class="btn ghost" data-x="stored">${icon(e.stored ? "bag" : "door")}${e.stored ? "Взять с собой" : "Оставить (не нести)"}</button>`);
+      if (!X.readOnly()) {
+        const inner = innerIds(S.c, e.id).length;
+        if (inner) b.push(`<button class="btn ghost" data-x="empty">${icon("trash")}Выбросить содержимое (${inner})</button>`);
+        b.push(`<button class="btn ghost drop-btn" data-x="drop" title="Выбросить предмет">${icon("trash")}Выбросить</button>`);
+      }
       b.push(`<span class="qty-ctl"><button class="icon-btn" data-x="qty-" title="Меньше">${icon("minus")}</button><b>${esc(e.qty)}</b><button class="icon-btn" data-x="qty+" title="Больше">${icon("plus")}</button></span>`);
     }
     if (kind === "attack") {
@@ -178,6 +183,17 @@ export function installCards(X) {
       if (x === "move") {
         m.close();
         return X.moveItem(eid);
+      }
+      if (x === "drop") {
+        const inner = innerIds(S.c, eid);
+        if (inner.length) return dropDialog(e, inner, m);
+        m.close();
+        return X.withUndo(`Выброшено: ${e.name}`, () => X.mutate(c => { c.items = c.items.filter(it => it.id !== eid); }));
+      }
+      if (x === "empty") {
+        const inner = new Set(innerIds(S.c, eid));
+        m.close();
+        return X.withUndo(`Выброшено содержимое: ${e.name}`, () => X.mutate(c => { c.items = c.items.filter(it => !inner.has(it.id)); }));
       }
       if (x === "pouch-info") return openModal({ title: e.name || "Мешочек с компонентами", cls: "small", body: `<p>${esc(COMPONENT_POUCH_NOTE)}</p>` });
       if (x === "pack") return packDialog(e, m);
@@ -376,6 +392,37 @@ export function installCards(X) {
           x.container = to;
           if (to) x.equipped = false;
         }
+      }));
+    });
+  }
+
+  function innerIds(c, boxId) {
+    const out = [];
+    const walk = id => (c.items || []).filter(it => it.container === id && !out.includes(it.id)).forEach(it => {
+      out.push(it.id);
+      walk(it.id);
+    });
+    walk(boxId);
+    return out;
+  }
+
+  function dropDialog(box, inner, card) {
+    const m = openModal({
+      title: `Выбросить «${box.name || "контейнер"}»?`,
+      cls: "small",
+      body: `<p>Внутри ${inner.length} ${inner.length === 1 ? "вещь" : inner.length < 5 ? "вещи" : "вещей"}. Что сделать с ними?</p><div class="form-actions drop-actions"><button class="btn ghost" data-drop="spill">${icon("download")}Высыпать и выбросить только «${esc(box.name)}»</button><button class="btn danger" data-drop="all">${icon("trash")}Выбросить вместе с вещами</button></div>`
+    });
+    m.body.addEventListener("click", ev => {
+      const b = ev.target.closest("[data-drop]");
+      if (!b) return;
+      const all = b.dataset.drop === "all";
+      const gone = new Set(all ? [box.id, ...inner] : [box.id]);
+      m.close();
+      if (card) card.close();
+      X.withUndo(all ? `Выброшено с вещами: ${box.name}` : `Выброшено: ${box.name}`, () => X.mutate(c => {
+        const self = c.items.find(it => it.id === box.id);
+        const parent = (self && self.container) || "";
+        c.items = c.items.filter(it => !gone.has(it.id)).map(it => (it.container === box.id ? { ...it, container: parent } : it));
       }));
     });
   }

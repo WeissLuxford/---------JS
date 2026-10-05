@@ -6,6 +6,7 @@ import { esc, card, openModal, toast, rich } from "./ui.js";
 import { spellModel, spellIcon, featureIcon, itemIcon } from "./entities.js";
 import { INVOCATIONS, detectClass, CLASSES as CLASS_TABLE } from "./classes.js";
 import { GEAR, gearToItem } from "./gear.js";
+import { PACKS, packItems, packWeight } from "./packs.js";
 import { stem, words } from "./notes.js";
 
 export const CLASSES = { bard: "Бард", cleric: "Жрец", druid: "Друид", paladin: "Паладин", ranger: "Следопыт", sorcerer: "Чародей", warlock: "Колдун", wizard: "Волшебник" };
@@ -212,17 +213,21 @@ async function renderSpells(box, { get, onAdd, item = null }) {
   });
 }
 
+const packBox = p => GEAR.find(g => g.name === (p.key === "diplomat" ? "Сундук" : "Рюкзак"));
+const GEAR_ROWS = [...GEAR, ...PACKS.map(p => ({ kind: "pack", group: "Наборы", name: p.name, nameEn: "", props: `${p.note} В ${p.key === "diplomat" ? "сундуке" : "рюкзаке"}: ${p.items.map(x => (x.qty > 1 ? `${x.name} × ${x.qty}` : x.name)).join(", ")}`, value: p.value, pack: p.key, count: p.items.length + 1, weight: Math.round((packWeight(p) + packBox(p).weight) * 100) / 100 }))];
+
 function renderGear(box, { get, onAdd }) {
   const prof = String(get().c.proficiencies.weapons || "").toLowerCase();
-  box.innerHTML = `<div class="lib-tools"><label class="search-box">${icon("search")}<input type="search" data-q placeholder="Кинжал, рапира, кольчуга..." aria-label="Поиск"></label></div><div class="lib-list" data-list></div><p class="hint small lib-src">Базовое оружие и доспехи из SRD 5.1 (CC-BY-4.0). После добавления предмет можно изменить: сделать магическим, переименовать, добавить свойства.</p>`;
+  box.innerHTML = `<div class="lib-tools"><label class="search-box">${icon("search")}<input type="search" data-q placeholder="Кинжал, кольчуга, рюкзак, набор..." aria-label="Поиск"></label></div><div class="lib-list" data-list></div><p class="hint small lib-src">Базовое оружие и доспехи из SRD 5.1 (CC-BY-4.0). После добавления предмет можно изменить: сделать магическим, переименовать, добавить свойства.</p>`;
   const listEl = box.querySelector("[data-list]");
   const draw = q => {
     const n = norm(q.trim());
     let group = "";
-    listEl.innerHTML = GEAR.map((g, i) => ({ g, i })).filter(({ g }) => !n || norm(g.name).includes(n) || norm(g.nameEn).includes(n)).map(({ g, i }) => {
+    listEl.innerHTML = GEAR_ROWS.map((g, i) => ({ g, i })).filter(({ g }) => !n || norm(g.name).includes(n) || norm(g.nameEn).includes(n) || norm(g.props).includes(n)).map(({ g, i }) => {
       const head = g.group !== group ? `<div class="atk-group">${esc((group = g.group))}</div>` : "";
-      const stat = g.kind === "weapon" ? `${g.dice} ${((DAMAGE[g.type] || {}).name || "").toLowerCase()}` : g.kind === "armor" ? `КД ${g.base}${g.dex === "0" ? "" : g.dex === "2" ? " + Лов (макс. 2)" : " + Лов"}` : "+2 КД";
-      return `${head}<button class="lib-head gear-row" data-g="${i}">${libIcon({ icon: itemIcon({ name: g.name, type: g.kind === "weapon" ? "weapon" : "armor" }) })}<span class="lib-names"><b>${esc(g.name)}</b><small>${esc(g.nameEn)} · ${esc(stat)}${g.props ? " · " + esc(g.props) : ""} · ${esc(g.value)}</small></span><span class="btn ghost sm">${icon("plus")}</span></button>`;
+      const stat = g.kind === "weapon" ? `${g.dice} ${((DAMAGE[g.type] || {}).name || "").toLowerCase()}` : g.kind === "armor" ? `КД ${g.base}${g.dex === "0" ? "" : g.dex === "2" ? " + Лов (макс. 2)" : " + Лов"}` : g.kind === "shield" ? "+2 КД" : g.kind === "pack" ? `${g.count} вещей, ${String(g.weight).replace(".", ",")} фнт` : g.capacity ? `вмещает ${g.capacity} фнт` : "";
+      const ic = g.kind === "pack" ? "backpack" : itemIcon({ name: g.name, type: g.kind === "weapon" ? "weapon" : g.kind === "gear" ? "gear" : "armor" });
+      return `${head}<button class="lib-head gear-row" data-g="${i}">${libIcon({ icon: ic })}<span class="lib-names"><b>${esc(g.name)}</b><small>${esc([g.nameEn, stat, g.props, g.value].filter(Boolean).join(" · "))}</small></span><span class="btn ghost sm">${icon("plus")}</span></button>`;
     }).join("") || `<p class="empty">Ничего не нашлось</p>`;
   };
   draw("");
@@ -230,10 +235,16 @@ function renderGear(box, { get, onAdd }) {
   box.addEventListener("click", e => {
     const b = e.target.closest("[data-g]");
     if (!b) return;
-    const g = GEAR[Number(b.dataset.g)];
+    const g = GEAR_ROWS[Number(b.dataset.g)];
+    if (g.kind === "pack") {
+      const p = PACKS.find(x => x.key === g.pack);
+      const holder = gearToItem(packBox(p), uid);
+      if (onAdd([holder, ...packItems(p.key, holder.id, uid)]) !== false) toast(`${icon("check")} ${esc(p.name)}: «${esc(holder.name)}» и ${p.items.length} вещей в снаряжении`, { kind: "good", timeout: 3200 });
+      return;
+    }
     const it = gearToItem(g, uid);
     if (g.kind === "weapon") it.atkProf = g.group.startsWith("Простое") ? /прост/.test(prof) : /воинск/.test(prof) || prof.includes(g.name.toLowerCase());
-    if (onAdd(it) !== false) toast(`${icon("check")} «${esc(g.name)}» в снаряжении. Надень, чтобы он считался в бою и в КД.`, { kind: "good", timeout: 3200 });
+    if (onAdd(it) !== false) toast(`${icon("check")} «${esc(g.name)}» в снаряжении.${g.kind === "gear" ? (g.capacity >= 20 ? " Открой его и нажми «Сложить набор», чтобы наполнить." : "") : " Надень, чтобы он считался в бою и в КД."}`, { kind: "good", timeout: 3200 });
   });
 }
 

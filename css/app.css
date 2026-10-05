@@ -1941,3 +1941,5 @@ body.hp-dying::before { animation: hp-pulse 1.5s ease-in-out infinite; }
 .pack-row small { color: var(--text-2); font-size: 14px; line-height: 1.35; }
 .pack-row .pack-items { color: var(--dim); font-size: 13px; }
 .pack-row em { flex: none; font-style: normal; text-align: right; color: var(--gold-2); font-size: 13px; line-height: 1.4; }
+.drop-btn:hover { border-color: rgba(229, 83, 61, .7); color: #f2a59a; }
+.drop-actions { flex-wrap: wrap; justify-content: flex-end; }
