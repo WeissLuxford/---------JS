@@ -32,7 +32,7 @@ export function rgba(hex, a) {
 }
 
 export function accentStyle(key) {
-  if (!key || key === "gold" || !ACCENTS[key]) return "";
+  if (!key || key === "gold" || !Object.hasOwn(ACCENTS, key)) return "";
   const [a, b, c] = ACCENTS[key].c;
   return `--gold:${a};--gold-2:${b};--gold-3:${c};--line:${rgba(a, 0.24)};--line-2:${rgba(a, 0.45)}`;
 }

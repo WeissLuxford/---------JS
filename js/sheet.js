@@ -8,6 +8,7 @@ import { diffPaths, applyPaths } from "./sync.js";
 import { onAccess, getAccess, myEmail, signIn, IN_APP } from "./access.js";
 import { openAccounts } from "./admin.js";
 import { openShare } from "./share.js";
+import { setAmbient } from "./ambient.js";
 import { SNAPSHOT_GAP, lastSnapshot, clone, sameContent, loadUiPrefs, accentStyle, applyAccent, loadJson, loadTurn, saveUiPrefs } from "./sheet-util.js";
 import { installRolls } from "./sheet-rolls.js";
 import { installUndo } from "./sheet-undo.js";
@@ -210,6 +211,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     const c = S.c;
     document.title = `${c.name} · Лист персонажа`;
     applyAccent(c.accent);
+    setAmbient(c.scene);
     root.innerHTML = `
       <div class="sheet ${readOnly() ? "viewer" : ""}" style="${accentStyle(c.accent)}">
         <header class="topbar">
@@ -233,6 +235,7 @@ export function mountSheet(root, id, initialTab, navigate) {
   }
 
   function renderTab() {
+    setAmbient(S.c && S.c.scene);
     const body = $("[data-body]", root);
     if (!body) return;
     body.innerHTML = (S.ui.ordering ? `<div class="order-bar">${icon("menu")}<span>Перетаскивай карточки за значок ⠿ (на компьютере ещё Alt + стрелки). Порядок сохранится для всех устройств.</span><button class="btn gold sm" data-act="toggle-order">${icon("check")}Готово</button></div>` : "") + RENDER[S.tab]({ c: S.c, d: S.d, ui: S.ui });
@@ -500,7 +503,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     return m;
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
 
   const UNDO = {
     "hp-quick": el => (Number(el.dataset.n) < 0 ? `Урон ${-Number(el.dataset.n)}` : `Лечение ${el.dataset.n}`),
@@ -803,6 +806,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "toggle-save": return mutate(ch => { ch.saves[el.dataset.k] = !ch.saves[el.dataset.k]; });
       case "cycle-skill": return mutate(ch => { ch.skills[el.dataset.k] = ((Number(ch.skills[el.dataset.k]) || 0) + 1) % 3; });
       case "edit-info": return X.editInfo();
+      case "scene": return X.sceneDialog();
       case "edit-armor": return X.editArmor();
       case "portrait": return X.portraitDialog();
       case "add-attack": return X.editEntity("attack", null);
@@ -969,6 +973,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (hasUnsaved()) flush();
     S.disposed = true;
     applyAccent("");
+    setAmbient(null);
     if (S.openModalApi) S.openModalApi.close();
     unsub && unsub();
     unStatus();

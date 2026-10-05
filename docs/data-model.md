@@ -21,6 +21,7 @@
 | `resistances` | строка | заметка о защите, только для чтения глазами |
 | `defenses` | `{resist[], vuln[], immune[]}` | типы урона из `DAMAGE_TYPES`; если поля нет, `normalize()` выводит его из текста `resistances` |
 | `inspiration` | boolean | вдохновение |
+| `scene` | `{time, weather}` | обстановка: `time` из `SCENE_TIMES` (dawn/day/dusk/night), `weather` из `SCENE_WEATHER` (clear/overcast/wind/fog/rain/storm/snow/blizzard), пусто = выключено; подсказки по правилам даёт `sceneInfo()` |
 | `accent` | gold/crimson/emerald/ice/amethyst/copper/steel | цвет акцента листа (`ACCENTS`) |
 | `effects` | список эффектов | `{id, name, preset, attack, save, check, dmg, dmgType, dmgOn, ac, speed, speedX2, adv[], dis[], resist[], rounds, once, mine, concName, until, note}`; `adv`/`dis` вида `attack`, `save`, `save:dex`, `check:str`; `dmgOn`: пусто = к любой атаке, `weapon` = только оружием, `str` = только оружием на Силе; `rounds` null = пока не снимут; `mine` + `concName` снимаются вместе с концентрацией; чистит `cleanEffect()` |
 | `hp` | `{current, temp, maxOverride, bonusPerLevel, hitDiceUsed, deathSuccess, deathFail, stable}` | максимум хитов считается, если нет `maxOverride`; `rollAdj` поправка от бросков хитов при повышении уровня |

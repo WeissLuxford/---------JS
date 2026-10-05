@@ -1,4 +1,4 @@
-import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, fmt, usesInfo, spellCast, effectSummary, spellInCombat, xpInfo, ammoFor } from "./rules.js";
+import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, fmt, usesInfo, spellCast, effectSummary, spellInCombat, xpInfo, ammoFor, sceneInfo } from "./rules.js";
 import { icon, actionMark, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, pips, rich, plainPreview } from "./ui.js";
 import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum } from "./entities.js";
@@ -52,9 +52,9 @@ export function hpPanel(ctx) {
   const dead = c.hp.deathFail >= 3;
   const stable = !dead && (c.hp.stable || c.hp.deathSuccess >= 3);
   const deathBtn = dead
-    ? `<span class="death-state bad">${icon("skull")} Персонаж погиб</span>`
+    ? `<span class="death-state bad">${icon("coffin")} Персонаж погиб</span>`
     : stable
-      ? `<span class="death-state ok">${icon("heart")} Стабилизирован, без сознания</span>`
+      ? `<span class="death-state ok">${icon("sleep")} Стабилизирован, без сознания</span>`
       : `<button class="btn sm" data-roll="death">${icon("d20")} Спасбросок от смерти</button>`;
   const death = dying ? `<div class="death">
       <div class="death-row"><span>Успехи</span>${[0, 1, 2].map(i => `<button class="ds ok ${i < c.hp.deathSuccess ? "on" : ""}" data-act="death" data-k="deathSuccess" data-i="${i}" aria-label="Успех ${i + 1}"></button>`).join("")}</div>
@@ -97,15 +97,24 @@ function statMedal(label, value, { calc, act, roll, ic, card, slow } = {}) {
   return `<${tag} class="medal ${slow ? "slow" : ""}" ${act ? `data-act="${act}"` : ""} ${roll ? `data-roll="${roll}"` : ""} ${card ? `data-card="${card}"` : ""}>${ic ? icon(ic) : ""}<span class="medal-v" ${calc ? `data-calc="${calc}"` : ""}>${esc(value)}</span><span class="medal-l">${esc(label)}</span></${tag}>`;
 }
 
+export function emptyState(text) {
+  return `<div class="empty-state"><span class="es-art">${icon("web")}<i class="es-spider">${icon("spider")}</i></span><p class="empty">${esc(text)}</p></div>`;
+}
+
+export function sceneChip(c) {
+  const s = sceneInfo(c);
+  return `<button class="scene-chip ${s.set ? "" : "off"}" data-act="scene" title="Время суток и погода">${icon(s.icon)}<span>${s.set ? esc(s.text) : "Обстановка"}</span></button>`;
+}
+
 function concentrationBar(c) {
   if (!c.concentration) return "";
-  return `<div class="conc-bar">${icon("spiral")}<span>Концентрация: <b>${esc(c.concentration)}</b></span><span class="spacer"></span><button class="btn ghost sm" data-roll="save:con" title="Спасбросок Телосложения">${icon("d20")}Спасбросок</button><button class="btn ghost sm" data-act="drop-conc">Снять</button></div>`;
+  return `<div class="conc-bar">${icon("candle", "flicker")}<span>Концентрация: <b>${esc(c.concentration)}</b></span><span class="spacer"></span><button class="btn ghost sm" data-roll="save:con" title="Спасбросок Телосложения">${icon("d20")}Спасбросок</button><button class="btn ghost sm" data-act="drop-conc">Снять</button></div>`;
 }
 
 function activeConditions(c) {
   const list = CONDITIONS.filter(k => c.conditions[k.key]);
   if (!list.length && !c.exhaustion && !(c.effects || []).length) return "";
-  return `<div class="cond-active">${list.map(k => `<span class="chip bad" data-card="condition:${k.key}">${esc(k.name)}</span>`).join("")}${c.exhaustion ? `<span class="chip bad" data-card="stat:exhaustion">Истощение ${esc(c.exhaustion)}</span>` : ""}${(c.effects || []).map(e => `<span class="chip eff" data-card="effect:${esc(e.id)}">${icon("sparkle")}${esc(e.name)}</span>`).join("")}</div>`;
+  return `<div class="cond-active">${list.map(k => `<span class="chip bad" data-card="condition:${k.key}">${icon(k.icon || "skull")}${esc(k.name)}</span>`).join("")}${c.exhaustion ? `<span class="chip bad" data-card="stat:exhaustion">Истощение ${esc(c.exhaustion)}</span>` : ""}${(c.effects || []).map(e => `<span class="chip eff" data-card="effect:${esc(e.id)}">${icon("sparkle")}${esc(e.name)}</span>`).join("")}</div>`;
 }
 
 function defenseLines(c) {
@@ -156,6 +165,7 @@ export function tabChar(ctx) {
           <span class="hero-sub dim">${esc([c.info.background, c.info.alignment, c.info.age ? c.info.age + " лет" : ""].filter(Boolean).join(" · "))}</span>
         </button>
       </section>
+      <div class="scene-row">${sceneChip(c)}</div>
       ${xpRow(c)}
       <div class="medals">
         ${statMedal("КД", d.ac, { calc: "ac", act: "edit-armor", ic: "shield", card: "stat:ac" })}
@@ -263,7 +273,7 @@ function attacksPanel(ctx) {
   const collect = spent ? `<div class="ammo-bar">${icon("arrow")}<span>Выпущено боеприпасов: ${spent}. После боя можно собрать половину.</span><button class="btn ghost sm" data-act="collect-ammo">Собрать ${Math.floor(spent / 2)}</button></div>` : "";
   const dupes = src.dupes.length ? `<div class="dupe-bar">${icon("info")}<span>${esc(src.dupes.map(a => a.name).join(", "))}: эти записи атак повторяют заклинания или оружие, поэтому спрятаны.</span><button class="btn ghost sm" data-act="dedupe-attacks">${icon("trash")}Удалить копии</button></div>` : "";
   const hint = `<p class="hint atk-hint">Оружие появляется само, когда оно надето и у него указана атака. Заклинания: атакующие заговоры, остальные по галочке «В панели боя». Умения и предметы: «Показывать в бою» в их настройках.</p>`;
-  return panel("Атаки", `${dupes}${body || `<p class="empty">Атак пока нет</p>`}${collect}${hint}`, { ic: "swords", actions: orderBtn(ctx) + addBtn("add-attack", "Атака"), cls: "p-attacks" });
+  return panel("Атаки", `${dupes}${body || emptyState("Атак пока нет")}${collect}${hint}`, { ic: "swords", actions: orderBtn(ctx) + addBtn("add-attack", "Атака"), cls: "p-attacks" });
 }
 
 function slotsBlock(ctx) {
@@ -346,11 +356,11 @@ function conditionsPanel(ctx) {
   const { c, ui } = ctx;
   const active = CONDITIONS.filter(k => c.conditions[k.key]);
   const open = ui.condOpen != null ? ui.condOpen : active.length > 0 || c.exhaustion > 0;
-  const conds = CONDITIONS.map(k => `<button class="chip toggle ${c.conditions[k.key] ? "on bad" : ""}" data-act="toggle-cond" data-k="${k.key}" data-card="condition:${k.key}" aria-pressed="${c.conditions[k.key] ? "true" : "false"}">${esc(k.name)}</button>`).join("");
+  const conds = CONDITIONS.map(k => `<button class="chip toggle ${c.conditions[k.key] ? "on bad" : ""}" data-act="toggle-cond" data-k="${k.key}" data-card="condition:${k.key}" aria-pressed="${c.conditions[k.key] ? "true" : "false"}">${icon(k.icon || "skull")}${esc(k.name)}</button>`).join("");
   const exh = `<div class="exh"><span data-card="stat:exhaustion">Истощение</span>${[0, 1, 2, 3, 4, 5, 6].map(i => `<button class="chip toggle ${c.exhaustion === i ? "on" : ""}" data-act="exhaustion" data-i="${i}" aria-pressed="${c.exhaustion === i ? "true" : "false"}" aria-label="Истощение ${i}">${i}</button>`).join("")}</div>`;
-  const summary = [...active.map(k => k.name), c.exhaustion ? `Истощение ${c.exhaustion}` : ""].filter(Boolean);
+  const summary = [...active.map(k => [k.icon, k.name]), c.exhaustion ? ["sleep", `Истощение ${c.exhaustion}`] : null].filter(Boolean);
   return `<details class="panel cond-panel" data-ui-open="condOpen" ${open ? "open" : ""}>
-    <summary class="panel-h">${icon("skull")}<h3>Состояния</h3><span class="cond-sum">${summary.length ? summary.map(t => `<span class="chip bad">${esc(t)}</span>`).join("") : `<span class="dim">нет</span>`}</span><span class="spacer"></span><span class="cond-chev">${icon("down")}</span></summary>
+    <summary class="panel-h">${icon("skull")}<h3>Состояния</h3><span class="cond-sum">${summary.length ? summary.map(([ic, t]) => `<span class="chip bad">${icon(ic || "skull")}${esc(t)}</span>`).join("") : `<span class="dim">нет</span>`}</span><span class="spacer"></span><span class="cond-chev">${icon("down")}</span></summary>
     <div class="panel-b"><p class="hint">Отмеченные состояния сами дают помеху или преимущество на броски. Зажми или наведи, чтобы прочитать описание.</p><div class="chips">${conds}</div>${exh}</div>
   </details>`;
 }
@@ -369,6 +379,7 @@ export function tabCombat(ctx) {
         <button class="btn" data-act="short-rest">${icon("campfire")}Короткий</button>
         <button class="btn" data-act="long-rest">${icon("moon")}Длинный</button>
       </div>
+      <div class="combat-scene">${sceneChip(c)}</div>
       ${concentrationBar(c)}
       ${hpPanel(ctx)}
       ${effectsPanel(ctx)}
@@ -441,7 +452,7 @@ export function tabSpells(ctx) {
     ${panel("Заклинательство", head, { ic: "book", actions: orderBtn(ctx) + `<button class="btn ghost sm" data-act="spell-library">${icon("book")}Библиотека</button>` + addBtn("add-spell", "Своё") })}
     ${concentrationBar(c)}
     ${tools}
-    <div class="spell-lists">${lists || (c.spells.length ? `<p class="empty">Под этот фильтр ничего не подходит</p>` : `<p class="empty">Заклинаний пока нет. Выбери их в «Библиотеке» или добавь своё.</p>`)}</div>
+    <div class="spell-lists">${lists || (c.spells.length ? `<p class="empty">Под этот фильтр ничего не подходит</p>` : emptyState("Заклинаний пока нет. Выбери их в «Библиотеке» или добавь своё."))}</div>
     <p class="empty" data-search-empty hidden>Ничего не нашлось</p>`;
 }
 
@@ -469,7 +480,7 @@ export function tabFeatures(ctx) {
   }).join("");
   return `${pact}
     <div class="legend"><span><i class="flag gold">М</i> от Мастера</span><span><i class="flag teal">С</i> своё</span><span class="spacer"></span>${orderBtn(ctx)}${addBtn("add-feature", "Умение", 'data-cat="other"')}</div>
-    ${sections || `<p class="empty">Умений пока нет</p>`}`;
+    ${sections || emptyState("Умений пока нет")}`;
 }
 
 const RARITY_ORDER = ["common", "uncommon", "rare", "veryRare", "legendary", "artifact", "story"];
@@ -531,7 +542,7 @@ export function tabInventory(ctx) {
     ${panel("Предметы", `
       <div class="chips filter">${INV_FILTERS.map(([k, l]) => `<button class="chip toggle ${f === k ? "on" : ""}" data-act="inv-filter" data-k="${k}">${l}</button>`).join("")}</div>
       <div class="inv-sort"><label class="fld compact"><span>Сортировка</span><select data-ui="inv-sort">${INV_SORTS.map(([k, l]) => `<option value="${k}" ${(ui.invSort || "added") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label><button class="chip toggle ${ui.invEqFirst !== false ? "on" : ""}" data-act="inv-eq-first" aria-pressed="${ui.invEqFirst !== false ? "true" : "false"}">Надетое сначала</button></div>
-      <div class="inv-grid" data-reorder="items">${grid || `<p class="empty">Пусто</p>`}</div>`, { ic: "bag", actions: orderBtn(ctx) + `<button class="btn ghost sm" data-act="gear-table">${icon("swords")}Таблица</button>` + addBtn("add-item", "Предмет") })}`;
+      <div class="inv-grid" data-reorder="items">${grid || emptyState("Пусто, даже паук заскучал")}</div>`, { ic: "bag", actions: orderBtn(ctx) + `<button class="btn ghost sm" data-act="gear-table">${icon("swords")}Таблица</button>` + addBtn("add-item", "Предмет") })}`;
 }
 
 const NOTE_SECTIONS = [["patron", "Покровитель", "pact"], ["quests", "Задания", "flag"], ["people", "Люди", "people"], ["misc", "Прочее", "notebook"]];
@@ -582,7 +593,7 @@ export function notesList(ctx) {
   if (s === "people" && ui.peopleAtt && ui.peopleAtt !== "all") list = list.filter(n => (n.attitude || "") === (ui.peopleAtt === "unknown" ? "" : ui.peopleAtt));
   if (ui.noteTag) list = list.filter(n => noteTags(n).includes(ui.noteTag));
   const empty = s === "misc" && !c.notes.misc.length ? "Здесь можно хранить что угодно: законы мира, слухи, план города, правила Мастера. Каждую заметку можно свернуть до названия." : c.notes[s].length ? "Под этот фильтр ничего не подходит" : "Здесь пока пусто";
-  return list.map(n => noteCard(n, s, ui, "")).join("") || `<p class="empty">${empty}</p>`;
+  return list.map(n => noteCard(n, s, ui, "")).join("") || (c.notes[s].length ? `<p class="empty">${empty}</p>` : emptyState(empty));
 }
 
 export function tabNotes(ctx) {

@@ -39,7 +39,7 @@ export const DAMAGE = {
   lightning: { name: "Электричество", color: "#7f9bff", icon: "bolt" },
   necrotic: { name: "Некротический", color: "#6fd3a4", icon: "skull" },
   piercing: { name: "Колющий", color: "#cbbfa8", icon: "dagger" },
-  poison: { name: "Яд", color: "#8fc84a", icon: "flask" },
+  poison: { name: "Яд", color: "#8fc84a", icon: "toxic" },
   psychic: { name: "Психический", color: "#e38ae6", icon: "brain" },
   radiant: { name: "Излучение", color: "#f4d66d", icon: "sun" },
   slashing: { name: "Рубящий", color: "#cbbfa8", icon: "axe" },
@@ -182,6 +182,44 @@ export const ACCENTS = {
   steel: { name: "Сталь", c: ["#8d98a6", "#b5c0cc", "#e2e8ef"] }
 };
 
+export const SCENE_TIMES = {
+  dawn: { name: "Рассвет", icon: "sunrise" },
+  day: { name: "День", icon: "sun" },
+  dusk: { name: "Закат", icon: "sunrise" },
+  night: { name: "Ночь", icon: "moon" }
+};
+
+export const SCENE_WEATHER = {
+  clear: { name: "Ясно", icon: "sun" },
+  overcast: { name: "Облачно", icon: "overcast" },
+  wind: { name: "Сильный ветер", icon: "wind" },
+  fog: { name: "Туман", icon: "fog" },
+  rain: { name: "Ливень", icon: "rain" },
+  storm: { name: "Гроза", icon: "storm" },
+  snow: { name: "Снегопад", icon: "snowcloud" },
+  blizzard: { name: "Метель", icon: "snow" }
+};
+
+export function hasDarkvision(c) {
+  const text = [c.senses, ...(c.features || []).map(f => f.name)].join(" ").toLowerCase();
+  return /т[её]мное зрение|тёмновидени|darkvision/.test(text);
+}
+
+export function sceneInfo(c) {
+  const sc = c.scene || {};
+  const t = SCENE_TIMES[sc.time];
+  const w = SCENE_WEATHER[sc.weather];
+  const dark = hasDarkvision(c);
+  const hints = [];
+  if (sc.time === "night") hints.push(dark ? "Ночь: тёмное зрение видит в темноте как в тусклом свете, без цветов" : "Ночь: без света ты ничего не видишь, нужен факел или фонарь");
+  if (sc.time === "dawn" || sc.time === "dusk") hints.push(dark ? "Сумерки: тёмное зрение видит как днём" : "Сумерки: тусклый свет, помеха на Внимательность, основанную на зрении");
+  if (["rain", "storm", "snow", "blizzard"].includes(sc.weather)) hints.push("Осадки: местность слегка заслонена, помеха на Внимательность по зрению; открытый огонь гаснет");
+  if (["wind", "storm", "blizzard"].includes(sc.weather)) hints.push("Сильный ветер: помеха на дальнобойные атаки оружием и на Внимательность по слуху; ветер разгоняет туман");
+  if (sc.weather === "fog") hints.push("Туман: местность заслонена (слабо или сильно, решает Мастер); в густом тумане ты как ослеплён");
+  const parts = [t, w].filter(Boolean);
+  return { set: parts.length > 0, icon: w ? w.icon : t ? t.icon : "sun", text: parts.map(x => x.name).join(" · "), hints };
+}
+
 export const EFFECT_ROLLS = { attack: "атаки", save: "спасброски", check: "проверки" };
 
 export const DEFENSE_KINDS = { resist: "Сопротивление", vuln: "Уязвимость", immune: "Иммунитет" };
@@ -260,20 +298,20 @@ export const FEATURE_SOURCES = {
 };
 
 export const CONDITIONS = [
-  { key: "blinded", name: "Ослеплён", desc: "Автоматически проваливает проверки, требующие зрения. Атаки по нему с преимуществом, его атаки с помехой." },
-  { key: "charmed", name: "Очарован", desc: "Не может атаковать очаровавшего. Очаровавший получает преимущество на социальные проверки против него." },
-  { key: "deafened", name: "Оглох", desc: "Автоматически проваливает проверки, требующие слуха." },
-  { key: "frightened", name: "Испуган", desc: "Помеха на проверки и атаки, пока источник страха в поле зрения. Не может добровольно приблизиться к нему." },
-  { key: "grappled", name: "Схвачен", desc: "Скорость равна 0." },
-  { key: "incapacitated", name: "Недееспособен", desc: "Не может совершать действия и реакции." },
-  { key: "invisible", name: "Невидим", desc: "Атаки по нему с помехой, его атаки с преимуществом." },
-  { key: "paralyzed", name: "Парализован", desc: "Недееспособен, не двигается и не говорит. Проваливает спасброски Силы и Ловкости. Удар вблизи считается критическим." },
-  { key: "petrified", name: "Окаменел", desc: "Превращён в камень. Недееспособен, сопротивление всем видам урона." },
-  { key: "poisoned", name: "Отравлен", desc: "Помеха на броски атаки и проверки характеристик." },
-  { key: "prone", name: "Сбит с ног", desc: "Может только ползти. Помеха на атаки. Атаки вблизи по нему с преимуществом, издалека с помехой." },
-  { key: "restrained", name: "Опутан", desc: "Скорость 0. Помеха на атаки и спасброски Ловкости, атаки по нему с преимуществом." },
-  { key: "stunned", name: "Ошеломлён", desc: "Недееспособен, не двигается. Проваливает спасброски Силы и Ловкости, атаки по нему с преимуществом." },
-  { key: "unconscious", name: "Без сознания", desc: "Недееспособен, роняет всё, падает ничком. Атаки по нему с преимуществом, удар вблизи критический." }
+  { key: "blinded", icon: "blind", name: "Ослеплён", desc: "Автоматически проваливает проверки, требующие зрения. Атаки по нему с преимуществом, его атаки с помехой." },
+  { key: "charmed", icon: "charmed", name: "Очарован", desc: "Не может атаковать очаровавшего. Очаровавший получает преимущество на социальные проверки против него." },
+  { key: "deafened", icon: "deaf", name: "Оглох", desc: "Автоматически проваливает проверки, требующие слуха." },
+  { key: "frightened", icon: "scared", name: "Испуган", desc: "Помеха на проверки и атаки, пока источник страха в поле зрения. Не может добровольно приблизиться к нему." },
+  { key: "grappled", icon: "hand", name: "Схвачен", desc: "Скорость равна 0." },
+  { key: "incapacitated", icon: "spiral", name: "Недееспособен", desc: "Не может совершать действия и реакции." },
+  { key: "invisible", icon: "invisible", name: "Невидим", desc: "Атаки по нему с помехой, его атаки с преимуществом." },
+  { key: "paralyzed", icon: "paralyzed", name: "Парализован", desc: "Недееспособен, не двигается и не говорит. Проваливает спасброски Силы и Ловкости. Удар вблизи считается критическим." },
+  { key: "petrified", icon: "rock", name: "Окаменел", desc: "Превращён в камень. Недееспособен, сопротивление всем видам урона." },
+  { key: "poisoned", icon: "toxic", name: "Отравлен", desc: "Помеха на броски атаки и проверки характеристик." },
+  { key: "prone", icon: "prone", name: "Сбит с ног", desc: "Может только ползти. Помеха на атаки. Атаки вблизи по нему с преимуществом, издалека с помехой." },
+  { key: "restrained", icon: "chain", name: "Опутан", desc: "Скорость 0. Помеха на атаки и спасброски Ловкости, атаки по нему с преимуществом." },
+  { key: "stunned", icon: "stunned", name: "Ошеломлён", desc: "Недееспособен, не двигается. Проваливает спасброски Силы и Ловкости, атаки по нему с преимуществом." },
+  { key: "unconscious", icon: "sleep", name: "Без сознания", desc: "Недееспособен, роняет всё, падает ничком. Атаки по нему с преимуществом, удар вблизи критический." }
 ];
 
 export const CASTER_TYPES = {
@@ -464,6 +502,7 @@ export function newCharacter(name = "Новый персонаж") {
     defenses: { resist: [], vuln: [], immune: [] },
     inspiration: false,
     accent: "gold",
+    scene: { time: "", weather: "" },
     effects: [],
     proficiencies: { armor: "", weapons: "", tools: "", languages: "" },
     attacks: [],
@@ -527,7 +566,7 @@ export function cleanEffect(e, i = 0) {
   return {
     id: cleanId(x.id, "ef", i),
     name: String(x.name ?? "").slice(0, 80) || "Эффект",
-    preset: x.preset in EFFECT_PRESETS ? x.preset : "",
+    preset: Object.hasOwn(EFFECT_PRESETS, x.preset) ? x.preset : "",
     attack: diceOrEmpty(x.attack),
     save: diceOrEmpty(x.save),
     check: diceOrEmpty(x.check),
@@ -594,14 +633,16 @@ export function normalize(c) {
   const def = src.defenses && typeof src.defenses === "object" && !Array.isArray(src.defenses) ? src.defenses : null;
   out.defenses = def ? { resist: cleanTypes(def.resist), vuln: cleanTypes(def.vuln), immune: cleanTypes(def.immune) } : parseDefenses(out.resistances);
   out.inspiration = !!out.inspiration;
-  out.accent = out.accent in ACCENTS ? out.accent : "gold";
+  out.accent = Object.hasOwn(ACCENTS, out.accent) ? out.accent : "gold";
+  const scene = src.scene && typeof src.scene === "object" ? src.scene : {};
+  out.scene = { time: Object.hasOwn(SCENE_TIMES, scene.time) ? scene.time : "", weather: Object.hasOwn(SCENE_WEATHER, scene.weather) ? scene.weather : "" };
   out.effects = (Array.isArray(src.effects) ? src.effects : []).map((e, i) => cleanEffect(e, i));
   out.speed = num(out.speed, 30);
   out.initBonus = num(out.initBonus);
   out.exhaustion = Math.max(0, Math.min(6, Math.round(num(out.exhaustion))));
   out.pactUsed = Math.max(0, num(out.pactUsed));
   out.hitDie = HIT_DICE.includes(out.hitDie) ? out.hitDie : "d8";
-  out.casterType = out.casterType in CASTER_TYPES ? out.casterType : "none";
+  out.casterType = Object.hasOwn(CASTER_TYPES, out.casterType) ? out.casterType : "none";
   out.spellAbility = ABILITY_KEYS.includes(out.spellAbility) ? out.spellAbility : "int";
   out.concentration = String(out.concentration ?? "");
   out.damageSwap.enabled = !!out.damageSwap.enabled;

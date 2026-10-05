@@ -1,5 +1,5 @@
 import { canInstall } from "./pwa.js";
-import { SKILLS, compute, normalize, fmt, importCharacter, NOTE_KEYS, payCoins, COIN_NAMES, CONDITIONS, FEATURE_CATS } from "./rules.js";
+import { SKILLS, compute, normalize, fmt, importCharacter, NOTE_KEYS, payCoins, COIN_NAMES, CONDITIONS, FEATURE_CATS, SCENE_TIMES, SCENE_WEATHER, sceneInfo } from "./rules.js";
 import { icon } from "./icons.js";
 import { esc, $, toast, openModal, confirmDialog, promptNumber, rollLog, fxSettings, dateTime, timeAgo, download, pickFile } from "./ui.js";
 import { subtitle } from "./tabs.js";
@@ -56,7 +56,7 @@ export function installDialogs(X) {
       S.c.attacks.forEach(x => hit(x.name, x.notes) && add("Атаки", "attack:" + x.id, x.name, x.range || "", x.icon || attackIcon(x.name) || "swords"));
       NOTE_KEYS.forEach(k => S.c.notes[k].forEach(n => hit(n.title, n.subtitle, n.text, n.tags) && add("Заметки", `note:${k}:${n.id}`, n.title || "Без названия", n.subtitle || "", "scroll")));
       SKILLS.forEach(x => hit(x.name) && add("Навыки", "skill:" + x.key, x.name, fmt(S.d.skills[x.key]), "d20"));
-      CONDITIONS.forEach(x => hit(x.name) && add("Состояния", "condition:" + x.key, x.name, "", "skull"));
+      CONDITIONS.forEach(x => hit(x.name) && add("Состояния", "condition:" + x.key, x.name, "", x.icon || "skull"));
       let group = "";
       listEl.innerHTML = res.slice(0, 80).map(r => `${r.group !== group ? `<div class="atk-group">${esc((group = r.group))}</div>` : ""}<button class="am-row" data-ref="${esc(r.ref)}" style="--c:var(--gold-2)">${icon(r.ic)}<span><b>${esc(r.name)}</b>${r.sub ? `<small>${esc(r.sub)}</small>` : ""}</span></button>`).join("") || `<p class="empty">Ничего не нашлось</p>`;
     };
@@ -326,5 +326,30 @@ export function installDialogs(X) {
     });
   }
 
-  Object.assign(X, { coinDialog, searchAll, switchChar, shortRest, longRest, restSummary, historyDialog, rollLogDialog, importDialog, menu });
+  function sceneDialog() {
+    if (X.readOnly()) return;
+    const opts = (group, list, cur) => `<div class="scene-grid">${Object.entries(list).map(([k, v]) => `<button class="scene-opt ${cur === k ? "on" : ""}" data-g="${group}" data-k="${k}" aria-pressed="${cur === k ? "true" : "false"}">${icon(v.icon)}<span>${esc(v.name)}</span></button>`).join("")}</div>`;
+    const body = () => {
+      const sc = S.c.scene || {};
+      const info = sceneInfo(S.c);
+      return `<p class="scene-h">Время суток</p>${opts("time", SCENE_TIMES, sc.time)}<p class="scene-h">Погода</p>${opts("weather", SCENE_WEATHER, sc.weather)}${info.hints.length ? `<ul class="scene-hints">${info.hints.map(h => `<li>${esc(h)}</li>`).join("")}</ul>` : `<p class="hint">Выбери, что вокруг: фон листа оживёт, а в начале хода появятся подсказки по правилам видимости и погоды.</p>`}<div class="form-actions"><button class="btn ghost" data-scene-reset>Сбросить</button><button class="btn gold" data-close>Готово</button></div>`;
+    };
+    const m = openModal({ title: "Обстановка", cls: "small", body: body() });
+    m.body.addEventListener("click", e => {
+      const b = e.target.closest("[data-g]");
+      const reset = e.target.closest("[data-scene-reset]");
+      if (!b && !reset) return;
+      X.mutate(c => {
+        const sc = { time: "", weather: "", ...(c.scene || {}) };
+        if (reset) {
+          sc.time = "";
+          sc.weather = "";
+        } else sc[b.dataset.g] = sc[b.dataset.g] === b.dataset.k ? "" : b.dataset.k;
+        c.scene = sc;
+      });
+      m.body.innerHTML = body();
+    });
+  }
+
+  Object.assign(X, { sceneDialog, coinDialog, searchAll, switchChar, shortRest, longRest, restSummary, historyDialog, rollLogDialog, importDialog, menu });
 }

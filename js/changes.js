@@ -1,4 +1,4 @@
-import { ABILITIES, SKILLS, CONDITIONS, DAMAGE, DEFENSE_KINDS } from "./rules.js";
+import { ABILITIES, SKILLS, CONDITIONS, DAMAGE, DEFENSE_KINDS, SCENE_TIMES, SCENE_WEATHER } from "./rules.js";
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -108,6 +108,10 @@ export function describeChanges(a, b) {
   out.push(...objChanges(PROF, a.proficiencies, b.proficiencies));
   const coins = Object.keys(COINS).filter(k => a.coins[k] !== b.coins[k]).map(k => `${COINS[k]} ${short(a.coins[k])} → ${short(b.coins[k])}`);
   if (coins.length) out.push(`Монеты: ${coins.join(", ")}`);
+  const sa = a.scene || {};
+  const sb = b.scene || {};
+  if (sa.time !== sb.time) out.push(arrow("Время суток", (SCENE_TIMES[sa.time] || {}).name, (SCENE_TIMES[sb.time] || {}).name));
+  if (sa.weather !== sb.weather) out.push(arrow("Погода", (SCENE_WEATHER[sa.weather] || {}).name, (SCENE_WEATHER[sb.weather] || {}).name));
   for (const [k, label] of Object.entries(LISTS)) out.push(...listChanges(label, a[k], b[k]));
   for (const [k, label] of Object.entries(NOTES)) out.push(...listChanges(label, a.notes[k], b.notes[k], "title"));
   out.push(...objChanges(PERSONALITY, a.personality, b.personality));

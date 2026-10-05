@@ -42,6 +42,11 @@ export function spellLevelText(sp) {
 const W = s => new RegExp("(^|[^а-яё])(" + s + ")", "i");
 
 const ITEM_WORDS = [
+  ["гроб|саркофаг", "coffin"], ["коса(?![а-яё])|серп", "scythe"], ["кость|кости|костян", "bone"], ["катан|вакидзаси|ятаган", "katana"],
+  ["секир|бердыш|боевой топор", "battleaxe"], ["моргенштерн", "morningstar"], ["коктейл|горюч|алхимическ[а-яё]* огонь", "molotov"],
+  ["яд(?![а-яё])|яда(?![а-яё])|ядовит|отрав|токсин", "toxic"], ["хрустальн[а-яё]* шар|гадальн", "crystalball"], ["шахмат|ладья", "rook"],
+  ["обручальн|помолвочн|кольцо с камн", "ringgem"], ["бинт|повязк|пластыр", "bandage"], ["таблет|пилюл|капсул", "pill"],
+  ["сковород|котел|котелок|кастрюл|кухон|повар", "pan"], ["паук|паучь", "spider"], ["мумия|мумии|бальзамир", "mummy"], ["кед(?![а-яё])|кроссовк|скороход", "dash"],
   ["кольц|перстен", "ring"], ["амулет|кулон|ожерель|медальон|талисман", "amulet"], ["плащ|мантия|накидк|роба", "cloak"],
   ["перчат|рукавиц|наруч", "glove"], ["шлем", "helmet"], ["шляп|капюшон|берет|цилиндр", "hat"], ["корон|диадем|тиар", "crown"], ["арбалет", "crossbow"], ["лук(?![а-яё])", "bow"],
   ["колчан", "quiver"], ["стрел|болт", "arrow"], ["копь|пика|трезуб|алебард|глеф", "spear"], ["булав|моргенштерн|палиц", "mace"], ["цеп(?![а-яё])|кистен", "flail"], ["кнут|плеть|хлыст", "whip"], ["праща", "sling"],
@@ -59,7 +64,16 @@ const ITEM_WORDS = [
   ["шестер|механизм|инструмент|ключ гаечн", "gear"], ["рюкзак|сумк|мешок", "bag"], ["кошел|монет", "coin"]
 ].map(([w, ic]) => [W(w), ic]);
 
+const STRONG_SPELL_WORDS = [
+  ["огненные руки|горящие руки|ладон", "firehand"], ["шторм|буря|бури|гроз", "storm"], ["град(?![а-яё])|метел|вьюг|снегопад", "snowcloud"], ["дожд|ливн", "rain"],
+  ["метеор|звездопад|звёздн|звездн", "constellation"], ["паук|паучь", "spider"], ["круг смерти|палец смерти|смертельн|увядан|жнец", "reaper"],
+  ["мертвец|нежит|зомби|скелет|упыр|восставш", "zombiehand"], ["зловон|смрад|дым", "smoke"], ["туман|мгла", "fog"]
+].map(([w, ic]) => [W(w), ic]);
+
 const SPELL_WORDS = [
+  ["гадан|предсказ|прорица|ясновид", "crystalball"], ["слепот|ослеп", "blind"], ["глухот|оглуш", "deaf"], ["невидим", "invisible"],
+  ["очаров|подчин", "charmed"], ["страх|ужас", "scared"], ["удержание|паралич|обездвиж", "paralyzed"], ["усыпл|сон(?![а-яё])|дрем", "sleep"],
+  ["фокус|престидиж|трюк|жонгл", "juggle"], ["рассвет|заря|зари", "sunrise"], ["скороход|рывок|бег(?![а-яё])", "dash"], ["созвезд", "constellation"],
   ["щит|доспех|защит|ограж|броня|оберег", "shield"], ["лечен|исцел|восстанов|воскреш|жизн|оживл", "heart"], ["свет|сиян|солн|рассвет", "sun"],
   ["тьм|темнот|ночь|тени|тень", "moon"], ["невидим|иллюз|образ|маск|облик|личин|мираж", "mask"], ["телепорт|шаг|портал|врата|перенос|план", "portal"],
   ["полёт|полет|левитац|падени|прыж|крыл", "wings"], ["паут", "web"], ["ветер|ветр|вихр|порыв|смерч|туман|облак", "wind"],
@@ -72,6 +86,7 @@ const SPELL_WORDS = [
 ].map(([w, ic]) => [W(w), ic]);
 
 const FEATURE_WORDS = [
+  ["рывок|проворн|быстр|скорост", "dash"], ["нежит|смерт", "reaper"], ["алхими|зель", "toxic"], ["звёзд|звезд|созвезд", "constellation"],
   ["зрени|глаз|взор", "eye"], ["маск|облик|личин", "mask"], ["живуч|жизн|здоров|крепк", "heart"], ["крыл|полёт|полет", "wings"],
   ["рог|наследи|тифлинг|дьявол|адск", "horns"], ["гримуар|книг|архив|знани|учён|учен", "book"], ["сопротивл|защит|стойк", "shield"],
   ["механ|инжене|изобрет", "gear"], ["договор|контракт|пакт", "pact"], ["голос|речь|язык", "letter"], ["скрыт|тень|тен(?![а-яё])", "moon"],
@@ -103,10 +118,10 @@ export function spellIcon(c, sp) {
   const first = (sp.damage || [])[0];
   if (first && DAMAGE[swapType(c, first.type)]) {
     const t = DAMAGE[swapType(c, first.type)];
-    return { icon: t.icon, color: t.color };
+    return { icon: guessIcon(sp.name, STRONG_SPELL_WORDS) || t.icon, color: t.color };
   }
   const sc = SCHOOLS[sp.school] || { color: "#e9c77a" };
-  const guess = guessIcon(sp.name, SPELL_WORDS);
+  const guess = guessIcon(sp.name, STRONG_SPELL_WORDS) || guessIcon(sp.name, SPELL_WORDS);
   if (guess) return { icon: guess, color: sc.color };
   const map = { abjuration: "shield", conjuration: "sparkle", divination: "eye", enchantment: "brain", evocation: "force", illusion: "mask", necromancy: "skull", transmutation: "gear" };
   return { icon: map[sp.school] || "sparkle", color: sc.color };
@@ -292,7 +307,7 @@ export function abilityModel(c, d, key) {
 export function conditionModel(key) {
   const k = CONDITIONS.find(x => x.key === key);
   if (!k) return null;
-  return { title: k.name, subtitle: "Состояние", art: { icon: "skull", color: "#e5533d" }, body: rich(k.desc), footer: [{ mark: actionMark("ring", "#e5533d"), text: "Влияет на броски сам" }] };
+  return { title: k.name, subtitle: "Состояние", art: { icon: k.icon || "skull", color: "#e5533d" }, body: rich(k.desc), footer: [{ mark: actionMark("ring", "#e5533d"), text: "Влияет на броски сам" }] };
 }
 
 const EXHAUSTION = ["Нет", "Помеха на проверки характеристик", "Скорость уменьшается вдвое", "Помеха на атаки и спасброски", "Максимум хитов уменьшается вдвое", "Скорость равна 0", "Смерть"];

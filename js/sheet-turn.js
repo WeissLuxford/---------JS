@@ -1,4 +1,4 @@
-import { DAMAGE, fmt, usesInfo, uid, presetEffect, cleanEffect, EFFECT_PRESETS, STANDARD_ACTIONS, movementInfo, ACTIONS } from "./rules.js";
+import { DAMAGE, fmt, usesInfo, uid, presetEffect, cleanEffect, EFFECT_PRESETS, STANDARD_ACTIONS, movementInfo, ACTIONS, sceneInfo } from "./rules.js";
 import { icon, actionMark } from "./icons.js";
 import { esc, $, toast, openModal, openForm } from "./ui.js";
 import { combatSources } from "./tabs.js";
@@ -173,6 +173,7 @@ export function installTurn(X) {
     Object.keys(notes).forEach(k => cond[k] && tips.push({ text: notes[k] }));
     if (c.exhaustion) tips.push({ text: `Истощение ${c.exhaustion}: снимается длинным отдыхом` });
     if (c.inspiration) tips.push({ text: "Есть вдохновение: можно взять преимущество на бросок" });
+    sceneInfo(c).hints.forEach(h => tips.push({ text: h }));
     const bonus = c.spells.filter(sp => sp.action === "bonus").map(sp => sp.name).concat(c.features.filter(f => f.action === "bonus" && (!usesInfo(d, f) || usesInfo(d, f).left > 0)).map(f => f.name));
     if (bonus.length) tips.push({ text: `Бонусным действием можно: ${bonus.slice(0, 4).join(", ")}${bonus.length > 4 ? "…" : ""}` });
     return tips;
