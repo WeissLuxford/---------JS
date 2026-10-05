@@ -1585,6 +1585,47 @@ b.bad { color: #ff8a73; }
 .lu-feat small { color: #e7a18f; }
 @media (max-width: 520px) { .cr-cards { grid-template-columns: repeat(2, 1fr); } .cr-sum { grid-template-columns: repeat(3, 1fr); } .cr-row2 { grid-template-columns: 1fr; } .cr-abil select, .cr-abil input { width: 64px; } .cr-abil { font-size: 14px; } }
 
+.modal.board-modal { max-width: 1100px; }
+.bd-tools { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.bd-tools .chip { --c: var(--gold-2); }
+.bd-tools .chip .ic { color: var(--c); }
+.bd-tools .chip.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+.bd-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.bd-row .fld.chk { margin: 0; }
+.bd-wrap { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid #5a4128; box-shadow: inset 0 0 60px rgba(0, 0, 0, .55), 0 6px 18px rgba(0, 0, 0, .4); background-color: #6b4a2b; background-image: radial-gradient(circle at 20% 30%, rgba(255, 220, 160, .08) 0 2px, transparent 3px), radial-gradient(circle at 70% 60%, rgba(0, 0, 0, .12) 0 2px, transparent 3px), radial-gradient(circle at 40% 80%, rgba(255, 220, 160, .06) 0 1.5px, transparent 2.5px), linear-gradient(135deg, #7a5432, #5c3e23 60%, #4e341d); background-size: 23px 23px, 31px 31px, 17px 17px, 100% 100%; }
+.bd-svg { display: block; width: 100%; height: min(62vh, 640px); touch-action: none; cursor: grab; user-select: none; }
+.bd-svg:active { cursor: grabbing; }
+.bd-edge { fill: none; stroke: #c0312a; opacity: .85; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .5)); }
+.bd-edge.on { stroke: #ff5a4a; opacity: 1; }
+.bd-edge.dim { opacity: .15; }
+.bd-node { cursor: pointer; outline: none; }
+.bd-node .bd-pin { fill: #f3e6c8; stroke: var(--ring); stroke-width: 3; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .55)); }
+.bd-node .bd-tack { fill: #c0312a; stroke: #6d1410; stroke-width: 1; }
+.bd-node .bd-ic { pointer-events: none; }
+.bd-node .bd-ic * { stroke: #3a2716; }
+.bd-node .bd-label { font-size: 14px; font-weight: 600; fill: #fff4dc; paint-order: stroke; stroke: rgba(30, 18, 8, .85); stroke-width: 4px; pointer-events: none; }
+.bd-node.sel .bd-pin { stroke-width: 5; filter: drop-shadow(0 0 10px rgba(255, 230, 160, .9)); }
+.bd-node.hit .bd-pin { filter: drop-shadow(0 0 8px rgba(255, 210, 120, .95)); }
+.bd-node.dim { opacity: .3; }
+.bd-node.false .bd-pin { stroke-dasharray: 5 4; }
+.bd-node:focus-visible .bd-pin { stroke: #fff; }
+.bd-zoom { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.bd-zoom .icon-btn { background: rgba(20, 14, 9, .75); border: 1px solid var(--line-2); }
+.bd-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 20px; text-align: center; color: #f3e6c8; background: rgba(20, 12, 6, .45); pointer-events: none; }
+.bd-empty.soft { inset: auto 10px 10px 10px; padding: 8px 12px; border-radius: 10px; background: rgba(20, 12, 6, .7); font-size: 14px; }
+.bd-empty .ic { width: 48px; height: 48px; opacity: .7; }
+.bd-empty p { margin: 0; max-width: 420px; }
+.bd-card { margin-top: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line-2); background: rgba(0, 0, 0, .25); }
+.bd-card-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px; }
+.bd-card-h b { font-family: var(--font-head); font-size: 17px; color: var(--gold-3); }
+.bd-card-h small { width: 100%; color: var(--dim); }
+.bd-card p { margin: 6px 0; color: var(--text-2); font-size: 14px; }
+.bd-near { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; color: var(--dim); }
+.bd-near .ic { width: 16px; height: 16px; }
+.bd-hint { margin: 8px 0 0; font-size: 12.5px; }
+.board-btn .ic { color: #e5674f; }
+@media (max-width: 520px) { .bd-svg { height: 58vh; } .bd-tools .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; } .bd-tools .chips .chip { flex: none; } }
+
 @media (max-width: 1180px) {
   .char-grid { grid-template-columns: 250px minmax(0, 1fr); }
   .col-right { grid-column: 1 / -1; }

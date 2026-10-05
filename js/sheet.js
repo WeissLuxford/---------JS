@@ -856,6 +856,7 @@ export function mountSheet(root, id, initialTab, navigate) {
         return;
       }
       case "clue-state": S.ui.clueState = el.dataset.k; return renderTab();
+      case "board": return import("./board.js").then(({ openBoard }) => openBoard({ c: S.c, charId: id, onOpen: X.openNote }));
       case "box-stored": return mutate(ch => { const b = ch.items.find(x => x.id === el.dataset.id); if (b) b.stored = !b.stored; });
       case "edit-note": {
         const n = (c.notes[el.dataset.sec] || []).find(x => x.id === el.dataset.id);
