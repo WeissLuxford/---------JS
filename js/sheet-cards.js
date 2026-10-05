@@ -2,7 +2,7 @@ import { normalize, fmt, spellCast, usesInfo, addDice, swapType, effectDamage, w
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, $, toast, openModal, openForm, getPath, setPath, cropImage, pickFile } from "./ui.js";
 import { SECTION_NAME, linkTargets } from "./notes.js";
-import { cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
+import { itemIcon, cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
 import { addHistory } from "./store.js";
 import { lastSnapshot, clone } from "./sheet-util.js";
 export function installCards(X) {
@@ -83,6 +83,8 @@ export function installCards(X) {
       if (u) b.push(`<button class="btn ghost" data-x="item-add-spell">${icon("plus")}Добавить заклинание</button>`);
       b.push(`<button class="btn" data-x="equip">${e.equipped ? "Снять" : "Экипировать"}</button>`);
       if (e.requiresAttunement) b.push(`<button class="btn" data-x="attune">${e.attuned ? "Снять настройку" : "Настроиться"}</button>`);
+      if (S.c.items.some(x => x.isContainer && x.id !== e.id)) b.push(`<button class="btn ghost" data-x="move">${icon("bag")}${e.container ? `В «${esc((S.c.items.find(x => x.id === e.container) || {}).name || "контейнер")}»` : "Переложить"}</button>`);
+      if (e.isContainer) b.push(`<button class="btn ghost" data-x="stored">${icon(e.stored ? "bag" : "door")}${e.stored ? "Взять с собой" : "Оставить (не нести)"}</button>`);
       b.push(`<span class="qty-ctl"><button class="icon-btn" data-x="qty-" title="Меньше">${icon("minus")}</button><b>${esc(e.qty)}</b><button class="icon-btn" data-x="qty+" title="Больше">${icon("plus")}</button></span>`);
     }
     if (kind === "attack") {
@@ -171,6 +173,11 @@ export function installCards(X) {
         const lines = (e.damage || []).map(l => ({ dice: l.addMod ? addDice(l.dice, S.d.spell.mod) : l.dice, type: swapType(S.c, l.type) }));
         return X.rollDamage(e.name, lines);
       }
+      if (x === "move") {
+        m.close();
+        return X.moveItem(eid);
+      }
+      if (x === "stored") return X.mutate(c => { const it = findEntity(c, "item", eid); if (it) it.stored = !it.stored; });
       if (x === "equip") return X.withUndo(e.equipped ? `Снято: ${e.name}` : `Надето: ${e.name}`, () => X.mutate(c => { const it = findEntity(c, "item", eid); if (it) it.equipped = !it.equipped; }));
       if (x === "attune") {
         if (!e.attuned && S.d.attuned >= 3) return toast("Уже настроено 3 предмета: это максимум", { kind: "bad" });
@@ -335,5 +342,39 @@ export function installCards(X) {
     X.renderAll(true);
   }
 
-  Object.assign(X, { entityButtons, entityBody, refreshEntityModal, openEntity, changedKeys, editEntity, editNote, editInfo, editArmor, portraitDialog, replaceWith });
+  function moveItem(itemId) {
+    const it = findEntity(S.c, "item", itemId);
+    if (!it) return;
+    const inside = id => {
+      let cur = S.c.items.find(x => x.id === id);
+      const seen = new Set();
+      while (cur && !seen.has(cur.id)) {
+        if (cur.id === it.id) return true;
+        seen.add(cur.id);
+        cur = S.c.items.find(x => x.id === cur.container);
+      }
+      return false;
+    };
+    const targets = S.c.items.filter(x => x.isContainer && x.id !== it.id && !inside(x.id));
+    const m = openModal({
+      title: `Куда положить «${it.name}»`,
+      cls: "small",
+      body: `<div class="menu-list"><button class="menu-item ${!it.container ? "on" : ""}" data-to="">${icon("user")}<span><b>При себе</b><small>в руках, на поясе, надето</small></span></button>${targets.map(x => `<button class="menu-item ${it.container === x.id ? "on" : ""}" data-to="${esc(x.id)}">${icon(itemIcon(x))}<span><b>${esc(x.name)}</b><small>${x.stored ? "не при мне" : x.weightless ? "вес внутри не считается" : Number(x.capacity) ? `вмещает ${x.capacity} фнт` : "контейнер"}</small></span></button>`).join("")}</div>`
+    });
+    m.body.addEventListener("click", e => {
+      const b = e.target.closest("[data-to]");
+      if (!b) return;
+      m.close();
+      const to = b.dataset.to;
+      X.withUndo(`Переложено: ${it.name}`, () => X.mutate(c => {
+        const x = findEntity(c, "item", itemId);
+        if (x) {
+          x.container = to;
+          if (to) x.equipped = false;
+        }
+      }));
+    });
+  }
+
+  Object.assign(X, { moveItem, entityButtons, entityBody, refreshEntityModal, openEntity, changedKeys, editEntity, editNote, editInfo, editArmor, portraitDialog, replaceWith });
 }

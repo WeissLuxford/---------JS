@@ -1,4 +1,4 @@
-const VERSION = "v14";
+const VERSION = "v15";
 const SHELL = "dnd-shell-" + VERSION;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -13,6 +13,7 @@ const PRECACHE = [
   "js/access.js",
   "js/admin.js",
   "js/ambient.js",
+  "js/backup.js",
   "js/changes.js",
   "js/classes.js",
   "js/creator-build.js",

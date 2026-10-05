@@ -220,6 +220,60 @@ export function sceneInfo(c) {
   return { set: parts.length > 0, icon: w ? w.icon : t ? t.icon : "sun", text: parts.map(x => x.name).join(" · "), hints };
 }
 
+export const CONTAINER_PRESETS = [
+  [/сумк[аи] хранения|bag of holding|мешок хранения/i, 500, true],
+  [/портативн[а-я]* дыр/i, 0, true],
+  [/рюкзак|ранец|котомк/i, 30, false],
+  [/мешочек|кошел|кисет|поясн[а-я]* сумк/i, 6, false],
+  [/мешок|торба/i, 30, false],
+  [/сундук|ларец/i, 300, false],
+  [/корзин/i, 40, false],
+  [/сумк|сума/i, 6, false],
+  [/ящик|короб|футляр|шкатулк|тубус/i, 10, false],
+  [/колчан/i, 2, false]
+];
+
+export function containerPreset(name) {
+  const hit = CONTAINER_PRESETS.find(([re]) => re.test(String(name || "")));
+  return hit ? { capacity: hit[1], weightless: hit[2] } : null;
+}
+
+export function containerChain(c, it) {
+  const byId = new Map((c.items || []).map(x => [x.id, x]));
+  const out = [];
+  let cur = it && byId.get(it.container);
+  while (cur && out.length < 12 && !out.includes(cur)) {
+    out.push(cur);
+    cur = byId.get(cur.container);
+  }
+  return out;
+}
+
+export function containerTree(c) {
+  const byId = new Map((c.items || []).map(x => [x.id, x]));
+  const raw = new Map();
+  for (const it of c.items || []) {
+    const w = (Number(it.weight) || 0) * (Number(it.qty) || 0);
+    for (const box of containerChain(c, it)) {
+      raw.set(box.id, (raw.get(box.id) || 0) + w);
+      if (box.weightless) break;
+    }
+  }
+  const out = {};
+  for (const it of c.items || []) {
+    if (!it.isContainer) continue;
+    const inside = (c.items || []).filter(x => x.container === it.id);
+    out[it.id] = { inside: Math.round((raw.get(it.id) || 0) * 10) / 10, capacity: Number(it.capacity) || 0, count: inside.length, parent: byId.has(it.container) ? it.container : "" };
+  }
+  return out;
+}
+
+export function carriedWeight(c, it) {
+  if (it.stored) return 0;
+  for (const box of containerChain(c, it)) if (box.stored || box.weightless) return 0;
+  return (Number(it.weight) || 0) * (Number(it.qty) || 0);
+}
+
 export const EFFECT_ROLLS = { attack: "атаки", save: "спасброски", check: "проверки" };
 
 export const DEFENSE_KINDS = { resist: "Сопротивление", vuln: "Уязвимость", immune: "Иммунитет" };
@@ -687,7 +741,32 @@ export function normalize(c) {
   out.spells = out.spells.map(sp => (sp.cost === "item" ? { ...sp, itemId: String(sp.itemId ?? ""), charges: Math.max(1, Math.round(num(sp.charges, 1))), maxCharges: Math.max(1, Math.round(num(sp.maxCharges, num(sp.charges, 1)))) } : sp));
   out.features = out.features.map(f => ({ ...f, damage: cleanDamage(f.damage), ...("combat" in f ? { combat: f.combat === "yes" ? "yes" : "" } : {}) }));
   out.attacks = out.attacks.map(at => ("ammoId" in at ? { ...at, ammoId: String(at.ammoId ?? "").slice(0, 60) } : at));
-  out.items = out.items.map(it => ({ ...it, damage: cleanDamage(it.damage) }));
+  out.items = out.items.map(it => {
+    const preset = "isContainer" in it ? null : containerPreset(it.name);
+    const x = { ...it, damage: cleanDamage(it.damage) };
+    x.isContainer = preset ? true : !!it.isContainer;
+    x.capacity = preset ? preset.capacity : Math.max(0, num(it.capacity));
+    x.weightless = preset ? preset.weightless : !!it.weightless;
+    x.stored = !!it.stored;
+    x.container = String(it.container ?? "").slice(0, 60);
+    return x;
+  });
+  const boxIds = new Set(out.items.filter(it => it.isContainer).map(it => it.id));
+  for (const it of out.items) {
+    if (!boxIds.has(it.container) || it.container === it.id) it.container = "";
+  }
+  for (const it of out.items) {
+    const seen = new Set([it.id]);
+    let cur = out.items.find(x => x.id === it.container);
+    while (cur) {
+      if (seen.has(cur.id)) {
+        it.container = "";
+        break;
+      }
+      seen.add(cur.id);
+      cur = out.items.find(x => x.id === cur.container);
+    }
+  }
   out.attacks = out.attacks.map(at => ({ ...at, damage: typeof at.damage === "string" ? at.damage : String(at.damage ?? "") }));
   const misc = out.notes.misc;
   if (!Array.isArray(misc)) {
@@ -765,11 +844,13 @@ export function compute(c) {
   let weight = 0;
   let attuned = 0;
   for (const it of c.items) {
-    weight += (Number(it.weight) || 0) * (Number(it.qty) || 0);
+    weight += carriedWeight(c, it);
     if (it.attuned) attuned++;
   }
   weight += Object.values(c.coins).reduce((s, v) => s + (Number(v) || 0), 0) / 50;
-  const d = { level, pb, mods, saves, skills, passive, ac: ac + acBonus, baseAc: ac, hpMax, fullMax, autoMax, speed, baseSpeed, defenses, spell, pact, slots, carry, weight: Math.round(weight * 10) / 10, attuned, tier: cantripTier(level) };
+  const str = Number(c.abilities.str) || 0;
+  const load = { light: str * 5, heavy: str * 10, max: carry, push: str * 30 };
+  const d = { load, level, pb, mods, saves, skills, passive, ac: ac + acBonus, baseAc: ac, hpMax, fullMax, autoMax, speed, baseSpeed, defenses, spell, pact, slots, carry, weight: Math.round(weight * 10) / 10, attuned, tier: cantripTier(level) };
   d.init = mods.dex + (Number(c.initBonus) || 0);
   d.hitDice = { total: level, left: Math.max(0, level - (Number(c.hp.hitDiceUsed) || 0)), die: c.hitDie };
   d.uses = {};

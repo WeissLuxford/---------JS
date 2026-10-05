@@ -1,4 +1,4 @@
-import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, fmt, usesInfo, spellCast, effectSummary, spellInCombat, xpInfo, ammoFor, sceneInfo } from "./rules.js";
+import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, containerTree, fmt, usesInfo, spellCast, effectSummary, spellInCombat, xpInfo, ammoFor, sceneInfo } from "./rules.js";
 import { icon, actionMark, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, pips, rich } from "./ui.js";
 import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum } from "./entities.js";
@@ -525,26 +525,50 @@ export function tabInventory(ctx) {
   });
   const items = ui.ordering ? filtered : sortItems(filtered, ui.invSort || "added", ui.invEqFirst !== false);
   const pct = Math.min(100, (d.weight / Math.max(1, d.carry)) * 100);
+  const tree = containerTree(c);
+  const boxes = c.items.filter(it => it.isContainer);
+  const grouped = !ui.ordering && f === "all" && boxes.length > 0;
+  const L = d.load || { light: 0, heavy: 0, max: d.carry };
+  const loadState = d.weight > L.max ? ["over", `Перегруз: больше ${L.max} фнт ты не унесёшь`] : ["ok", `В пределах нормы: до ${L.max} фнт (Сила × 15)`];
+  const variant = d.weight > L.heavy ? "сильно обременён: скорость −20 фт, помеха на проверки, атаки и спасброски Сил, Лов, Тел" : d.weight > L.light ? "обременён: скорость −10 фт" : "";
+  const mark = (v, label) => `<span class="wmark" style="left:${Math.min(100, (v / Math.max(1, L.max)) * 100)}%" title="${esc(label)}"></span>`;
   const coins = [["pp", "ПМ", "#d7e3ef"], ["gp", "ЗМ", "#e9c77a"], ["ep", "ЭМ", "#bfd0d6"], ["sp", "СМ", "#c9c9c9"], ["cp", "ММ", "#c7864f"]].map(([k, l, col]) => `
     <label class="coin" style="--c:${col}">${icon("coin")}<input type="number" inputmode="numeric" min="0" data-path="coins.${k}" data-num value="${esc(c.coins[k])}"><span>${l}</span></label>`).join("");
-  const grid = items.map(it => {
+  const slot = it => {
     const r = RARITY[it.rarity] || RARITY.common;
-    return `<button class="slot ${it.equipped ? "eq" : ""}" data-rid="${esc(it.id)}" data-open="item:${esc(it.id)}" data-card="item:${esc(it.id)}" style="--c:${r.color}">
+    return `<button class="slot ${it.equipped ? "eq" : ""} ${it.isContainer ? "box" : ""}" data-rid="${esc(it.id)}" data-open="item:${esc(it.id)}" data-card="item:${esc(it.id)}" style="--c:${r.color}">
       <span class="slot-ic">${icon(itemIcon(it))}</span>
       ${Number(it.qty) > 1 ? `<span class="slot-qty">${it.qty}</span>` : ""}
       ${it.attuned ? `<span class="slot-att" title="Настроено">${icon("sparkle")}</span>` : ""}
+      ${it.isContainer && tree[it.id] && tree[it.id].count ? `<span class="slot-box" title="Внутри">${tree[it.id].count}</span>` : ""}
       <span class="slot-name">${esc(it.name)}</span>
     </button>`;
-  }).join("");
+  };
+  const grid = grouped ? items.filter(it => !it.container).map(slot).join("") : items.map(slot).join("");
+  const boxSections = grouped ? boxes.map(b => {
+    const t = tree[b.id] || { inside: 0, capacity: 0, count: 0, parent: "" };
+    const inside = items.filter(it => it.container === b.id);
+    const parent = t.parent ? c.items.find(x => x.id === t.parent) : null;
+    const cpct = t.capacity ? Math.min(100, (t.inside / t.capacity) * 100) : 0;
+    return `<section class="box-sec ${b.stored ? "stored" : ""}" data-box="${esc(b.id)}">
+      <header><button class="box-h" data-open="item:${esc(b.id)}">${icon(itemIcon(b))}<span><b>${esc(b.name)}</b><small>${t.count ? `${t.count} ${t.count === 1 ? "вещь" : t.count < 5 ? "вещи" : "вещей"}` : "пусто"}${parent ? ` · в «${esc(parent.name)}»` : ""}${b.stored ? " · не при мне" : ""}${b.weightless ? " · вес внутри не считается" : ""}</small></span></button>
+      <span class="box-w">${fmtNum(t.inside)}${t.capacity ? ` / ${t.capacity}` : ""} фнт</span>
+      <button class="btn ghost sm" data-act="box-stored" data-id="${esc(b.id)}" title="${b.stored ? "Взять с собой" : "Оставить: вес не считается"}">${icon(b.stored ? "bag" : "door")}${b.stored ? "Взять" : "Оставить"}</button></header>
+      ${t.capacity ? `<div class="wbar thin ${t.inside > t.capacity ? "over" : ""}"><i style="width:${cpct}%"></i></div>` : ""}
+      <div class="inv-grid">${inside.map(slot).join("") || `<p class="hint box-empty">Пусто. Открой предмет и нажми «Переложить».</p>`}</div>
+    </section>`;
+  }).join("") : "";
   return `
     ${panel("Кошель и вес", `
       <div class="coins">${coins}</div>
       <div class="coin-acts"><button class="btn ghost sm" data-act="coin-pay">${icon("minus")}Заплатить</button><button class="btn ghost sm" data-act="coin-get">${icon("plus")}Получить</button></div>
-      <div class="weight"><span>Вес: <b data-calc="weight">${fmtNum(d.weight)}</b> / <span data-calc="carry">${d.carry}</span> фнт</span><div class="wbar ${d.weight > d.carry ? "over" : ""}" data-wbar><i style="width:${pct}%"></i></div><span>Настройка: <b data-calc="attuned">${d.attuned}</b> / 3</span></div>`, { ic: "coin" })}
+      <div class="weight"><span>Вес: <b data-calc="weight">${fmtNum(d.weight)}</b> / <span data-calc="carry">${d.carry}</span> фнт</span><div class="wbar ${d.weight > d.carry ? "over" : ""}" data-wbar><i style="width:${pct}%"></i>${mark(L.light, `${L.light} фнт: обременён`)}${mark(L.heavy, `${L.heavy} фнт: сильно обременён`)}</div><span class="load-t load-${loadState[0]}">${esc(loadState[1])}</span>${variant && d.weight <= L.max ? `<span class="load-v">По варианту правил с обременением (если Мастер его использует): ${esc(variant)}</span>` : ""}<span>Настройка: <b data-calc="attuned">${d.attuned}</b> / 3</span></div>`, { ic: "coin" })}
     ${panel("Предметы", `
       <div class="chips filter">${INV_FILTERS.map(([k, l]) => `<button class="chip toggle ${f === k ? "on" : ""}" data-act="inv-filter" data-k="${k}">${l}</button>`).join("")}</div>
       <div class="inv-sort"><label class="fld compact"><span>Сортировка</span><select data-ui="inv-sort">${INV_SORTS.map(([k, l]) => `<option value="${k}" ${(ui.invSort || "added") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label><button class="chip toggle ${ui.invEqFirst !== false ? "on" : ""}" data-act="inv-eq-first" aria-pressed="${ui.invEqFirst !== false ? "true" : "false"}">Надетое сначала</button></div>
-      <div class="inv-grid" data-reorder="items">${grid || emptyState("Пусто, даже паук заскучал")}</div>`, { ic: "bag", actions: orderBtn(ctx) + `<button class="btn ghost sm" data-act="gear-table">${icon("book")}Библиотека</button>` + addBtn("add-item", "Предмет") })}`;
+      ${grouped ? `<p class="inv-h">${icon("user")}При себе</p>` : ""}
+      <div class="inv-grid" data-reorder="items">${grid || (grouped ? `<p class="hint">Всё разложено по контейнерам.</p>` : emptyState("Пусто, даже паук заскучал"))}</div>
+      ${boxSections}`, { ic: "bag", actions: orderBtn(ctx) + `<button class="btn ghost sm" data-act="gear-table">${icon("book")}Библиотека</button>` + addBtn("add-item", "Предмет") })}`;
 }
 
 export const noteTags = noteTagsOf;

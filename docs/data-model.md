@@ -35,6 +35,7 @@
 | `attacks`, `spells`, `features`, `items` | массивы сущностей с `id` | см. ниже |
 | `coins` | `{cp, sp, ep, gp, pp}` | |
 | `personality` | `{appearance, traits, ideals, bonds, flaws, backstory, allies}` | |
+| `items[].isContainer, capacity, weightless, stored, container` | контейнеры | `container` = id контейнера или пусто (при себе); циклы и ссылки на не-контейнеры чистит `normalize()`; без явного `isContainer` контейнер угадывается по названию (`CONTAINER_PRESETS`) |
 | `notes` | `{sessions[], people[], places[], quests[], clues[], patron[], misc[]}` | заметки; старая строка `misc` превращается в одну заметку `nt-misc-legacy`. Заметка: `{id, title, subtitle, text, tags, collapsed, pinned, created}`; у людей `attitude` и `aliases`, у мест `aliases`, у заданий `status`, у улик `state` (lead/confirmed/false), у сессий `date`, `touched`. В тексте `[[Название]]` или `[[Название|подпись]]` ссылается на заметку по названию или другому имени; чистит `cleanNote()` |
 | `ownerUid`, `ownerName` | | владелец (только облако) |
 | `visibility` | `private` / `link` | доступ по ссылке; нет поля = `link` |

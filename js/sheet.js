@@ -9,6 +9,7 @@ import { onAccess, getAccess, myEmail, signIn, IN_APP } from "./access.js";
 import { openAccounts } from "./admin.js";
 import { openShare } from "./share.js";
 import { setAmbient } from "./ambient.js";
+import { saveBackup, listBackups, fileDue, markFile, backupFile, backupName, BACKUP_GAP } from "./backup.js";
 import { SNAPSHOT_GAP, lastSnapshot, clone, sameContent, loadUiPrefs, accentStyle, applyAccent, loadJson, loadTurn, saveUiPrefs } from "./sheet-util.js";
 import { installRolls } from "./sheet-rolls.js";
 import { installUndo } from "./sheet-undo.js";
@@ -46,7 +47,7 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   let lastStatus = null;
   const X = { S, root, id, navigate, status: () => lastStatus };
-  Object.assign(X, { paintSync, loaderMessage, rights, checkEditor, readOnly, roText, roBar, inputFocused, rerenderKeepingModal, renderAll, renderTab, grow, calcValue, updateCalcs, snapshot, changed, flush, hasUnsaved, mutate, curHp, clampHp, setHp, filterSpells, rollModeLabel, takeMode, runAction, runActionInner });
+  Object.assign(X, { backupTick, downloadBackup, paintSync, loaderMessage, rights, checkEditor, readOnly, roText, roBar, inputFocused, rerenderKeepingModal, renderAll, renderTab, grow, calcValue, updateCalcs, snapshot, changed, flush, hasUnsaved, mutate, curHp, clampHp, setHp, filterSpells, rollModeLabel, takeMode, runAction, runActionInner });
   installRolls(X);
   installUndo(X);
   installMagic(X);
@@ -322,8 +323,28 @@ export function mountSheet(root, id, initialTab, navigate) {
     addHistory(id, clone(S.c), reason, { prune: ["owner", "admin"].includes(rights().role) });
   }
 
+  function backupTick(edited = false) {
+    if (!S.c || S.disposed || readOnly()) return;
+    if (edited) S.editedThisSession = true;
+    if (S.backupAt == null) S.backupAt = (listBackups(id)[0] || {}).at || 0;
+    if (Date.now() - S.backupAt >= BACKUP_GAP) {
+      saveBackup(id, S.c);
+      S.backupAt = Date.now();
+    }
+    if (S.editedThisSession && !S.fileAsked && fileDue(id)) {
+      S.fileAsked = true;
+      toast(`${icon("download")} Давно не было копии листа файлом. <button class="btn sm" data-backup-file>Скачать копию</button>`, { timeout: 12000 });
+    }
+  }
+
+  function downloadBackup() {
+    download(backupName(S.c), backupFile(S.c));
+    markFile(id);
+  }
+
   function changed({ render = true } = {}) {
     if (S.disposed) return;
+    backupTick(true);
     S.d = compute(S.c);
     clearTimeout(S.saveTimer);
     S.saveTimer = setTimeout(flush, 650);
@@ -513,7 +534,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     return m;
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "note-create-link", "feature-library"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "note-create-link", "feature-library", "box-stored"]);
 
   const UNDO = {
     "hp-quick": el => (Number(el.dataset.n) < 0 ? `Урон ${-Number(el.dataset.n)}` : `Лечение ${el.dataset.n}`),
@@ -602,12 +623,8 @@ export function mountSheet(root, id, initialTab, navigate) {
           return toast("Не получилось удалить: проверь права", { kind: "bad" });
         }
       }
-      case "export": {
-        const name = (c.name || "character").replace(/[^\p{L}\p{N}]+/gu, "_");
-        const data = clone(c);
-        delete data.id;
-        return download(`${name}.json`, JSON.stringify({ format: "dnd-sheet", version: 1, character: data }, null, 2));
-      }
+      case "export": return downloadBackup();
+      case "backups": return X.backupDialog();
       case "import": return X.importDialog();
       case "duplicate": {
         if (getMode() === "cloud" && !S.access.canCreate) return toast(S.access.signedIn ? "Твоему аккаунту нельзя создавать персонажей" : "Чтобы сделать копию себе, войди через Google", { kind: "bad" });
@@ -839,6 +856,7 @@ export function mountSheet(root, id, initialTab, navigate) {
         return;
       }
       case "clue-state": S.ui.clueState = el.dataset.k; return renderTab();
+      case "box-stored": return mutate(ch => { const b = ch.items.find(x => x.id === el.dataset.id); if (b) b.stored = !b.stored; });
       case "edit-note": {
         const n = (c.notes[el.dataset.sec] || []).find(x => x.id === el.dataset.id);
         return n && X.editNote(el.dataset.sec, n);
@@ -938,6 +956,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (e.target.closest("#undo-bar [data-undo]")) return X.doUndo();
     if (e.target.closest("#toasts [data-rem-death]")) X.doRoll("death");
     if (e.target.closest("#toasts [data-lu-lib]")) X.openLibrary(null);
+    if (e.target.closest("#toasts [data-backup-file]")) downloadBackup();
     const hs = e.target.closest("#toasts [data-heal-self]");
     if (hs) X.applyHp("heal", Number(hs.dataset.healSelf) || 0);
     const tf = e.target.closest("#toasts [data-temp-force]");
@@ -973,6 +992,8 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (document.visibilityState === "hidden" && hasUnsaved()) flush();
   };
 
+  const backupTimer = setInterval(() => backupTick(false), 10 * 60 * 1000);
+  const backupFirst = setTimeout(() => backupTick(false), 8000);
   root.addEventListener("input", onInput);
   root.addEventListener("change", onInput);
   root.addEventListener("click", onClick);
@@ -1001,6 +1022,9 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   return () => {
     if (hasUnsaved()) flush();
+    clearInterval(backupTimer);
+    clearTimeout(backupFirst);
+    backupTick(false);
     S.disposed = true;
     applyAccent("");
     setAmbient(null);

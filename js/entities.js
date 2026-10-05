@@ -504,6 +504,11 @@ export const EDITORS = {
       { key: "acDex", label: "Ловкость", type: "select", options: [["full", "Полностью (лёгкий)"], ["2", "Не больше +2 (средний)"], ["0", "Без Ловкости (тяжёлый)"]] },
       { key: "acBonus", label: "Прибавка к КД", type: "number", hint: "Щит +2, кольцо защиты +1" },
       { key: "combat", label: "Показывать в бою", type: "select", options: [["", "Нет"], ["yes", "Да, закрепить"]] },
+      { type: "heading", key: "_hc", label: "Если в это можно класть вещи: рюкзак, мешок, сундук", span: 3 },
+      { key: "isContainer", label: "Это контейнер", type: "checkbox" },
+      { key: "capacity", label: "Вмещает, фнт", type: "number", hint: "0: без предела" },
+      { key: "weightless", label: "Вес внутри не считается (сумка хранения)", type: "checkbox" },
+      { key: "stored", label: "Не при мне: оставлено дома, у лошади", type: "checkbox", span: 3 },
       { key: "effect", label: "Строка-итог (жирным)", span: 3 },
       { key: "description", label: "Описание", type: "textarea", rows: 5, span: 3 },
       { key: "icon", label: "Иконка", type: "icon", span: 3 }

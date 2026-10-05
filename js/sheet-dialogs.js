@@ -11,6 +11,7 @@ import { describeWho, isMe, KIND_ICONS } from "./device.js";
 import { currentUid } from "./access.js";
 import { banAccount } from "./admin.js";
 import { clone } from "./sheet-util.js";
+import { listBackups, saveBackup, readBackup, backupFile, backupName } from "./backup.js";
 export function installDialogs(X) {
   const { S, root, id, navigate } = X;
 
@@ -302,6 +303,7 @@ export function installDialogs(X) {
       ["share", "link", manage && cloud && a.enforced ? "Поделиться и доступ" : "Поделиться"],
       ["print", "scroll", "Печать и PDF"],
       ["export", "download", "Скачать файл персонажа"],
+      ["backups", "history", "Резервные копии"],
       ...(r.canEdit ? [["import", "upload", "Заменить из файла"]] : []),
       ...(!cloud || a.canCreate ? [["duplicate", "copy", r.canEdit ? "Сделать копию" : "Копия себе"]] : []),
       ...(manage ? [S.c.archived ? ["unarchive", "archive", "Вернуть из архива"] : ["archive", "archive", "Убрать в архив"]] : []),
@@ -321,6 +323,43 @@ export function installDialogs(X) {
       if (!b) return;
       m.close();
       X.runAction(b.dataset.m, $("[data-act=roll-mode]", root));
+    });
+  }
+
+  function backupDialog() {
+    const m = openModal({ title: "Резервные копии", cls: "small", body: "" });
+    const draw = () => {
+      const list = listBackups(id);
+      m.body.innerHTML = `<p class="hint">Пока ты правишь лист, сайт сам сохраняет копию в этом браузере, не чаще раза в 2 часа (хранятся последние 8). Раз в неделю стоит скачать копию файлом: она переживёт и смену телефона, и очистку браузера.</p>
+        <div class="form-actions"><button class="btn" data-bk-now>${icon("check")}Сохранить копию сейчас</button><button class="btn gold" data-bk-file>${icon("download")}Скачать файл</button></div>
+        <div class="bk-list">${list.map((b, i) => `<div class="bk-row"><span><b>${esc(dateTime(b.at))}</b><small>${esc(b.name || "Без имени")} · ${esc(b.level)} уровень · ${esc(timeAgo(b.at))}</small></span><button class="btn ghost sm" data-bk-dl="${i}" title="Скачать эту копию">${icon("download")}</button>${X.readOnly() ? "" : `<button class="btn ghost sm" data-bk-restore="${i}">${icon("history")}Вернуть</button>`}</div>`).join("") || `<p class="empty">Копий пока нет: первая появится через несколько секунд работы с листом.</p>`}</div>`;
+    };
+    draw();
+    m.body.addEventListener("click", async e => {
+      const list = listBackups(id);
+      if (e.target.closest("[data-bk-now]")) {
+        toast(saveBackup(id, S.c, { force: true }) ? `${icon("check")} Копия сохранена` : "Изменений с прошлой копии нет", { timeout: 1800 });
+        return draw();
+      }
+      if (e.target.closest("[data-bk-file]")) return X.downloadBackup();
+      const dl = e.target.closest("[data-bk-dl]");
+      if (dl) {
+        const b = list[Number(dl.dataset.bkDl)];
+        const data = b && readBackup(b);
+        if (data) download(backupName(data, b.at), backupFile(data));
+        return;
+      }
+      const rs = e.target.closest("[data-bk-restore]");
+      if (rs) {
+        const b = list[Number(rs.dataset.bkRestore)];
+        const data = b && readBackup(b);
+        if (!data) return toast("Копия повреждена", { kind: "bad" });
+        if (!(await confirmDialog(`Вернуть лист к копии от ${dateTime(b.at)}? Текущая версия сохранится в истории изменений и в копиях.`, { ok: "Вернуть" }))) return;
+        saveBackup(id, S.c, { force: true });
+        m.close();
+        X.replaceWith(data, `Возврат к копии от ${dateTime(b.at)}`);
+        toast(`${icon("history")} Лист возвращён к копии`, { kind: "good" });
+      }
     });
   }
 
@@ -349,5 +388,5 @@ export function installDialogs(X) {
     });
   }
 
-  Object.assign(X, { sceneDialog, coinDialog, searchAll, switchChar, shortRest, longRest, restSummary, historyDialog, rollLogDialog, importDialog, menu });
+  Object.assign(X, { backupDialog, sceneDialog, coinDialog, searchAll, switchChar, shortRest, longRest, restSummary, historyDialog, rollLogDialog, importDialog, menu });
 }
