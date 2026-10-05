@@ -1,8 +1,22 @@
-import { ABILITIES, compute, fmt, maxDie, rollDice, uid, normalize } from "./rules.js";
+import { ABILITIES, SCHOOLS, compute, fmt, maxDie, rollDice, uid, normalize, slotTable, pactSlots } from "./rules.js";
 import { icon } from "./icons.js";
-import { esc, toast, openModal } from "./ui.js";
-import { detectClass, levelUpPlan } from "./classes.js";
+import { esc, toast, openModal, rich } from "./ui.js";
+import { detectClass, levelUpPlan, detectSubclass, newFeatures, invocationOptions, learnLevel, spellCandidates } from "./classes.js";
+import { spellIcon } from "./entities.js";
+import { loadSpells, toSpell } from "./library.js";
 import { clone } from "./sheet-util.js";
+
+const lower = s => String(s || "").toLowerCase().replace(/ё/g, "е");
+
+function featureEntity(f) {
+  return { id: "ft-" + uid(), name: f.name, nameEn: "", category: f.category || "class", source: f.source || "class", action: f.action || "passive", recharge: f.recharge || "always", uses: f.uses || "", used: 0, slot: "none", range: "", duration: "", save: "", damage: f.damage || [], description: f.description || "", effect: "" };
+}
+
+function invocationEntity(x) {
+  const once = /раз за длинный отдых/i.test(x.description);
+  const atWill = /неограниченно/i.test(x.description);
+  return featureEntity({ name: x.name, category: "invocation", description: x.description, action: once || atWill ? "action" : "passive", recharge: once ? "long" : "always", uses: once ? "1" : "" });
+}
 
 export function installLevelUp(X) {
   const { S } = X;
@@ -17,11 +31,64 @@ export function installLevelUp(X) {
     const from = S.d.level;
     if (from >= 20) return toast("Это уже 20 уровень, выше некуда", { kind: "info" });
     const cls = detectClass(c);
+    const sub = detectSubclass(c, cls);
     const plan = levelUpPlan(c, cls, from);
+    const pk = plan.picks;
+    const feats = newFeatures(c, cls, plan.to);
     const die = maxDie(c.hitDie);
     const avg = Math.floor(die / 2) + 1;
     const con = S.d.mods.con;
-    const st = { roll: null, hpMode: "avg", asi: "later", a1: "", a2: "", feat: "" };
+    const maxLvl = learnLevel(c, cls, plan.to, slotTable, pactSlots);
+    const st = { roll: null, hpMode: "avg", asi: "later", a1: "", a2: "", feat: "", feats: new Set(feats.map((_, i) => i)), pick: { spells: new Set(), cantrips: new Set(), arcanum: new Set(), invocations: new Set(), swapSpell: new Set(), swapInv: new Set() }, swapOut: "", invOut: "", q: {}, open: "" };
+    let lib = null;
+    let libError = false;
+    const invs = invocationOptions(c, plan.to);
+    const swappable = c.spells.filter(sp => Number(sp.level) > 0 && sp.cost === "slot");
+    const ownInvs = c.features.filter(f => f.category === "invocation");
+    const groups = {
+      cantrips: { need: pk.cantrips, title: "Новый заговор", ic: "sparkle" },
+      spells: { need: pk.spells, title: cls && cls.book ? "Заклинания в книгу" : "Новое заклинание", ic: "book" },
+      arcanum: { need: pk.arcanum ? 1 : 0, title: `Таинственный арканум (${pk.arcanum} круг)`, ic: "star" },
+      invocations: { need: pk.invocations, title: "Новое воззвание", ic: "eye" },
+      swapSpell: { need: 1, title: "Новое вместо забытого", ic: "book" },
+      swapInv: { need: 1, title: "Новое воззвание вместо старого", ic: "eye" }
+    };
+    const options = g => {
+      if (g === "invocations" || g === "swapInv") return invs.filter(x => !x.have).sort((a, b) => Number(b.ok) - Number(a.ok)).map(x => ({ key: x.key, name: x.name, sub: x.ok ? "" : x.why, desc: x.description, ok: x.ok, icon: "eye", color: "#c07cff" }));
+      if (!lib) return [];
+      const list = g === "cantrips" ? spellCandidates(lib, c, cls, 0, { cantrips: true }) : g === "arcanum" ? lib.filter(x => x.level === pk.arcanum && (x.classes || []).includes(cls.key)) : spellCandidates(lib, c, cls, maxLvl);
+      return list.map(x => {
+        const si = spellIcon(c, x);
+        return { key: x.key, name: x.name, sub: `${x.level ? x.level + " круг" : "заговор"} · ${(SCHOOLS[x.school] || {}).name || ""}${x.expanded ? ` · ${sub ? sub.name.toLowerCase() : "доп. список"}` : ""}${x.concentration ? " · концентрация" : ""}`, desc: x.description, ok: true, icon: si.icon, color: si.color, en: x.nameEn, lib: x };
+      });
+    };
+    const optRows = g => {
+      const q = lower(st.q[g] || "");
+      const all = options(g);
+      const list = all.filter(o => !q || lower(o.name).includes(q) || lower(o.en).includes(q));
+      const chosen = st.pick[g];
+      if (!lib && g !== "invocations" && g !== "swapInv") return `<p class="hint">${libError ? "Не удалось загрузить библиотеку заклинаний. Выбери потом через «Библиотеку»." : "Загружаю список заклинаний…"}</p>`;
+      if (!list.length) return `<p class="hint">Ничего не нашлось</p>`;
+      return list.map(o => {
+        const on = chosen.has(o.key);
+        const off = !o.ok;
+        const open = st.open === g + ":" + o.key;
+        return `<div class="lu-opt ${on ? "on" : ""} ${o.ok ? "" : "locked"}">
+          <button class="lu-pick" data-g="${g}" data-k="${esc(o.key)}" ${off ? "disabled" : ""} aria-pressed="${on ? "true" : "false"}"><span class="lu-ic" style="--c:${esc(o.color)}">${icon(o.icon)}</span><span class="lu-name"><b>${esc(o.name)}</b><small>${esc(o.sub)}</small></span><span class="lu-mark">${on ? icon("check") : ""}</span></button>
+          <button class="icon-btn lu-info" data-info="${g}:${esc(o.key)}" title="Описание" aria-expanded="${open ? "true" : "false"}">${icon(open ? "down" : "info")}</button>
+          ${open ? `<div class="lu-desc">${rich(o.desc || "")}</div>` : ""}
+        </div>`;
+      }).join("");
+    };
+    const pickerHtml = (g, extra = "") => {
+      const n = groups[g].need;
+      return `<div class="lu-picker" data-picker="${g}">
+        <div class="lu-picker-h"><span>${esc(groups[g].title)}</span><b data-count="${g}" class="${st.pick[g].size >= n ? "done" : ""}">${st.pick[g].size} из ${n}</b></div>
+        ${extra}
+        <label class="search-box">${icon("search")}<input type="search" data-lu-q="${g}" placeholder="Поиск по названию" aria-label="Поиск"></label>
+        <div class="lu-opts" data-opts="${g}">${optRows(g)}</div>
+      </div>`;
+    };
     const abOpts = sel => `<option value="">Выбери</option>${ABILITIES.map(a => `<option value="${a.key}" ${sel === a.key ? "selected" : ""}>${a.name} (${c.abilities[a.key]})</option>`).join("")}`;
     const preview = () => {
       const next = clone(c);
@@ -51,6 +118,18 @@ export function installLevelUp(X) {
       ].filter(([, a, b]) => String(a) !== String(b));
       return rows.length ? `<ul class="lu-list">${rows.map(([l, a, b]) => `<li><span>${esc(l)}</span><b>${esc(a)} → ${esc(b)}</b></li>`).join("")}</ul>` : `<p class="hint">Числа не меняются.</p>`;
     };
+    const left = () => {
+      const out = [];
+      for (const g of ["cantrips", "spells", "arcanum", "invocations"]) {
+        const n = groups[g].need - st.pick[g].size;
+        if (n > 0) out.push(`${groups[g].title.toLowerCase()}: ${n}`);
+      }
+      if (st.swapOut && !st.pick.swapSpell.size) out.push("замена заклинания");
+      if (st.invOut && !st.pick.swapInv.size) out.push("замена воззвания");
+      return out;
+    };
+    const featsHtml = feats.length ? `<section class="lu-sec"><h3>${icon("sigil")}Новые умения</h3><p class="hint">Добавятся во вкладку «Умения» сами.</p>${feats.map((f, i) => `<label class="lu-feat"><input type="checkbox" data-feat-i="${i}" checked><span><b>${esc(f.name)}</b>${f.uses ? `<small>${f.recharge === "short" ? "восстанавливается коротким отдыхом" : "раз за длинный отдых"}</small>` : ""}<span class="lu-feat-d">${rich(f.description)}</span></span></label>`).join("")}</section>` : "";
+    const genericNotes = plan.notes.filter(n => !(feats.length && /Умение покровителя/.test(n)));
     const asiHtml = plan.asi ? `<section class="lu-sec"><h3>${icon("star")}Увеличение характеристик</h3>
       <label class="fld chk"><input type="radio" name="lu-asi" value="one"><span>+2 к одной</span></label>
       <div class="lu-row" data-show="one"><select data-a1-one>${abOpts("")}</select></div>
@@ -60,28 +139,94 @@ export function installLevelUp(X) {
       <div class="lu-row" data-show="feat"><input type="text" data-feat placeholder="Название черты, например: Подстрекатель" maxlength="80"></div>
       <label class="fld chk"><input type="radio" name="lu-asi" value="later" checked><span>Решу потом</span></label>
       <p class="hint">Характеристика не может стать больше 20.</p></section>` : "";
-    const choose = plan.choose.length ? `<section class="lu-sec"><h3>${icon("book")}Не забудь выбрать</h3><ul class="lu-todo">${plan.choose.map(x => `<li>${esc(x.text)}</li>`).join("")}</ul>${plan.choose.some(x => x.kind === "spell" || x.kind === "cantrip") ? `<p class="hint">После повышения откроется кнопка «Библиотека заклинаний».</p>` : ""}${plan.choose.some(x => x.kind === "invocation") ? `<p class="hint">Воззвание добавь во вкладке «Умения» → «Таинственные воззвания».</p>` : ""}</section>` : "";
-    const notes = plan.notes.length ? `<section class="lu-sec"><h3>${icon("sparkle")}Что ещё приходит на этом уровне</h3><ul class="lu-todo">${plan.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>${cls ? "" : `<p class="hint">Класс не распознан, поэтому подсказки общие. Проверь умения класса в книге игрока.</p>`}</section>` : "";
+    const spellSec = [pk.cantrips ? pickerHtml("cantrips") : "", pk.spells ? pickerHtml("spells", `<p class="hint">Доступны заклинания до ${maxLvl} круга${sub && sub.spells ? `, включая расширенный список: ${esc(sub.name)}` : ""}.</p>`) : "", pk.arcanum ? pickerHtml("arcanum") : ""].join("");
+    const swapSpellSec = pk.swapSpell && swappable.length ? `<details class="lu-sec lu-swap" data-swap="spell"><summary><h3>${icon("history")}Заменить известное заклинание</h3><span class="hint">необязательно</span></summary>
+      <label class="fld"><span>Забыть</span><select data-swap-out><option value="">Ничего не менять</option>${swappable.map(sp => `<option value="${esc(sp.id)}">${esc(sp.name)} (${sp.level} круг)</option>`).join("")}</select></label>
+      <div data-swap-pick hidden>${pickerHtml("swapSpell")}</div></details>` : "";
+    const invSec = pk.invocations ? `<section class="lu-sec">${pickerHtml("invocations", `<p class="hint">Серые пока недоступны: рядом написано, чего не хватает.</p>`)}</section>` : "";
+    const swapInvSec = pk.swapInvocation && ownInvs.length ? `<details class="lu-sec lu-swap" data-swap="inv"><summary><h3>${icon("history")}Заменить воззвание</h3><span class="hint">необязательно</span></summary>
+      <label class="fld"><span>Убрать</span><select data-inv-out><option value="">Ничего не менять</option>${ownInvs.map(f => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join("")}</select></label>
+      <div data-inv-pick hidden>${pickerHtml("swapInv")}</div></details>` : "";
+    const notesHtml = genericNotes.length ? `<section class="lu-sec"><h3>${icon("sparkle")}Ещё на этом уровне</h3><ul class="lu-todo">${genericNotes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>${cls ? "" : `<p class="hint">Класс не распознан, поэтому подсказки общие. Проверь умения класса в книге игрока.</p>`}</section>` : "";
     const m = openModal({
       title: `Повышение уровня: ${from} → ${plan.to}`,
       cls: "levelup",
-      body: `<p class="lu-who">${esc(c.name)} · ${esc(cls ? cls.name : c.info.cls || "класс не указан")} · кость хитов ${esc(c.hitDie)}</p>
+      body: `<p class="lu-who">${esc(c.name)} · ${esc(cls ? cls.name : c.info.cls || "класс не указан")}${sub ? ` · ${esc(sub.name)}` : ""} · кость хитов ${esc(c.hitDie)}</p>
         <section class="lu-sec"><h3>${icon("heart")}Хиты за уровень</h3>
           <label class="fld chk"><input type="radio" name="lu-hp" value="avg" checked><span>Среднее: ${avg} ${fmt(con)} = <b>+${Math.max(1, avg + con)}</b></span></label>
           <label class="fld chk"><input type="radio" name="lu-hp" value="roll"><span>Бросить ${esc(c.hitDie)} ${fmt(con)} <b data-roll-res></b></span></label>
           <button class="btn sm" data-roll-hp>${icon("d20")}Бросить ${esc(c.hitDie)}</button>
         </section>
+        ${featsHtml}
+        ${spellSec ? `<section class="lu-sec"><h3>${icon("book")}Заклинания</h3>${spellSec}</section>` : ""}
+        ${swapSpellSec}
+        ${invSec}
+        ${swapInvSec}
         ${asiHtml}
         <section class="lu-sec"><h3>${icon("check")}Изменится само</h3><div data-changes>${changesHtml()}</div></section>
-        ${choose}${notes}
+        ${notesHtml}
+        <p class="lu-left hint" data-left></p>
         <div class="form-actions"><button class="btn ghost" data-close>Отмена</button><button class="btn gold" data-go>${icon("star")}Повысить уровень</button></div>`
     });
     const body = m.body;
+    const paintLeft = () => {
+      const l = left();
+      body.querySelector("[data-left]").textContent = l.length ? `Ещё не выбрано: ${l.join(", ")}. Можно выбрать и потом.` : "Всё выбрано.";
+    };
+    const paintGroup = g => {
+      const box = body.querySelector(`[data-opts="${g}"]`);
+      if (!box) return;
+      const y = box.scrollTop;
+      box.innerHTML = optRows(g);
+      box.scrollTop = y;
+      const cnt = body.querySelector(`[data-count="${g}"]`);
+      cnt.textContent = `${st.pick[g].size} из ${groups[g].need}`;
+      cnt.classList.toggle("done", st.pick[g].size >= groups[g].need);
+      paintLeft();
+    };
     const refresh = () => {
       body.querySelector("[data-changes]").innerHTML = changesHtml();
       body.querySelectorAll("[data-show]").forEach(el => (el.hidden = el.dataset.show !== st.asi));
+      paintLeft();
     };
     refresh();
+    if (pk.cantrips || pk.spells || pk.arcanum || (pk.swapSpell && swappable.length)) {
+      loadSpells().then(list => {
+        lib = list;
+        ["cantrips", "spells", "arcanum", "swapSpell"].forEach(paintGroup);
+      }).catch(() => {
+        libError = true;
+        ["cantrips", "spells", "arcanum", "swapSpell"].forEach(paintGroup);
+      });
+    }
+    body.addEventListener("click", e => {
+      const pick = e.target.closest("[data-g][data-k]");
+      if (pick) {
+        const g = pick.dataset.g;
+        const set = st.pick[g];
+        const k = pick.dataset.k;
+        if (set.has(k)) set.delete(k);
+        else {
+          const need = groups[g].need;
+          if (need === 1) set.clear();
+          else if (set.size >= need) return toast(`Можно выбрать только ${need}`, { kind: "info", timeout: 1800 });
+          set.add(k);
+        }
+        return paintGroup(g);
+      }
+      const info = e.target.closest("[data-info]");
+      if (info) {
+        st.open = st.open === info.dataset.info ? "" : info.dataset.info;
+        return paintGroup(info.dataset.info.split(":")[0]);
+      }
+    });
+    body.addEventListener("input", e => {
+      if (e.target.matches("[data-feat]")) st.feat = e.target.value;
+      if (e.target.matches("[data-lu-q]")) {
+        st.q[e.target.dataset.luQ] = e.target.value;
+        paintGroup(e.target.dataset.luQ);
+      }
+    });
     body.addEventListener("change", e => {
       const t = e.target;
       if (t.name === "lu-hp") st.hpMode = t.value;
@@ -89,15 +234,29 @@ export function installLevelUp(X) {
       if (t.matches("[data-a1-one]")) st.a1 = t.value;
       if (t.matches("[data-a1]")) st.a1 = t.value;
       if (t.matches("[data-a2]")) st.a2 = t.value;
+      if (t.matches("[data-feat-i]")) {
+        const i = Number(t.dataset.featI);
+        if (t.checked) st.feats.add(i);
+        else st.feats.delete(i);
+      }
+      if (t.matches("[data-swap-out]")) {
+        st.swapOut = t.value;
+        body.querySelector("[data-swap-pick]").hidden = !t.value;
+        if (!t.value) st.pick.swapSpell.clear();
+        paintGroup("swapSpell");
+      }
+      if (t.matches("[data-inv-out]")) {
+        st.invOut = t.value;
+        body.querySelector("[data-inv-pick]").hidden = !t.value;
+        if (!t.value) st.pick.swapInv.clear();
+        paintGroup("swapInv");
+      }
       if (t.name === "lu-asi") {
         st.a1 = "";
         st.a2 = "";
         body.querySelectorAll("[data-show] select").forEach(s => (s.value = ""));
       }
       refresh();
-    });
-    body.addEventListener("input", e => {
-      if (e.target.matches("[data-feat]")) st.feat = e.target.value;
     });
     body.querySelector("[data-roll-hp]").onclick = () => {
       const r = rollDice(`1d${die}`);
@@ -114,6 +273,17 @@ export function installLevelUp(X) {
       if (st.asi === "feat" && !st.feat.trim()) return toast("Впиши название черты", { kind: "bad" });
       const { next, d0, d1 } = preview();
       const gained = Math.max(0, d1.hpMax - d0.hpMax);
+      const byKey = new Map((lib || []).map(x => [x.key, x]));
+      const invByKey = new Map(invs.map(x => [x.key, x]));
+      const sourceFor = x => (x.classes || []).includes(cls && cls.key) ? cls.name : `${sub ? sub.name : "Подкласс"} (расширенный список)`;
+      const newSpells = [];
+      for (const g of ["cantrips", "spells", "swapSpell"]) for (const k of st.pick[g]) if (byKey.has(k)) newSpells.push({ ...toSpell(byKey.get(k)), source: sourceFor(byKey.get(k)) });
+      for (const k of st.pick.arcanum) if (byKey.has(k)) newSpells.push({ ...toSpell(byKey.get(k)), cost: "uses", uses: "1", recharge: "long", source: "Таинственный арканум" });
+      const newInvs = [...st.pick.invocations, ...st.pick.swapInv].map(k => invByKey.get(k)).filter(Boolean).map(invocationEntity);
+      const newFeats = feats.filter((_, i) => st.feats.has(i)).map(featureEntity);
+      const dropSpell = st.swapOut && st.pick.swapSpell.size ? st.swapOut : "";
+      const dropInv = st.invOut && st.pick.swapInv.size ? st.invOut : "";
+      const remaining = left();
       m.close();
       X.withUndo("Повышение уровня", () => X.mutate(ch => {
         ch.info.level = next.info.level;
@@ -121,13 +291,19 @@ export function installLevelUp(X) {
         ch.hp.maxOverride = next.hp.maxOverride;
         ch.abilities = next.abilities;
         ch.hp.current = Math.min(d1.hpMax, (Number(ch.hp.current) || 0) + gained);
-        if (st.asi === "feat") ch.features.push({ id: "ft-" + uid(), name: st.feat.trim().slice(0, 80), nameEn: "", category: "feat", source: "", action: "passive", recharge: "always", uses: "", used: 0, slot: "none", range: "", duration: "", save: "", damage: [], description: "", effect: "" });
+        if (st.asi === "feat") ch.features.push(featureEntity({ name: st.feat.trim().slice(0, 80), category: "feat", source: "" }));
+        if (dropSpell) ch.spells = ch.spells.filter(sp => sp.id !== dropSpell);
+        if (dropInv) ch.features = ch.features.filter(f => f.id !== dropInv);
+        ch.spells.push(...newSpells);
+        ch.features.push(...newFeats, ...newInvs);
       }, { render: false }));
       X.renderAll(true);
-      const lib = plan.choose.some(x => x.kind === "spell" || x.kind === "cantrip");
-      toast(`${icon("star")} <b>${esc(c.name)}: ${plan.to} уровень!</b> Хиты +${gained}.${plan.choose.length ? ` Не забудь: ${esc(plan.choose.filter(x => x.kind !== "swap").map(x => x.text.toLowerCase()).join(", "))}.` : ""}${lib ? ` <button class="btn sm" data-lu-lib>Библиотека заклинаний</button>` : ""}`, { kind: "good", timeout: 12000 });
+      const got = [...newFeats.map(f => f.name), ...newSpells.map(s => s.name), ...newInvs.map(f => f.name)];
+      const lateLib = remaining.some(x => /заклин|заговор|арканум/.test(x));
+      toast(`${icon("star")} <b>${esc(c.name)}: ${plan.to} уровень!</b> Хиты +${gained}.${got.length ? ` Новое: ${esc(got.join(", "))}.` : ""}${remaining.length ? ` Не забудь: ${esc(remaining.join(", "))}.` : ""}${lateLib ? ` <button class="btn sm" data-lu-lib>Библиотека заклинаний</button>` : ""}`, { kind: "good", timeout: 12000 });
     };
   }
 
   Object.assign(X, { openLevelUp });
 }
+
