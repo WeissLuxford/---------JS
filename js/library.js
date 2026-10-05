@@ -311,7 +311,7 @@ async function renderFeatures(box, { get, onAdd }) {
       const cat = FEATURE_CATS[GROUP_CAT[x.group]] || FEATURE_CATS.other;
       return `${head}<div class="lib-row ${open ? "open" : ""}">
         <button class="lib-head" data-lib-open="${esc(x.key)}" aria-expanded="${open ? "true" : "false"}">
-          <span class="lib-lvl" title="${x.level ? "Уровень" : ""}">${x.level ? esc(x.level) : icon(cat.icon)}</span>
+          ${x.level ? `<span class="lib-lvl" title="Уровень">${esc(x.level)}</span>` : ""}
           ${libIcon({ icon: featureIcon({ ...x, category: GROUP_CAT[x.group] || "other" }), color: cat.color || "" })}
           <span class="lib-names"><b>${esc(x.name)}</b><small>${esc(where(x))}${x.nameEn ? ` · ${esc(x.nameEn)}` : ""}</small></span>
           ${got ? `<span class="badge" style="--c:#4fcf6a">уже есть</span>` : ""}
