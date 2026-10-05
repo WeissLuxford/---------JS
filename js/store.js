@@ -410,6 +410,37 @@ export async function deleteCharacter(id) {
   removeRecent(id);
 }
 
+const LS_TPL = "dnd.templates.hidden";
+const cleanKeys = list => (Array.isArray(list) ? [...new Set(list.filter(x => typeof x === "string" && /^[a-z0-9_-]{1,40}$/i.test(x)))].slice(0, 50) : []);
+
+export async function getHiddenTemplates() {
+  if (mode === "cloud") {
+    try {
+      const snap = await fs.getDoc(fs.doc(db, "meta", "templates"));
+      return snap.exists() ? cleanKeys(snap.data().hidden) : [];
+    } catch {
+      return [];
+    }
+  }
+  try {
+    return cleanKeys(JSON.parse(localStorage.getItem(LS_TPL) || "[]"));
+  } catch {
+    return [];
+  }
+}
+
+export async function setHiddenTemplates(list) {
+  const hidden = cleanKeys(list);
+  if (mode === "cloud") {
+    await fs.setDoc(fs.doc(db, "meta", "templates"), { hidden, updatedAt: Date.now() });
+    return hidden;
+  }
+  try {
+    localStorage.setItem(LS_TPL, JSON.stringify(hidden));
+  } catch {}
+  return hidden;
+}
+
 export function getRecents() {
   try {
     const v = JSON.parse(localStorage.getItem(LS_RECENT) || "[]");

@@ -21,6 +21,7 @@
 | `js/seed.js` | данные персонажа Кирион (сид для локального режима) |
 | `js/entities.js` | модели карточек в стиле BG3 и схемы форм редактирования |
 | `js/tabs.js` | разметка вкладок листа |
+| `js/templates.js` | готовые персонажи: `loadTemplates()` читает `data/templates.json`, `templateCopy()` даёт копию для «Забрать себе»; список убранных в `store.js` (`getHiddenTemplates`, `setHiddenTemplates`) |
 | `js/checks.js` | проверка листа `sheetIssues(c, d)`: список расхождений с правилами (уровень `warn` или `info`, текст, ссылка на запись или вкладку) |
 | `js/wake.js` | экран не гаснет: Screen Wake Lock, повторный захват при возврате на вкладку, настройка `dnd.wake` |
 | `js/icon-map.js` | точные иконки библиотеки: `SPELL_ICONS` и `FEATURE_ICONS` по английскому названию, `INVOCATION_ICONS` по русскому; `spellIconByName`, `featureIconByName` вызываются из `spellIcon` и `featureIcon` в `entities.js` до угадывания по словам |

@@ -1,4 +1,4 @@
-const VERSION = "v24";
+const VERSION = "v25";
 const SHELL = "dnd-shell-" + VERSION;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -26,6 +26,7 @@ const PRECACHE = [
   "js/icon-map.js",
   "js/wake.js",
   "js/checks.js",
+  "js/templates.js",
   "js/gear.js",
   "js/home.js",
   "js/icons.js",
@@ -53,7 +54,8 @@ const PRECACHE = [
   "js/tabs.js",
   "js/ui.js",
   "data/spells-srd.json",
-  "data/features-srd.json"
+  "data/features-srd.json",
+  "data/templates.json"
 ];
 const CDN_HOSTS = ["www.gstatic.com", "fonts.googleapis.com", "fonts.gstatic.com"];
 const NETWORK_WAIT = 3500;

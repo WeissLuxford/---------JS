@@ -2,7 +2,8 @@ import { normalize, newCharacter, compute, importCharacter } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, timeAgo, toast, openForm, openModal, pickFile, confirmDialog } from "./ui.js";
 import { installBanner, installApp } from "./pwa.js";
-import { subscribeList, subscribeInvites, createChar, getMode, onStatus, getRecents, removeRecent, claimCharacter, deleteCharactersOf, listCharactersOf, newCharId, getCharOnce } from "./store.js";
+import { subscribeList, subscribeInvites, createChar, getMode, onStatus, getRecents, removeRecent, claimCharacter, deleteCharactersOf, listCharactersOf, newCharId, getCharOnce, getHiddenTemplates, setHiddenTemplates } from "./store.js";
+import { loadTemplates, templateCopy } from "./templates.js";
 import { onAccess, signIn, signOut, IN_APP, getAccess, deleteAccountData } from "./access.js";
 import { subtitle } from "./tabs.js";
 import { shortWho } from "./device.js";
@@ -25,6 +26,9 @@ export function mountHome(root, navigate) {
   let subKey = "";
   let graceOver = false;
   let graceTimer = null;
+  let templates = [];
+  let hiddenTpl = [];
+  let showHiddenTpl = false;
 
   const offStatus = onStatus(st => {
     const next = st.mode === "local" ? st.error || "Только в этом браузере" : st.state === "error" || st.state === "offline" ? st.error : "";
@@ -137,6 +141,35 @@ export function mountHome(root, navigate) {
     </section>`;
   }
 
+  function tplCard(t, { hidden = false, canCreate, canHide, needSignIn }) {
+    const c = t.c;
+    const take = canCreate ? `<button class="btn gold sm" data-tpl-take="${esc(t.key)}">${icon("download")}Забрать себе</button>` : needSignIn ? `<button class="btn sm" data-signin>${icon("user")}Войти и забрать</button>` : "";
+    const hide = canHide ? `<button class="btn ghost sm" data-tpl-hide="${esc(t.key)}" title="${hidden ? "Снова показывать всем" : "Убрать с главной для всех"}">${icon(hidden ? "eye" : "trash")}${hidden ? "Вернуть" : "Убрать"}</button>` : "";
+    return `<article class="ch-card tpl ${hidden ? "arch" : ""}">
+      <span class="ch-portrait tpl-ic">${icon(t.icon)}</span>
+      <span class="ch-info">
+        <span class="ch-name">${esc(c.name)}</span>
+        <span class="ch-sub">${esc(subtitle(c))}</span>
+        <span class="ch-sub dim">${esc(t.blurb)}</span>
+        <span class="tpl-acts">${take}${hide}</span>
+      </span>
+    </article>`;
+  }
+
+  function tplSection(canCreate) {
+    if (!templates.length) return "";
+    const cloud = getMode() === "cloud";
+    const canHide = cloud ? !!access.isAdmin : true;
+    const needSignIn = cloud && access.enforced && !access.signedIn;
+    const shown = templates.filter(t => !hiddenTpl.includes(t.key));
+    const hidden = templates.filter(t => hiddenTpl.includes(t.key));
+    if (!shown.length && !canHide) return "";
+    const opts = { canCreate, canHide, needSignIn };
+    return section("Готовые персонажи", "people", `<p class="hint tpl-hint">Готовые листы, чтобы попробовать сайт или сразу сесть играть. «Забрать себе» делает твою копию, её можно менять как угодно, образец остаётся для других.</p>
+      <div class="ch-grid">${shown.map(t => tplCard(t, opts)).join("")}</div>
+      ${canHide && hidden.length ? `<div class="arch-toggle"><button class="btn ghost sm" data-tpl-hidden>${icon("archive")}Убранные (${hidden.length})</button></div>${showHiddenTpl ? `<div class="ch-grid">${hidden.map(t => tplCard(t, { ...opts, hidden: true })).join("")}</div>` : ""}` : ""}`);
+  }
+
   function section(title, ic, body) {
     return `<section class="home-sec"><header class="home-sec-h">${icon(ic)}<h2>${esc(title)}</h2></header>${body}</section>`;
   }
@@ -183,6 +216,7 @@ export function mountHome(root, navigate) {
           ${installBanner()}
         </header>
         ${mySection}
+        ${tplSection(canCreate)}
         ${inv.length ? section("Со мной поделились", "edit", `<div class="ch-grid">${inv.map(x => miniCard(x, "invite")).join("")}</div>`) : ""}
         ${recents.length ? section("Недавно открытые", "eye", `<div class="ch-grid">${recents.map(x => miniCard(x, "recent")).join("")}</div>`) : ""}
         ${adminSection}
@@ -309,6 +343,39 @@ export function mountHome(root, navigate) {
       }
       return;
     }
+    const take = t.closest("[data-tpl-take]");
+    if (take) {
+      const tp = templates.find(x => x.key === take.dataset.tplTake);
+      if (!tp) return;
+      take.disabled = true;
+      try {
+        const id = newCharId();
+        await createChar(id, templateCopy(tp));
+        toast(`${icon("check")} ${esc(tp.c.name)} теперь твой`, { kind: "good" });
+        navigate(`#/c/${id}`);
+      } catch {
+        take.disabled = false;
+        toast("Не удалось забрать персонажа", { kind: "bad" });
+      }
+      return;
+    }
+    const tHide = t.closest("[data-tpl-hide]");
+    if (tHide) {
+      const key = tHide.dataset.tplHide;
+      const on = !hiddenTpl.includes(key);
+      if (on && !(await confirmDialog("Убрать этого готового персонажа с главной для всех? Вернуть можно в «Убранные».", { ok: "Убрать" }))) return;
+      try {
+        hiddenTpl = await setHiddenTemplates(on ? [...hiddenTpl, key] : hiddenTpl.filter(x => x !== key));
+        toast(on ? "Убран с главной" : "Снова показывается всем", { timeout: 1800 });
+      } catch {
+        toast("Не получилось: менять список может только владелец сайта", { kind: "bad" });
+      }
+      return paint();
+    }
+    if (t.closest("[data-tpl-hidden]")) {
+      showHiddenTpl = !showHiddenTpl;
+      return paint();
+    }
     const forget = t.closest("[data-forget]");
     if (forget) {
       removeRecent(forget.dataset.forget);
@@ -338,6 +405,12 @@ export function mountHome(root, navigate) {
 
   root.addEventListener("click", onClick);
   paint();
+  Promise.all([loadTemplates(), getHiddenTemplates()]).then(([list, hidden]) => {
+    if (disposed) return;
+    templates = list;
+    hiddenTpl = hidden;
+    paint();
+  }).catch(() => {});
 
   return () => {
     disposed = true;

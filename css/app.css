@@ -1890,3 +1890,10 @@ body.hp-dying::before { animation: hp-pulse 1.5s ease-in-out infinite; }
 .check-row.warn > .ic { color: #f29b2b; }
 .check-row span { flex: 1; min-width: 0; line-height: 1.4; }
 .check-row .btn { flex: none; }
+
+.ch-card.tpl { cursor: default; background: linear-gradient(160deg, rgba(201, 163, 91, .1), rgba(0, 0, 0, .15)); border-style: dashed; }
+.ch-card.tpl:hover { transform: none; }
+.ch-portrait.tpl-ic { display: grid; place-items: center; color: var(--gold-2); background: radial-gradient(circle at 50% 40%, rgba(201, 163, 91, .22), #140f0b 70%); }
+.ch-portrait.tpl-ic svg { width: 46px; height: 46px; filter: drop-shadow(0 0 8px rgba(233, 199, 122, .45)); }
+.tpl-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tpl-hint { margin: -4px 0 10px; }
