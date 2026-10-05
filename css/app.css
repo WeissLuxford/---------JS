@@ -1133,6 +1133,13 @@ li:has(> .rt-todo) { list-style: none; margin-left: -18px; }
 .lib-cls-line { color: var(--dim); font-size: 14px; margin: 8px 4px 0; }
 .lib-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
 .lib-src { margin-top: 12px; font-size: 13px; }
+.lib-tabs { margin-bottom: 12px; }
+.lib-mine { margin: 0 0 6px; }
+.lib-meta { margin: 2px 4px 6px; color: var(--gold-2); font-size: 14px; }
+.lib-feat .note-text { padding: 0 4px; }
+.lib-feat .lib-actions { align-items: center; gap: 10px; }
+.lib-feat .lib-actions .hint { margin: 0; font-size: 13px; }
+.lib-lvl .ic { width: 16px; height: 16px; }
 
 .inv-sort { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin: 0 0 12px; }
 .inv-sort .fld { margin: 0; min-width: 190px; }

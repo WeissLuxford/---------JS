@@ -481,7 +481,7 @@ export function tabFeatures(ctx) {
     return panel(cat.name, `<div class="tiles" data-reorder="features">${list.map(f => featureTile(ctx, f)).join("")}</div>`, { ic: cat.icon, actions: addBtn("add-feature", "", `data-cat="${key}" title="Добавить"`) });
   }).join("");
   return `${pact}
-    <div class="legend"><span><i class="flag gold">М</i> от Мастера</span><span><i class="flag teal">С</i> своё</span><span class="spacer"></span>${orderBtn(ctx)}${addBtn("add-feature", "Умение", 'data-cat="other"')}</div>
+    <div class="legend"><span><i class="flag gold">М</i> от Мастера</span><span><i class="flag teal">С</i> своё</span><span class="spacer"></span>${orderBtn(ctx)}<button class="btn ghost sm" data-act="feature-library">${icon("book")}Библиотека</button>${addBtn("add-feature", "Умение", 'data-cat="other"')}</div>
     ${sections || emptyState("Умений пока нет")}`;
 }
 
@@ -544,7 +544,7 @@ export function tabInventory(ctx) {
     ${panel("Предметы", `
       <div class="chips filter">${INV_FILTERS.map(([k, l]) => `<button class="chip toggle ${f === k ? "on" : ""}" data-act="inv-filter" data-k="${k}">${l}</button>`).join("")}</div>
       <div class="inv-sort"><label class="fld compact"><span>Сортировка</span><select data-ui="inv-sort">${INV_SORTS.map(([k, l]) => `<option value="${k}" ${(ui.invSort || "added") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label><button class="chip toggle ${ui.invEqFirst !== false ? "on" : ""}" data-act="inv-eq-first" aria-pressed="${ui.invEqFirst !== false ? "true" : "false"}">Надетое сначала</button></div>
-      <div class="inv-grid" data-reorder="items">${grid || emptyState("Пусто, даже паук заскучал")}</div>`, { ic: "bag", actions: orderBtn(ctx) + `<button class="btn ghost sm" data-act="gear-table">${icon("swords")}Таблица</button>` + addBtn("add-item", "Предмет") })}`;
+      <div class="inv-grid" data-reorder="items">${grid || emptyState("Пусто, даже паук заскучал")}</div>`, { ic: "bag", actions: orderBtn(ctx) + `<button class="btn ghost sm" data-act="gear-table">${icon("book")}Библиотека</button>` + addBtn("add-item", "Предмет") })}`;
 }
 
 export const noteTags = noteTagsOf;

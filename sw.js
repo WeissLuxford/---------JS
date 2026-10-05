@@ -1,4 +1,4 @@
-const VERSION = "v11";
+const VERSION = "v13";
 const SHELL = "dnd-shell-" + VERSION;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -44,7 +44,8 @@ const PRECACHE = [
   "js/sync.js",
   "js/tabs.js",
   "js/ui.js",
-  "data/spells-srd.json"
+  "data/spells-srd.json",
+  "data/features-srd.json"
 ];
 const CDN_HOSTS = ["www.gstatic.com", "fonts.googleapis.com", "fonts.gstatic.com"];
 const NETWORK_WAIT = 3500;

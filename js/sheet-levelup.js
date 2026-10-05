@@ -3,7 +3,7 @@ import { icon } from "./icons.js";
 import { esc, toast, openModal, rich } from "./ui.js";
 import { detectClass, levelUpPlan, detectSubclass, newFeatures, invocationOptions, learnLevel, spellCandidates } from "./classes.js";
 import { spellIcon } from "./entities.js";
-import { loadSpells, toSpell } from "./library.js";
+import { loadSpells, toSpell, loadFeatures, classFeaturesAt, featureFromLib } from "./library.js";
 import { clone } from "./sheet-util.js";
 
 const lower = s => String(s || "").toLowerCase().replace(/ё/g, "е");
@@ -26,7 +26,7 @@ export function installLevelUp(X) {
     return d.slots.length ? d.slots.map((n, i) => `${i + 1}: ${n}`).join(", ") : "нет";
   }
 
-  function openLevelUp() {
+  async function openLevelUp() {
     const c = S.c;
     const from = S.d.level;
     if (from >= 20) return toast("Это уже 20 уровень, выше некуда", { kind: "info" });
@@ -34,12 +34,32 @@ export function installLevelUp(X) {
     const sub = detectSubclass(c, cls);
     const plan = levelUpPlan(c, cls, from);
     const pk = plan.picks;
-    const feats = newFeatures(c, cls, plan.to);
+    const libAll = cls ? await loadFeatures().catch(() => null) : null;
+    const ownNames = new Set(c.features.map(f => lower(f.name)));
+    const fromLib = libAll ? classFeaturesAt(libAll, c, cls.key, plan.to).filter(x => !ownNames.has(lower(x.name))) : [];
+    const boons = fromLib.filter(x => /^pact of /i.test(x.nameEn || ""));
+    const styleFeat = fromLib.find(x => /^fighting style$/i.test(x.nameEn || ""));
+    const styles = styleFeat && libAll ? libAll.filter(x => x.group === "style" && !ownNames.has(lower(x.name))) : [];
+    const optGroups = new Map();
+    for (const x of fromLib) {
+      const parent = fromLib.find(y => y !== x && x.key.startsWith(y.key + "-"));
+      if (parent) {
+        if (!optGroups.has(parent)) optGroups.set(parent, []);
+        optGroups.get(parent).push(x);
+      }
+    }
+    const optional = new Set([...boons, ...[...optGroups.values()].flat()]);
+    const feats = libAll && fromLib.length ? fromLib.filter(x => !optional.has(x)).map(x => ({ ...featureFromLib(x), category: "class", source: "class" })) : newFeatures(c, cls, plan.to);
+    const choices = [
+      boons.length ? { key: "boon", title: "Дар договора", list: boons, max: 1 } : null,
+      styles.length ? { key: "style", title: "Боевой стиль", list: styles, max: 1 } : null,
+      ...[...optGroups.entries()].map(([parent, list], i) => ({ key: "opt" + i, title: parent.name, list, max: /metamagic/i.test(parent.nameEn || "") ? 2 : 1 }))
+    ].filter(Boolean);
     const die = maxDie(c.hitDie);
     const avg = Math.floor(die / 2) + 1;
     const con = S.d.mods.con;
     const maxLvl = learnLevel(c, cls, plan.to, slotTable, pactSlots);
-    const st = { roll: null, hpMode: "avg", asi: "later", a1: "", a2: "", feat: "", feats: new Set(feats.map((_, i) => i)), pick: { spells: new Set(), cantrips: new Set(), arcanum: new Set(), invocations: new Set(), swapSpell: new Set(), swapInv: new Set() }, swapOut: "", invOut: "", q: {}, open: "" };
+    const st = { choice: {}, roll: null, hpMode: "avg", asi: "later", a1: "", a2: "", feat: "", feats: new Set(feats.map((_, i) => i)), pick: { spells: new Set(), cantrips: new Set(), arcanum: new Set(), invocations: new Set(), swapSpell: new Set(), swapInv: new Set() }, swapOut: "", invOut: "", q: {}, open: "" };
     let lib = null;
     let libError = false;
     const invs = invocationOptions(c, plan.to);
@@ -124,12 +144,14 @@ export function installLevelUp(X) {
         const n = groups[g].need - st.pick[g].size;
         if (n > 0) out.push(`${groups[g].title.toLowerCase()}: ${n}`);
       }
+      choices.forEach(ch => (st.choice[ch.key] || new Set()).size < ch.max && out.push(ch.title.toLowerCase()));
       if (st.swapOut && !st.pick.swapSpell.size) out.push("замена заклинания");
       if (st.invOut && !st.pick.swapInv.size) out.push("замена воззвания");
       return out;
     };
     const featsHtml = feats.length ? `<section class="lu-sec"><h3>${icon("sigil")}Новые умения</h3><p class="hint">Добавятся во вкладку «Умения» сами.</p>${feats.map((f, i) => `<label class="lu-feat"><input type="checkbox" data-feat-i="${i}" checked><span><b>${esc(f.name)}</b>${f.uses ? `<small>${f.recharge === "short" ? "восстанавливается коротким отдыхом" : "раз за длинный отдых"}</small>` : ""}<span class="lu-feat-d">${rich(f.description)}</span></span></label>`).join("")}</section>` : "";
-    const genericNotes = plan.notes.filter(n => !(feats.length && /Умение покровителя/.test(n)));
+    const choiceHtml = choices.map(ch => `<section class="lu-sec"><h3>${icon("star")}${esc(ch.title)}: ${ch.max > 1 ? `выбери ${ch.max}` : "выбери один"}</h3>${ch.list.map(x => `<label class="lu-feat"><input type="${ch.max > 1 ? "checkbox" : "radio"}" name="lu-ch-${ch.key}" value="${esc(x.key)}" data-choice="${ch.key}"><span><b>${esc(x.name)}</b><span class="lu-feat-d">${rich(x.description)}</span></span></label>`).join("")}</section>`).join("");
+    const genericNotes = plan.notes.filter(n => !(feats.length && /Умение покровителя/.test(n)) && !(boons.length && /Дар договора/.test(n)));
     const asiHtml = plan.asi ? `<section class="lu-sec"><h3>${icon("star")}Увеличение характеристик</h3>
       <label class="fld chk"><input type="radio" name="lu-asi" value="one"><span>+2 к одной</span></label>
       <div class="lu-row" data-show="one"><select data-a1-one>${abOpts("")}</select></div>
@@ -158,6 +180,7 @@ export function installLevelUp(X) {
           <button class="btn sm" data-roll-hp>${icon("d20")}Бросить ${esc(c.hitDie)}</button>
         </section>
         ${featsHtml}
+        ${choiceHtml}
         ${spellSec ? `<section class="lu-sec"><h3>${icon("book")}Заклинания</h3>${spellSec}</section>` : ""}
         ${swapSpellSec}
         ${invSec}
@@ -234,6 +257,17 @@ export function installLevelUp(X) {
       if (t.matches("[data-a1-one]")) st.a1 = t.value;
       if (t.matches("[data-a1]")) st.a1 = t.value;
       if (t.matches("[data-a2]")) st.a2 = t.value;
+      if (t.matches("[data-choice]")) {
+        const ch = choices.find(x => x.key === t.dataset.choice);
+        const set = st.choice[ch.key] || (st.choice[ch.key] = new Set());
+        if (ch.max === 1) set.clear();
+        if (t.checked) {
+          if (set.size >= ch.max) {
+            t.checked = false;
+            toast(`Можно выбрать только ${ch.max}`, { kind: "info", timeout: 1800 });
+          } else set.add(t.value);
+        } else set.delete(t.value);
+      }
       if (t.matches("[data-feat-i]")) {
         const i = Number(t.dataset.featI);
         if (t.checked) st.feats.add(i);
@@ -280,7 +314,10 @@ export function installLevelUp(X) {
       for (const g of ["cantrips", "spells", "swapSpell"]) for (const k of st.pick[g]) if (byKey.has(k)) newSpells.push({ ...toSpell(byKey.get(k)), source: sourceFor(byKey.get(k)) });
       for (const k of st.pick.arcanum) if (byKey.has(k)) newSpells.push({ ...toSpell(byKey.get(k)), cost: "uses", uses: "1", recharge: "long", source: "Таинственный арканум" });
       const newInvs = [...st.pick.invocations, ...st.pick.swapInv].map(k => invByKey.get(k)).filter(Boolean).map(invocationEntity);
-      const newFeats = feats.filter((_, i) => st.feats.has(i)).map(featureEntity);
+      const newFeats = feats.filter((_, i) => st.feats.has(i)).map(f => (f.id ? { ...f, id: "ft-" + uid() } : featureEntity(f)));
+      const chosen = choices.flatMap(ch => ch.list.filter(x => (st.choice[ch.key] || new Set()).has(x.key)));
+      newFeats.push(...chosen.map(x => ({ ...featureFromLib(x), category: "class", source: "class" })));
+      const boon = chosen.find(x => boons.includes(x));
       const dropSpell = st.swapOut && st.pick.swapSpell.size ? st.swapOut : "";
       const dropInv = st.invOut && st.pick.swapInv.size ? st.invOut : "";
       const remaining = left();
@@ -296,6 +333,7 @@ export function installLevelUp(X) {
         if (dropInv) ch.features = ch.features.filter(f => f.id !== dropInv);
         ch.spells.push(...newSpells);
         ch.features.push(...newFeats, ...newInvs);
+        if (boon) ch.info.pactBoon = boon.name;
       }, { render: false }));
       X.renderAll(true);
       const got = [...newFeats.map(f => f.name), ...newSpells.map(s => s.name), ...newInvs.map(f => f.name)];

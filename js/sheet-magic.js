@@ -1,4 +1,4 @@
-import { DAMAGE, normalize, rollDice, usesInfo, uid, itemCharges } from "./rules.js";
+import { normalize, rollDice, usesInfo, itemCharges } from "./rules.js";
 import { icon } from "./icons.js";
 import { esc, $, toast, openModal } from "./ui.js";
 import { findEntity, itemIcon, itemSpellInfo, chargeWord } from "./entities.js";
@@ -163,50 +163,28 @@ export function installMagic(X) {
     });
   }
 
-  async function gearTable() {
-    const { GEAR, gearToItem } = await import("./gear.js");
-    const prof = String(S.c.proficiencies.weapons || "").toLowerCase();
-    const m = openModal({
-      title: "Оружие и доспехи",
-      wide: true,
-      cls: "library",
-      body: `<div class="lib-tools"><label class="search-box">${icon("search")}<input type="search" data-q placeholder="Кинжал, рапира, кольчуга..." aria-label="Поиск"></label></div><div class="lib-list" data-list></div><p class="hint small lib-src">Базовое оружие и доспехи из SRD 5.1 (CC-BY-4.0). После добавления предмет можно изменить: сделать магическим, переименовать, добавить свойства.</p>`
-    });
-    const listEl = m.body.querySelector("[data-list]");
-    const draw = q => {
-      const n = q.trim().toLowerCase().replace(/ё/g, "е");
-      let group = "";
-      listEl.innerHTML = GEAR.map((g, i) => ({ g, i })).filter(({ g }) => !n || g.name.toLowerCase().replace(/ё/g, "е").includes(n) || g.nameEn.toLowerCase().includes(n)).map(({ g, i }) => {
-        const head = g.group !== group ? `<div class="atk-group">${esc((group = g.group))}</div>` : "";
-        const stat = g.kind === "weapon" ? `${g.dice} ${(DAMAGE[g.type] || {}).name.toLowerCase()}` : g.kind === "armor" ? `КД ${g.base}${g.dex === "0" ? "" : g.dex === "2" ? " + Лов (макс. 2)" : " + Лов"}` : "+2 КД";
-        return `${head}<button class="lib-head gear-row" data-g="${i}"><span class="lib-names"><b>${esc(g.name)}</b><small>${esc(g.nameEn)} · ${esc(stat)}${g.props ? " · " + esc(g.props) : ""} · ${esc(g.value)}</small></span><span class="btn ghost sm">${icon("plus")}</span></button>`;
-      }).join("") || `<p class="empty">Ничего не нашлось</p>`;
-    };
-    draw("");
-    m.body.querySelector("[data-q]").addEventListener("input", e => draw(e.target.value));
-    m.body.addEventListener("click", e => {
-      const b = e.target.closest("[data-g]");
-      if (!b) return;
-      const g = GEAR[Number(b.dataset.g)];
-      const it = gearToItem(g, uid);
-      if (g.kind === "weapon") it.atkProf = g.group.startsWith("Простое") ? /прост/.test(prof) : /воинск/.test(prof) || prof.includes(g.name.toLowerCase());
-      const ok = X.mutate(c => {
-        c.items.push(it);
-        c.items = normalize(c).items;
-      });
-      if (ok !== false) toast(`${icon("check")} «${esc(g.name)}» в снаряжении. Надень, чтобы он считался в бою и в КД.`, { kind: "good", timeout: 3200 });
-    });
+  function gearTable() {
+    return openLibrary(null, "gear");
   }
 
-  async function openLibrary(item) {
+  async function openLibrary(item, tab = "spells") {
     if (X.readOnly()) return toast(`${icon("eye")} ${esc(X.roText())}`, { kind: "bad" });
-    const { openSpellLibrary } = await import("./library.js");
-    return openSpellLibrary({
+    const lib = await import("./library.js");
+    return lib.openLibrary({
+      tab,
       item,
       get: () => ({ c: S.c, d: S.d }),
-      onAdd: sp => X.mutate(ch => {
+      onAddSpell: sp => X.mutate(ch => {
         ch.spells.push(sp);
         ch.spells = normalize(ch).spells;
+      }),
+      onAddFeature: f => X.mutate(ch => {
+        ch.features.push(f);
+        ch.features = normalize(ch).features;
+      }),
+      onAddItem: it => X.mutate(ch => {
+        ch.items.push(it);
+        ch.items = normalize(ch).items;
       })
     });
   }
