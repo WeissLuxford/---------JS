@@ -1,7 +1,8 @@
 import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, fmt, usesInfo, spellCast, effectSummary, spellInCombat, xpInfo, ammoFor, sceneInfo } from "./rules.js";
 import { icon, actionMark, PORTRAIT_PLACEHOLDER } from "./icons.js";
-import { esc, pips, rich, plainPreview } from "./ui.js";
+import { esc, pips, rich } from "./ui.js";
 import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum } from "./entities.js";
+import { NOTE_SECTIONS, SECTION_NAME, NOTE_STATUS, NOTE_ATTITUDE, CLUE_STATE, noteTagsOf, searchNotes, queryStems, highlight, snippetHtml, plainText, richLinks, backlinks, currentSession, pinnedNotes, linkTargets } from "./notes.js";
 
 export const TABS = [
   { key: "char", name: "Персонаж", short: "Герой", icon: "user" },
@@ -389,6 +390,7 @@ export function tabCombat(ctx) {
       ${inspirationBtn(c)}
       ${attacksPanel(ctx)}
       ${slots || res ? panel("Ресурсы", `${slots}${res}`, { ic: "hourglass", cls: "p-res" }) : ""}
+      ${importantPanel(c)}
     </div>
   </div>`;
 }
@@ -545,70 +547,115 @@ export function tabInventory(ctx) {
       <div class="inv-grid" data-reorder="items">${grid || emptyState("Пусто, даже паук заскучал")}</div>`, { ic: "bag", actions: orderBtn(ctx) + `<button class="btn ghost sm" data-act="gear-table">${icon("swords")}Таблица</button>` + addBtn("add-item", "Предмет") })}`;
 }
 
-const NOTE_SECTIONS = [["patron", "Покровитель", "pact"], ["quests", "Задания", "flag"], ["people", "Люди", "people"], ["misc", "Прочее", "notebook"]];
-const STATUS = { active: ["Активно", "#e9c77a"], done: ["Выполнено", "#4fcf6a"], failed: ["Провалено", "#e5533d"] };
-const ATTITUDE = { ally: ["Союзник", "#4fcf6a"], neutral: ["Нейтрально", "#c9b48a"], hostile: ["Враг", "#e5533d"] };
+export const noteTags = noteTagsOf;
 
-export const noteTags = n => String(n.tags || "").split(",").map(t => t.trim()).filter(Boolean);
+const cut = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 
-function noteMatches(n, q) {
-  return [n.title, n.subtitle, n.text, n.tags].some(v => String(v || "").toLowerCase().includes(q));
+function noteBadge(n, sec) {
+  const st = sec === "quests" ? NOTE_STATUS[n.status] : sec === "people" ? NOTE_ATTITUDE[n.attitude] : sec === "clues" ? CLUE_STATE[n.state] : null;
+  return st ? `<span class="badge" style="--c:${st[1]}">${st[0]}</span>` : "";
 }
 
-function snippet(text, q) {
-  const plain = plainPreview(text, 100000);
-  const i = plain.toLowerCase().indexOf(q);
-  if (i < 0) return plainPreview(text);
-  const from = Math.max(0, i - 40);
-  return (from ? "…" : "") + plain.slice(from, i + q.length + 60) + (i + q.length + 60 < plain.length ? "…" : "");
-}
-
-function noteCard(n, sec, ui, q) {
-  const st = sec === "quests" ? STATUS[n.status] : sec === "people" ? ATTITUDE[n.attitude] : null;
+function noteCard(n, sec, ctx, o = {}) {
+  const { ui } = ctx;
   const local = ui.noteOpen || {};
   const shut = n.id in local ? !local[n.id] : !!n.collapsed;
-  const preview = shut ? (q ? snippet(n.text, q) : plainPreview(n.text)) : "";
-  const tags = noteTags(n);
-  const secName = q ? (NOTE_SECTIONS.find(x => x[0] === sec) || [])[1] : "";
-  return `<article data-rid="${esc(n.id)}" class="note ${shut ? "collapsed" : ""} ${n.status === "done" || n.status === "failed" ? "dim" : ""}">
-    <header><button class="note-toggle" data-act="toggle-note" data-sec="${sec}" data-id="${esc(n.id)}" aria-expanded="${shut ? "false" : "true"}"><span class="note-chev">${icon("down")}</span><span class="note-titles"><h4>${esc(n.title || "Без названия")}</h4>${n.subtitle ? `<span class="note-sub">${esc(n.subtitle)}</span>` : ""}${preview ? `<span class="note-prev">${esc(preview)}</span>` : ""}</span></button>${secName ? `<span class="badge">${esc(secName)}</span>` : ""}${st ? `<span class="badge" style="--c:${st[1]}">${st[0]}</span>` : ""}<button class="icon-btn" data-act="edit-note" data-sec="${sec}" data-id="${esc(n.id)}" title="Изменить" aria-label="Изменить «${esc(n.title || "Без названия")}»">${icon("edit")}</button></header>
+  const stems = o.stems || [];
+  const title = n.title || "Без названия";
+  const preview = shut ? (stems.length ? snippetHtml(n.text, stems) : esc(cut(plainText(n.text), 90))) : "";
+  const tags = noteTagsOf(n);
+  const back = !shut && o.back ? o.back.get(n.id) || [] : [];
+  const linkOpts = o.links ? o.links(n.id) : undefined;
+  return `<article data-rid="${esc(n.id)}" data-sec="${sec}" class="note ${shut ? "collapsed" : ""} ${n.pinned ? "pinned" : ""} ${n.status === "done" || n.status === "failed" || n.state === "false" ? "dim" : ""}">
+    <header><button class="note-toggle" data-act="toggle-note" data-sec="${sec}" data-id="${esc(n.id)}" aria-expanded="${shut ? "false" : "true"}"><span class="note-chev">${icon("down")}</span><span class="note-titles"><h4>${stems.length ? highlight(title, stems) : esc(title)}</h4>${n.subtitle ? `<span class="note-sub">${stems.length ? highlight(n.subtitle, stems) : esc(n.subtitle)}</span>` : ""}${preview ? `<span class="note-prev">${preview}</span>` : ""}</span></button>${o.showSec ? `<span class="badge sec">${esc(SECTION_NAME[sec] || "")}</span>` : ""}${noteBadge(n, sec)}<button class="icon-btn note-pin ${n.pinned ? "on" : ""}" data-act="pin-note" data-sec="${sec}" data-id="${esc(n.id)}" title="${n.pinned ? "Открепить из «Важного»" : "Закрепить в «Важном»"}" aria-pressed="${n.pinned ? "true" : "false"}">${icon("star")}</button><button class="icon-btn" data-act="edit-note" data-sec="${sec}" data-id="${esc(n.id)}" title="Изменить" aria-label="Изменить «${esc(title)}»">${icon("edit")}</button></header>
     ${tags.length ? `<div class="note-tags">${tags.map(t => `<button class="tag ${ui.noteTag === t ? "on" : ""}" data-act="note-tag" data-k="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}
-    ${shut ? "" : `<div class="note-text">${rich(n.text) || `<p class="dim">Пусто</p>`}</div>`}
+    ${shut ? "" : `<div class="note-text">${rich(n.text, linkOpts) || `<p class="dim">Пусто</p>`}</div>`}
+    ${back.length ? `<div class="note-back"><span>${icon("link")}Упоминается:</span>${back.map(b => `<button class="tag" data-act="open-note" data-sec="${b.sec}" data-id="${esc(b.id)}">${esc(b.title)}</button>`).join("")}</div>` : ""}
   </article>`;
 }
 
 export function notesList(ctx) {
   const { c, ui } = ctx;
-  const s = ui.notesSection || "patron";
-  const q = String(ui.notesQ || "").trim().toLowerCase();
+  const s = ui.notesSection || "sessions";
+  const q = String(ui.notesQ || "").trim();
+  const links = richLinks(c);
+  const back = backlinks(c);
   if (q) {
-    const found = NOTE_SECTIONS.flatMap(([k]) => c.notes[k].filter(n => noteMatches(n, q)).map(n => noteCard(n, k, ui, q)));
-    return found.length ? `<p class="hint">Найдено во всех разделах: ${found.length}</p>${found.join("")}` : `<p class="empty">Ничего не нашлось</p>`;
+    const stems = queryStems(q);
+    const found = searchNotes(c, q);
+    if (!found.length) return `<p class="empty">Ничего не нашлось. Попробуй часть имени или другое слово: поиск понимает формы слов («Бенедикта» найдёт «Бенедикт»).</p>`;
+    return `<p class="hint">Найдено: ${found.length}. Сначала самое подходящее.</p>` + found.map(r => noteCard(r.n, r.sec, ctx, { stems, links, back, showSec: true })).join("");
   }
-  let list = c.notes[s].slice();
-  if (s === "quests" && !ui.ordering) {
-    const order = { active: 0, "": 1, done: 2, failed: 3 };
-    list.sort((a, b) => (order[a.status] ?? 1) - (order[b.status] ?? 1));
+  let list = (c.notes[s] || []).slice();
+  if (!ui.ordering) {
+    if (s === "quests") {
+      const order = { active: 0, "": 1, done: 2, failed: 3 };
+      list.sort((a, b) => (order[a.status] ?? 1) - (order[b.status] ?? 1));
+    }
+    if (s === "clues") {
+      const order = { confirmed: 0, lead: 1, "": 2, false: 3 };
+      list.sort((a, b) => (order[a.state] ?? 2) - (order[b.state] ?? 2));
+    }
+    if (s === "sessions") list.sort((a, b) => (Number(b.created) || 0) - (Number(a.created) || 0));
+    list.sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
   }
   if (s === "people" && ui.peopleAtt && ui.peopleAtt !== "all") list = list.filter(n => (n.attitude || "") === (ui.peopleAtt === "unknown" ? "" : ui.peopleAtt));
-  if (ui.noteTag) list = list.filter(n => noteTags(n).includes(ui.noteTag));
-  const empty = s === "misc" && !c.notes.misc.length ? "Здесь можно хранить что угодно: законы мира, слухи, план города, правила Мастера. Каждую заметку можно свернуть до названия." : c.notes[s].length ? "Под этот фильтр ничего не подходит" : "Здесь пока пусто";
-  return list.map(n => noteCard(n, s, ui, "")).join("") || (c.notes[s].length ? `<p class="empty">${empty}</p>` : emptyState(empty));
+  if (s === "clues" && ui.clueState && ui.clueState !== "all") list = list.filter(n => (n.state || "") === (ui.clueState === "unknown" ? "" : ui.clueState));
+  if (ui.noteTag) list = list.filter(n => noteTagsOf(n).includes(ui.noteTag));
+  const hints = {
+    sessions: "Журнал пуст. Запиши первое событие в поле выше: сессия создастся сама, с датой и временем.",
+    people: "Здесь пока никого. Добавь человека, и его имя начнёт подсвечиваться во всех заметках.",
+    places: "Мест пока нет: города, районы, таверны, тайные ходы.",
+    quests: "Заданий пока нет.",
+    clues: "Улик пока нет. Для расследований: что нашли, где, и насколько это верно.",
+    patron: "Здесь пока пусто",
+    misc: "Здесь можно хранить что угодно: законы мира, слухи, план города, правила Мастера."
+  };
+  const empty = (c.notes[s] || []).length ? "Под этот фильтр ничего не подходит" : hints[s] || "Здесь пока пусто";
+  return list.map(n => noteCard(n, s, ctx, { links, back })).join("") || ((c.notes[s] || []).length ? `<p class="empty">${empty}</p>` : emptyState(empty));
+}
+
+function journalBox(c) {
+  const cur = currentSession(c);
+  return `<div class="journal-add">
+    <div class="ja-h">${icon("quill")}<span><b>${cur ? esc(cur.title) : "Новая сессия"}</b><small>${cur ? esc(cur.subtitle || "") : "начнётся с первой записи"}</small></span><span class="spacer"></span><button class="btn ghost sm" data-act="session-new">${icon("plus")}Новая сессия</button></div>
+    <textarea data-journal rows="2" placeholder="Что случилось? [[ : ссылка на человека или место" aria-label="Запись в журнал"></textarea>
+    <div class="ja-foot"><span class="hint">Enter: записать, Shift+Enter: новая строка. Время подставится само; через 12 часов без записей начнётся новая сессия.</span><button class="btn gold sm" data-act="journal-add">${icon("check")}Записать</button></div>
+  </div>`;
+}
+
+export function pinnedStrip(c, cls = "") {
+  const list = pinnedNotes(c);
+  if (!list.length) return "";
+  return `<div class="pinned-strip ${cls}"><span class="ps-h">${icon("star")}Важное</span>${list.map(({ sec, n }) => `<button class="pin-chip" data-act="open-note" data-sec="${sec}" data-id="${esc(n.id)}" title="${esc(SECTION_NAME[sec] || "")}"><b>${esc(n.title || "Без названия")}</b>${n.subtitle ? `<small>${esc(n.subtitle)}</small>` : ""}</button>`).join("")}</div>`;
+}
+
+export function importantPanel(c) {
+  const list = pinnedNotes(c);
+  if (!list.length) return "";
+  const rows = list.map(({ sec, n }) => `<button class="imp-row" data-act="open-note" data-sec="${sec}" data-id="${esc(n.id)}"><b>${esc(n.title || "Без названия")}</b><small>${esc(SECTION_NAME[sec] || "")}${n.subtitle ? " · " + esc(n.subtitle) : ""}</small><span>${esc(cut(plainText(n.text), 110))}</span></button>`).join("");
+  return panel("Важное", `<div class="imp-list">${rows}</div>`, { ic: "star", cls: "p-important" });
 }
 
 export function tabNotes(ctx) {
   const { c, ui } = ctx;
-  const s = ui.notesSection || "patron";
+  const s = ui.notesSection || "sessions";
   const searching = !!String(ui.notesQ || "").trim();
-  const nav = `<div class="subtabs">${NOTE_SECTIONS.map(([k, l, ic]) => `<button class="subtab ${s === k && !searching ? "on" : ""}" data-act="notes-section" data-k="${k}">${icon(ic)}${l}${c.notes[k].length ? `<small>${c.notes[k].length}</small>` : ""}</button>`).join("")}</div>`;
-  const search = `<label class="search-box notes-search">${icon("search")}<input type="search" data-ui="notes-q" placeholder="Поиск по всем заметкам" value="${esc(ui.notesQ || "")}" aria-label="Поиск по всем заметкам"></label>`;
-  const tags = [...new Set(c.notes[s].flatMap(noteTags))].sort((a, b) => a.localeCompare(b, "ru"));
+  const sec = NOTE_SECTIONS.find(x => x.key === s) || NOTE_SECTIONS[0];
+  const nav = `<div class="subtabs notes-tabs">${NOTE_SECTIONS.map(x => `<button class="subtab ${s === x.key && !searching ? "on" : ""}" data-act="notes-section" data-k="${x.key}">${icon(x.icon)}${x.name}${(c.notes[x.key] || []).length ? `<small>${c.notes[x.key].length}</small>` : ""}</button>`).join("")}</div>`;
+  const recent = (ui.notesRecent || []).filter(Boolean);
+  const titles = linkTargets(c).map(t => t.title);
+  const options = [...new Set([...recent, ...titles])].slice(0, 60);
+  const search = `<label class="search-box notes-search">${icon("search")}<input type="search" data-ui="notes-q" list="notes-q-list" placeholder="Найти в любой заметке: имя, место, слово" value="${esc(ui.notesQ || "")}" aria-label="Поиск по всем заметкам" autocomplete="off"></label><datalist id="notes-q-list">${options.map(o => `<option value="${esc(o)}"></option>`).join("")}</datalist>`;
+  const tags = [...new Set((c.notes[s] || []).flatMap(noteTagsOf))].sort((a, b) => a.localeCompare(b, "ru"));
   const att = s === "people" ? [["all", "Все"], ["ally", "Союзники"], ["neutral", "Нейтральные"], ["hostile", "Враги"], ["unknown", "Неизвестно"]] : [];
+  const cl = s === "clues" ? [["all", "Все"], ["confirmed", "Подтверждено"], ["lead", "Зацепки"], ["false", "Ложные"], ["unknown", "Не знаю"]] : [];
   const pa = ui.peopleAtt || "all";
-  const filters = `<div class="note-filters" ${searching ? "hidden" : ""}>${att.map(([k, l]) => `<button class="chip toggle ${pa === k ? "on" : ""}" data-act="people-att" data-k="${k}" aria-pressed="${pa === k ? "true" : "false"}">${l}</button>`).join("")}${tags.map(t => `<button class="tag ${ui.noteTag === t ? "on" : ""}" data-act="note-tag" data-k="${esc(t)}" aria-pressed="${ui.noteTag === t ? "true" : "false"}">#${esc(t)}</button>`).join("")}</div>`;
-  const label = { patron: "Запись", quests: "Задание", people: "Человек", misc: "Заметка" }[s];
-  const fold = c.notes[s].length > 1 ? `<button class="btn ghost sm" data-act="fold-notes" data-sec="${s}" data-v="1">${icon("minus")}Свернуть все</button><button class="btn ghost sm" data-act="fold-notes" data-sec="${s}" data-v="0">${icon("plus")}Развернуть все</button>` : "";
-  return nav + search + filters + `<div class="notes-head" ${searching ? "hidden" : ""}>${fold}<span class="spacer"></span>${orderBtn(ctx)}${addBtn("add-note", label, `data-sec="${s}"`)}</div><div class="notes ${s === "misc" ? "single" : ""}" data-notes-list data-reorder="notes.${s}">${notesList(ctx)}</div>`;
+  const cs = ui.clueState || "all";
+  const filters = `<div class="note-filters" ${searching ? "hidden" : ""}>${att.map(([k, l]) => `<button class="chip toggle ${pa === k ? "on" : ""}" data-act="people-att" data-k="${k}" aria-pressed="${pa === k ? "true" : "false"}">${l}</button>`).join("")}${cl.map(([k, l]) => `<button class="chip toggle ${cs === k ? "on" : ""}" data-act="clue-state" data-k="${k}" aria-pressed="${cs === k ? "true" : "false"}">${l}</button>`).join("")}${tags.map(t => `<button class="tag ${ui.noteTag === t ? "on" : ""}" data-act="note-tag" data-k="${esc(t)}" aria-pressed="${ui.noteTag === t ? "true" : "false"}">#${esc(t)}</button>`).join("")}</div>`;
+  const fold = (c.notes[s] || []).length > 1 ? `<button class="btn ghost sm" data-act="fold-notes" data-sec="${s}" data-v="1">${icon("minus")}Свернуть все</button><button class="btn ghost sm" data-act="fold-notes" data-sec="${s}" data-v="0">${icon("plus")}Развернуть все</button>` : "";
+  const journal = s === "sessions" && !searching ? journalBox(c) : "";
+  return pinnedStrip(c) + search + nav + filters + `<div class="journal-slot" ${searching ? "hidden" : ""}>${journal}</div><div class="notes-head" ${searching ? "hidden" : ""}>${fold}<span class="spacer"></span>${orderBtn(ctx)}${s === "sessions" ? "" : addBtn("add-note", sec.add, `data-sec="${s}"`)}</div><div class="notes ${s === "misc" || s === "sessions" ? "single" : ""}" data-notes-list data-reorder="notes.${s}">${notesList(ctx)}</div>`;
 }
 
 export function tabStory(ctx) {

@@ -511,7 +511,7 @@ export function newCharacter(name = "Новый персонаж") {
     items: [],
     coins: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
     personality: { appearance: "", traits: "", ideals: "", bonds: "", flaws: "", backstory: "", allies: "" },
-    notes: { patron: [], quests: [], people: [], misc: [] }
+    notes: { sessions: [], people: [], places: [], quests: [], clues: [], patron: [], misc: [] }
   };
 }
 
@@ -601,7 +601,18 @@ export function presetEffect(key, extra = {}, level = 0) {
   return cleanEffect({ ...p, ...scaled, preset: key, id: "ef-" + uid(), ...extra });
 }
 
-export const NOTE_KEYS = ["patron", "quests", "people", "misc"];
+export const NOTE_KEYS = ["sessions", "people", "places", "quests", "clues", "patron", "misc"];
+
+const NOTE_ENUMS = { status: ["active", "done", "failed"], attitude: ["ally", "neutral", "hostile"], state: ["lead", "confirmed", "false"] };
+
+function cleanNote(x, k, i) {
+  const out = { ...x, id: cleanId(x.id, "nt-" + k, i) };
+  for (const f of ["title", "subtitle", "text", "tags", "aliases", "date"]) if (f in out) out[f] = String(out[f] ?? "");
+  for (const [f, ok] of Object.entries(NOTE_ENUMS)) if (f in out) out[f] = ok.includes(out[f]) ? out[f] : "";
+  for (const f of ["collapsed", "pinned"]) if (f in out) out[f] = !!out[f];
+  for (const f of ["created", "touched"]) if (f in out) out[f] = Math.max(0, num(out[f]));
+  return out;
+}
 
 const NUMERIC_HP = ["current", "temp", "bonusPerLevel", "rollAdj", "hitDiceUsed", "deathSuccess", "deathFail"];
 
@@ -684,7 +695,7 @@ export function normalize(c) {
     out.notes.misc = text.trim() ? [{ id: "nt-misc-legacy", title: "Заметки", subtitle: "", text }] : [];
   }
   for (const k of NOTE_KEYS) {
-    out.notes[k] = (Array.isArray(out.notes[k]) ? out.notes[k] : []).filter(x => x && typeof x === "object").map((x, i) => ({ ...x, id: cleanId(x.id, "nt-" + k, i) }));
+    out.notes[k] = (Array.isArray(out.notes[k]) ? out.notes[k] : []).filter(x => x && typeof x === "object" && !Array.isArray(x)).map((x, i) => cleanNote(x, k, i));
   }
   for (const k of ["saves", "skills", "slotsUsed", "conditions"]) {
     out[k] = out[k] && typeof out[k] === "object" && !Array.isArray(out[k]) ? out[k] : {};

@@ -1,6 +1,7 @@
 import { normalize, fmt, spellCast, usesInfo, addDice, swapType, effectDamage, weaponStats } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, $, toast, openModal, openForm, getPath, setPath, cropImage, pickFile } from "./ui.js";
+import { SECTION_NAME, linkTargets } from "./notes.js";
 import { cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
 import { addHistory } from "./store.js";
 import { lastSnapshot, clone } from "./sheet-util.js";
@@ -225,12 +226,12 @@ export function installCards(X) {
     });
   }
 
-  function editNote(section, n) {
-    const value = n || { ...EDITORS.note.make(), tags: S.ui.noteTag || "" };
+  function editNote(section, n, preset = {}) {
+    const value = n || { ...EDITORS.note.make(), tags: S.ui.noteTag || "", ...preset };
     const initial = clone(value);
     openForm({
-      title: n ? "Изменить запись" : "Новая запись",
-      fields: noteFields(section),
+      title: n ? `Изменить: ${SECTION_NAME[section] || "запись"}` : `Новая запись: ${SECTION_NAME[section] || "заметки"}`,
+      fields: noteFields(section, () => linkTargets(S.c)),
       value,
       onSave: val => X.mutate(c => {
         const list = c.notes[section];

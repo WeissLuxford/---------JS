@@ -1,11 +1,12 @@
 import { canInstall } from "./pwa.js";
-import { SKILLS, compute, normalize, fmt, importCharacter, NOTE_KEYS, payCoins, COIN_NAMES, CONDITIONS, FEATURE_CATS, SCENE_TIMES, SCENE_WEATHER, sceneInfo } from "./rules.js";
+import { SKILLS, compute, normalize, fmt, importCharacter, payCoins, COIN_NAMES, CONDITIONS, FEATURE_CATS, SCENE_TIMES, SCENE_WEATHER, sceneInfo } from "./rules.js";
 import { icon } from "./icons.js";
 import { esc, $, toast, openModal, confirmDialog, promptNumber, rollLog, fxSettings, dateTime, timeAgo, download, pickFile } from "./ui.js";
 import { subtitle } from "./tabs.js";
 import { cardFor, itemIcon, spellIcon, featureIcon, attackIcon } from "./entities.js";
 import { listHistory, createChar, getMode, subscribeList, getRecents, newCharId } from "./store.js";
 import { describeChanges } from "./changes.js";
+import { NOTE_SECTIONS, SECTION_NAME, searchNotes, queryStems, words } from "./notes.js";
 import { describeWho, isMe, KIND_ICONS } from "./device.js";
 import { currentUid } from "./access.js";
 import { banAccount } from "./admin.js";
@@ -47,14 +48,18 @@ export function installDialogs(X) {
         listEl.innerHTML = `<p class="hint">Ищет по названиям и текстам: заклинания, умения, предметы, атаки, заметки, навыки, состояния.</p>`;
         return;
       }
-      const hit = (...v) => v.some(x => norm(x).includes(q));
+      const stems = queryStems(q);
+      const hit = (...v) => {
+        const ws = v.flatMap(x => words(x));
+        return stems.length > 0 && stems.every(st => ws.some(w => w.startsWith(st))) || v.some(x => norm(x).includes(q));
+      };
       const res = [];
       const add = (group, ref, name, sub, ic) => res.push({ group, ref, name, sub, ic });
       S.c.spells.forEach(x => hit(x.name, x.nameEn, x.description) && add("Заклинания", "spell:" + x.id, x.name, Number(x.level) ? `${x.level} круг` : "заговор", spellIcon(S.c, x).icon));
       S.c.features.forEach(x => hit(x.name, x.nameEn, x.description, x.effect) && add("Умения", "feature:" + x.id, x.name, (FEATURE_CATS[x.category] || {}).name || "", featureIcon(x)));
       S.c.items.forEach(x => hit(x.name, x.description, x.effect) && add("Снаряжение", "item:" + x.id, x.name, x.equipped ? "надето" : "", itemIcon(x)));
       S.c.attacks.forEach(x => hit(x.name, x.notes) && add("Атаки", "attack:" + x.id, x.name, x.range || "", x.icon || attackIcon(x.name) || "swords"));
-      NOTE_KEYS.forEach(k => S.c.notes[k].forEach(n => hit(n.title, n.subtitle, n.text, n.tags) && add("Заметки", `note:${k}:${n.id}`, n.title || "Без названия", n.subtitle || "", "scroll")));
+      searchNotes(S.c, q).forEach(({ sec, n }) => add("Заметки", `note:${sec}:${n.id}`, n.title || "Без названия", [SECTION_NAME[sec], n.subtitle].filter(Boolean).join(" · "), (NOTE_SECTIONS.find(x => x.key === sec) || {}).icon || "scroll"));
       SKILLS.forEach(x => hit(x.name) && add("Навыки", "skill:" + x.key, x.name, fmt(S.d.skills[x.key]), "d20"));
       CONDITIONS.forEach(x => hit(x.name) && add("Состояния", "condition:" + x.key, x.name, "", x.icon || "skull"));
       let group = "";
@@ -66,17 +71,10 @@ export function installDialogs(X) {
       const b = e.target.closest("[data-ref]");
       if (!b) return;
       const ref = b.dataset.ref;
-      const q = input.value.trim();
       m.close();
       if (ref.startsWith("note:")) {
         const [, sec, nid] = ref.split(":");
-        S.ui.notesSection = sec;
-        S.ui.notesQ = q;
-        S.ui.noteOpen[nid] = true;
-        S.tab = "notes";
-        history.replaceState(history.state, "", `#/c/${id}/notes`);
-        X.renderAll();
-        return;
+        return X.openNote(sec, nid);
       }
       if (ref.startsWith("skill:") || ref.startsWith("condition:")) {
         const html = cardFor(S.c, S.d, ref);

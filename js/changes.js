@@ -11,7 +11,7 @@ const PERSONALITY = { appearance: "Внешность", traits: "Черты ха
 const PROF = { armor: "Владение доспехами", weapons: "Владение оружием", tools: "Инструменты", languages: "Языки" };
 const COINS = { pp: "ПМ", gp: "ЗМ", ep: "ЭМ", sp: "СМ", cp: "ММ" };
 const LISTS = { attacks: "Атаки", spells: "Заклинания", features: "Умения", items: "Снаряжение" };
-const NOTES = { patron: "Заметки о покровителе", quests: "Задания", people: "Люди", misc: "Прочие заметки" };
+const NOTES = { sessions: "Журнал сессий", people: "Люди", places: "Места", quests: "Задания", clues: "Улики", patron: "Заметки о покровителе", misc: "Прочие заметки" };
 const SIMPLE = {
   name: "Имя", speed: "Скорость", initBonus: "Бонус инициативы", hitDie: "Кость хитов", casterType: "Тип заклинателя",
   spellAbility: "Заклинательная характеристика", senses: "Чувства", resistances: "Сопротивления (заметка)", exhaustion: "Истощение",

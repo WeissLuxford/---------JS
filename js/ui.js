@@ -3,7 +3,7 @@ import { DAMAGE, DAMAGE_TYPES, ACTIONS, parseDice, rollDice, diceToString, fmt }
 
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 
-function inline(text) {
+function inline(text, opts) {
   let s = esc(text);
   let todo = "";
   const t = s.match(/^\[( |x|х)\]\s+/i);
@@ -11,31 +11,43 @@ function inline(text) {
     todo = `<span class="rt-todo ${t[1].trim() ? "done" : ""}" aria-hidden="true"></span>`;
     s = s.slice(t[0].length);
   }
+  const keep = [];
+  const put = html => `\u0001${keep.push(html) - 1}\u0002`;
+  if (opts && opts.link) s = s.replace(/\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g, (_, a, b) => put(opts.link(a, b)));
+  if (opts && opts.mentions) {
+    opts.mentions.re.lastIndex = 0;
+    s = s.replace(opts.mentions.re, (all, pre, name) => {
+      const html = opts.mentions.render(name);
+      return html ? pre + put(html) : all;
+    });
+  }
   s = s
     .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
     .replace(/__(.+?)__/g, "<u>$1</u>")
     .replace(/~~(.+?)~~/g, "<s>$1</s>")
     .replace(/==(.+?)==/g, "<mark>$1</mark>")
     .replace(/\*(\S(?:[^*]*?\S)?)\*/g, "<i>$1</i>");
+  if (keep.length) s = s.replace(/\u0001(\d+)\u0002/g, (_, i) => keep[Number(i)] || "");
   return todo + s;
 }
 
-export function rich(text) {
+export function rich(text, opts) {
+  const inline2 = x => inline(x, opts);
   const lines = String(text ?? "").replace(/\r/g, "").split("\n");
   const out = [];
   let para = [];
   let list = null;
   let quote = [];
   const flushPara = () => {
-    if (para.length) out.push(`<p>${para.map(inline).join("<br>")}</p>`);
+    if (para.length) out.push(`<p>${para.map(inline2).join("<br>")}</p>`);
     para = [];
   };
   const flushList = () => {
-    if (list) out.push(`<${list.tag}>${list.items.map(i => `<li>${inline(i)}</li>`).join("")}</${list.tag}>`);
+    if (list) out.push(`<${list.tag}>${list.items.map(i => `<li>${inline2(i)}</li>`).join("")}</${list.tag}>`);
     list = null;
   };
   const flushQuote = () => {
-    if (quote.length) out.push(`<blockquote>${quote.map(inline).join("<br>")}</blockquote>`);
+    if (quote.length) out.push(`<blockquote>${quote.map(inline2).join("<br>")}</blockquote>`);
     quote = [];
   };
   const flush = () => {
@@ -58,7 +70,7 @@ export function rich(text) {
     if (!line.trim()) flush();
     else if ((m = line.match(/^\s*(#{1,3})\s+(.+)$/))) {
       flush();
-      out.push(`<h${m[1].length + 3} class="rt-h">${inline(m[2])}</h${m[1].length + 3}>`);
+      out.push(`<h${m[1].length + 3} class="rt-h">${inline2(m[2])}</h${m[1].length + 3}>`);
     } else if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
       flush();
       out.push("<hr>");
@@ -922,7 +934,8 @@ const RT_TOOLS = [
   ["num", "1.", "Нумерованный список"],
   ["todo", "☐", "Список дел"],
   ["quote", "❝", "Цитата"],
-  ["hr", "―", "Разделитель"]
+  ["hr", "―", "Разделитель"],
+  ["link", "[[ ]]", "Ссылка на заметку"]
 ];
 
 const RT_WRAP = { bold: "**", italic: "*", under: "__", strike: "~~", mark: "==" };
@@ -954,6 +967,11 @@ export function applyFormat(ta, kind) {
     const text = sel || "текст";
     return replaceText(ta, a, b, wrap + text + wrap, a + wrap.length, a + wrap.length + text.length);
   }
+  if (kind === "link") {
+    const sel = value.slice(a, b);
+    const text = `[[${sel}`;
+    return sel ? replaceText(ta, a, b, `[[${sel}]]`, a + sel.length + 4, a + sel.length + 4) : replaceText(ta, a, b, text, a + text.length, a + text.length);
+  }
   if (kind === "hr") {
     const before = a > 0 && value[a - 1] !== "\n" ? "\n" : "";
     const text = `${before}\n---\n\n`;
@@ -978,12 +996,89 @@ function diceRow(d = {}) {
   return `<div class="dl-row"><input type="text" placeholder="2d8" value="${esc(d.dice || "")}" data-dl-dice><select data-dl-type>${opts}</select><label class="mini-chk" title="Прибавлять модификатор заклинательной характеристики"><input type="checkbox" data-dl-mod ${d.addMod ? "checked" : ""}>+мод</label><button type="button" class="icon-btn" data-dl-rm>${icon("close")}</button></div>`;
 }
 
+const lnorm = s => String(s ?? "").toLowerCase().replace(/ё/g, "е");
+
+export function attachLinkSuggest(ta, getTargets) {
+  if (!ta || ta.dataset.linkSuggest) return;
+  ta.dataset.linkSuggest = "1";
+  const box = document.createElement("div");
+  box.className = "rt-suggest";
+  box.hidden = true;
+  box.setAttribute("role", "listbox");
+  ta.after(box);
+  let items = [];
+  let active = 0;
+  let start = -1;
+  const hide = () => {
+    box.hidden = true;
+    items = [];
+  };
+  const pick = i => {
+    const it = items[i];
+    if (!it) return;
+    const end = ta.selectionStart;
+    const after = ta.value.slice(end, end + 2) === "]]" ? 2 : 0;
+    const text = `[[${it.title}]]`;
+    hide();
+    replaceText(ta, start, end + after, text, start + text.length, start + text.length);
+  };
+  const draw = () => {
+    box.innerHTML = items.map((it, i) => `<button type="button" class="rt-sg ${i === active ? "on" : ""}" data-sg="${i}" role="option" aria-selected="${i === active ? "true" : "false"}"><b>${esc(it.title)}</b><small>${esc(it.sub || "")}</small></button>`).join("");
+  };
+  const update = () => {
+    const before = ta.value.slice(0, ta.selectionStart);
+    const m = before.match(/\[\[([^\]\n|]{0,40})$/);
+    if (!m || ta.selectionStart !== ta.selectionEnd) return hide();
+    start = ta.selectionStart - m[0].length;
+    const q = lnorm(m[1]).trim();
+    const all = (getTargets() || []).map(t => ({ title: t.title, sub: t.secName + (t.aliases && t.aliases.length ? ` · ${t.aliases.join(", ")}` : ""), keys: [t.title, ...(t.aliases || [])].map(lnorm) }));
+    const starts = all.filter(t => !q || t.keys.some(k => k.startsWith(q)));
+    const inside = q ? all.filter(t => !starts.includes(t) && t.keys.some(k => k.includes(q))) : [];
+    items = [...starts, ...inside].slice(0, 8);
+    if (q && !all.some(t => t.keys.includes(q))) items.push({ title: m[1].trim(), sub: "новая ссылка: заметку можно создать потом" });
+    if (!items.length) return hide();
+    active = Math.min(active, items.length - 1);
+    draw();
+    box.hidden = false;
+  };
+  ta.addEventListener("input", () => {
+    active = 0;
+    update();
+  });
+  ta.addEventListener("click", update);
+  ta.addEventListener("blur", () => setTimeout(hide, 150));
+  ta.addEventListener("keydown", e => {
+    if (box.hidden) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      active = (active + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length;
+      return draw();
+    }
+    if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      e.stopPropagation();
+      return pick(active);
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      hide();
+    }
+  });
+  box.addEventListener("pointerdown", e => e.preventDefault());
+  box.addEventListener("click", e => {
+    const b = e.target.closest("[data-sg]");
+    if (b) pick(Number(b.dataset.sg));
+  });
+}
+
 export function openForm({ title, fields, value = {}, onSave, onDelete, saveLabel = "Сохранить", extra = "" }) {
   const form = document.createElement("form");
   form.className = "form-grid";
   form.innerHTML = fields.map(f => fieldHtml(f, getPath(value, f.key))).join("") + extra +
     `<div class="form-actions" style="grid-column: 1 / -1">${onDelete ? `<button type="button" class="btn danger" data-del>${icon("trash")} Удалить</button>` : ""}<span class="spacer"></span><button type="button" class="btn ghost" data-close>Отмена</button><button type="submit" class="btn gold">${esc(saveLabel)}</button></div>`;
   const m = openModal({ title, body: form, wide: fields.length > 8 || fields.some(f => f.type === "richtext") });
+  fields.filter(f => f.type === "richtext" && f.links).forEach(f => attachLinkSuggest(form.querySelector(`[data-k="${CSS.escape(f.key)}"]`), f.links));
   form.addEventListener("pointerdown", e => {
     if (e.target.closest("[data-rt]")) e.preventDefault();
   });

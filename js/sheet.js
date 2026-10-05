@@ -17,6 +17,7 @@ import { installTurn } from "./sheet-turn.js";
 import { installCards } from "./sheet-cards.js";
 import { installDialogs } from "./sheet-dialogs.js";
 import { installLevelUp } from "./sheet-levelup.js";
+import { installNotes, loadRecent } from "./sheet-notes.js";
 
 export function mountSheet(root, id, initialTab, navigate) {
   const S = {
@@ -24,7 +25,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     d: null,
     base: null,
     tab: TABS.some(t => t.key === initialTab) ? initialTab : "char",
-    ui: { ...loadUiPrefs(), turn: loadTurn(id), ammoSpent: loadJson("dnd.ammo." + id), invFilter: "all", notesSection: "patron", spellFilter: "all", spellQ: "", noteOpen: {}, notesQ: "", noteTag: "", peopleAtt: "all" },
+    ui: { ...loadUiPrefs(), turn: loadTurn(id), ammoSpent: loadJson("dnd.ammo." + id), invFilter: "all", notesSection: "sessions", clueState: "all", notesRecent: loadRecent(id), spellFilter: "all", spellQ: "", noteOpen: {}, notesQ: "", noteTag: "", peopleAtt: "all" },
     scroll: {},
     saveTimer: null,
     retry: 0,
@@ -53,6 +54,7 @@ export function mountSheet(root, id, initialTab, navigate) {
   installCards(X);
   installDialogs(X);
   installLevelUp(X);
+  installNotes(X);
   let lastError = "";
   const unStatus = onStatus(st => {
     lastStatus = st;
@@ -214,6 +216,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     setAmbient(c.scene);
     root.innerHTML = `
       <div class="sheet ${readOnly() ? "viewer" : ""}" style="${accentStyle(c.accent)}">
+        <button class="fab-quick" data-act="quick-note" title="Быстрая заметка" aria-label="Быстрая заметка">${icon("quill")}</button>
         <header class="topbar">
           <a class="icon-btn" href="#/" title="Все персонажи">${icon("back")}</a>
           <button class="tb-portrait" data-act="portrait" title="Портрет">${c.portrait ? `<img src="${esc(c.portrait)}" alt="">` : PORTRAIT_PLACEHOLDER}</button>
@@ -221,6 +224,7 @@ export function mountSheet(root, id, initialTab, navigate) {
           <button class="hp-mini" data-act="hp" title="Хиты"><span class="hp-mini-bar"><i data-hpbar></i></span><span><b data-calc="hp"></b>/<span data-calc="hpmax"></span></span></button>
           <button class="roll-mode" data-act="roll-mode" title="Режим следующего броска d20: обычный, с преимуществом, с помехой">${rollModeLabel()}</button>
           <span class="sync" data-sync></span>
+          <button class="icon-btn tb-quick" data-act="quick-note" title="Быстрая заметка" aria-label="Быстрая заметка">${icon("quill")}</button>
           <button class="icon-btn tb-search" data-act="search-all" title="Поиск по листу" aria-label="Поиск по листу">${icon("search")}</button>
           <button class="icon-btn" data-act="menu" title="Меню">${icon("dots")}</button>
         </header>
@@ -244,6 +248,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (S.ui.ordering) $$("[data-reorder] > [data-rid]", body).forEach(el => el.insertAdjacentHTML("afterbegin", `<span class="drag-h" aria-hidden="true">⠿</span>`));
     $$(".tab", root).forEach(b => b.classList.toggle("on", b.dataset.tab === S.tab));
     $$("textarea.autogrow", body).forEach(grow);
+    if (S.tab === "notes") X.afterNotesRender();
     if (readOnly()) $$("input:not([data-ui]), textarea, select:not([data-ui])", body).forEach(el => (el.disabled = true));
     if (S.tab === "spells" && S.ui.spellQ) filterSpells(S.ui.spellQ);
     updateCalcs();
@@ -439,9 +444,14 @@ export function mountSheet(root, id, initialTab, navigate) {
       S.ui.notesQ = nq.value;
       const body = $("[data-body]", root);
       const list = body && $("[data-notes-list]", body);
+      if (e.type === "change") {
+        X.saveRecent(nq.value);
+        return true;
+      }
       if (list) list.innerHTML = notesList({ c: S.c, d: S.d, ui: S.ui });
       const on = !!nq.value.trim();
-      $$(".note-filters, .notes-head", body).forEach(el => (el.hidden = on));
+      $$(".note-filters, .notes-head, .journal-slot", body).forEach(el => (el.hidden = on));
+      X.afterNotesRender();
       $$(".subtab", body).forEach(el => el.classList.toggle("on", !on && el.dataset.k === S.ui.notesSection));
       return true;
     }
@@ -503,7 +513,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     return m;
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "note-create-link"]);
 
   const UNDO = {
     "hp-quick": el => (Number(el.dataset.n) < 0 ? `Урон ${-Number(el.dataset.n)}` : `Лечение ${el.dataset.n}`),
@@ -814,7 +824,20 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "spell-library": return X.openLibrary(null);
       case "add-feature": return X.editEntity("feature", null, el.dataset.cat);
       case "add-item": return X.editEntity("item", null, S.ui.invFilter && !["all", "equipped", "other"].includes(S.ui.invFilter) ? S.ui.invFilter : "gear");
-      case "add-note": return X.editNote(el.dataset.sec, null);
+      case "add-note":
+        if (el.dataset.sec === "sessions") return X.startSession();
+        return X.editNote(el.dataset.sec, null);
+      case "open-note": return X.openNote(el.dataset.sec, el.dataset.id);
+      case "pin-note": return X.togglePin(el.dataset.sec, el.dataset.id);
+      case "note-create-link": return X.createFromLink(el.dataset.name || "");
+      case "quick-note": return X.quickNote();
+      case "session-new": return X.startSession();
+      case "journal-add": {
+        const ta = $("[data-journal]", root);
+        if (ta && X.journalAdd(ta.value)) X.focusJournal();
+        return;
+      }
+      case "clue-state": S.ui.clueState = el.dataset.k; return renderTab();
       case "edit-note": {
         const n = (c.notes[el.dataset.sec] || []).find(x => x.id === el.dataset.id);
         return n && X.editNote(el.dataset.sec, n);
@@ -822,6 +845,8 @@ export function mountSheet(root, id, initialTab, navigate) {
       case "notes-section":
         S.ui.notesSection = el.dataset.k;
         S.ui.noteTag = "";
+        S.ui.peopleAtt = "all";
+        S.ui.clueState = "all";
         S.ui.notesQ = "";
         return renderTab();
       case "note-tag":
@@ -927,6 +952,10 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   const onKey = e => {
     if (e.key === "Enter" && e.target.matches("input[data-path]")) e.target.blur();
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.target.matches("[data-journal]")) {
+      e.preventDefault();
+      if (X.journalAdd(e.target.value)) X.focusJournal();
+    }
   };
 
   const onBeforeUnload = e => {

@@ -534,7 +534,7 @@ export const EDITORS = {
   },
   note: {
     title: "Запись",
-    make: () => ({ id: "nt-" + uid(), title: "", subtitle: "", status: "", attitude: "", text: "" })
+    make: () => ({ id: "nt-" + uid(), title: "", subtitle: "", status: "", attitude: "", text: "", created: Date.now() })
   }
 };
 
@@ -563,15 +563,20 @@ export function effectFields() {
   ];
 }
 
-export function noteFields(section) {
+export function noteFields(section, links) {
+  const titles = { people: ["Имя", "Кто это"], places: ["Название", "Где это"], clues: ["Улика", "Где и когда найдена"], sessions: ["Название", "Дата"], quests: ["Задание", "От кого"] };
+  const [t, st] = titles[section] || ["Заголовок", "Подзаголовок"];
   const f = [
-    { key: "title", label: section === "people" ? "Имя" : "Заголовок", span: 2 },
-    { key: "subtitle", label: section === "people" ? "Кто это" : "Подзаголовок" }
+    { key: "title", label: t, span: 2 },
+    { key: "subtitle", label: st }
   ];
   if (section === "quests") f.push({ key: "status", label: "Статус", type: "select", options: [["active", "Активно"], ["done", "Выполнено"], ["failed", "Провалено"], ["", "Без статуса"]] });
   if (section === "people") f.push({ key: "attitude", label: "Отношение", type: "select", options: [["ally", "Союзник"], ["neutral", "Нейтрально"], ["hostile", "Враг"], ["", "Неизвестно"]] });
+  if (section === "clues") f.push({ key: "state", label: "Насколько верно", type: "select", options: [["lead", "Зацепка"], ["confirmed", "Подтверждено"], ["false", "Ложный след"], ["", "Не знаю"]] });
+  if (section === "people" || section === "places") f.push({ key: "aliases", label: "Другие имена и прозвища через запятую", span: 3, placeholder: section === "people" ? "Бенедикт, святой отец" : "Собор, Старый храм", hint: "По ним работают ссылки и подсветка в других заметках" });
   f.push({ key: "tags", label: "Метки через запятую", span: 3, placeholder: "Нижний город, гильдия, должник" });
-  f.push({ key: "text", label: "Текст", type: "richtext", rows: 12, span: 3, hint: "**жирный**, *курсив*, ## заголовок, - список, > цитата, ==маркер==. Кнопка «Просмотр» показывает, как будет выглядеть" });
+  f.push({ key: "text", label: "Текст", type: "richtext", rows: 12, span: 3, links, hint: "**жирный**, *курсив*, ## заголовок, - список, > цитата, ==маркер==, [[Имя]] ссылка на другую заметку (набери [[ и выбери)" });
+  f.push({ key: "pinned", label: "Закрепить в «Важном» (видно сверху заметок и во вкладке «Бой»)", type: "checkbox", span: 3 });
   f.push({ key: "collapsed", label: "Показывать свёрнутой (только название)", type: "checkbox", span: 3 });
   return f;
 }

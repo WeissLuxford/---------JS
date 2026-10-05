@@ -35,7 +35,7 @@
 | `attacks`, `spells`, `features`, `items` | массивы сущностей с `id` | см. ниже |
 | `coins` | `{cp, sp, ep, gp, pp}` | |
 | `personality` | `{appearance, traits, ideals, bonds, flaws, backstory, allies}` | |
-| `notes` | `{patron[], quests[], people[], misc[]}` | заметки; старая строка `misc` превращается в одну заметку `nt-misc-legacy` |
+| `notes` | `{sessions[], people[], places[], quests[], clues[], patron[], misc[]}` | заметки; старая строка `misc` превращается в одну заметку `nt-misc-legacy`. Заметка: `{id, title, subtitle, text, tags, collapsed, pinned, created}`; у людей `attitude` и `aliases`, у мест `aliases`, у заданий `status`, у улик `state` (lead/confirmed/false), у сессий `date`, `touched`. В тексте `[[Название]]` или `[[Название|подпись]]` ссылается на заметку по названию или другому имени; чистит `cleanNote()` |
 | `ownerUid`, `ownerName` | | владелец (только облако) |
 | `visibility` | `private` / `link` | доступ по ссылке; нет поля = `link` |
 | `createdAt`, `updatedAt`, `updatedBy` | | служебные; `updatedBy = {uid, name, kind}` |
