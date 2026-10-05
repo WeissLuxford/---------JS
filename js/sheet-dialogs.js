@@ -12,6 +12,7 @@ import { currentUid } from "./access.js";
 import { banAccount } from "./admin.js";
 import { clone, explainOn } from "./sheet-util.js";
 import { wakeOn, wakeSupported } from "./wake.js";
+import { shakeOn, shakeSupported } from "./shake.js";
 import { sheetIssues } from "./checks.js";
 import { listBackups, saveBackup, readBackup, backupFile, backupName } from "./backup.js";
 export function installDialogs(X) {
@@ -307,7 +308,7 @@ export function installDialogs(X) {
         ["sheet-check", "check", "Проверка листа" + (issues.length ? `: ${issues.length}` : "")],
         ...(r.canEdit ? [["history", "history", "История изменений"]] : []),
         ["backups", "history", "Резервные копии"],
-        ["share", "link", manage && cloud && a.enforced ? "Поделиться и доступ" : "Поделиться"],
+        ...(S.preview ? [] : [["share", "link", manage && cloud && a.enforced ? "Поделиться и доступ" : "Поделиться"]]),
         ["print", "scroll", "Печать и PDF"],
         ["export", "download", "Скачать файл персонажа"],
         ...(r.canEdit ? [["import", "upload", "Заменить из файла"]] : []),
@@ -322,6 +323,7 @@ export function installDialogs(X) {
     ].filter(g => g[1].length);
     const switches = () => [
       ["wake-toggle", "sun", "Экран не гаснет", wakeSupported() ? "Пока открыт лист, телефон не уснёт посреди боя" : "Этот браузер не умеет держать экран включённым", wakeOn()],
+      ["shake-toggle", "d20", "Встряхни, чтобы бросить", shakeSupported() ? "Встряхни телефон: бросок d20 с текущим режимом" : "На этом устройстве нет датчика движения", shakeOn()],
       ["explain-toggle", "info", "Пояснения на экране", "Серые подсказки под панелями: что делает кнопка и откуда что берётся", explainOn()],
       ["tips-toggle", "bell", "Подсказки в начале хода", "Напоминания о концентрации, эффектах и спасбросках от смерти", X.tipsOn()],
       ["fx-sound", "bell", "Звуки бросков", "", fxSettings().sound],

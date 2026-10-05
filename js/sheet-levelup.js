@@ -1,8 +1,8 @@
 import { ABILITIES, SCHOOLS, compute, fmt, maxDie, rollDice, uid, normalize, slotTable, pactSlots } from "./rules.js";
 import { icon } from "./icons.js";
-import { esc, toast, openModal, rich } from "./ui.js";
+import { esc, toast, openModal, rich, playSound, fxSettings, reducedMotion } from "./ui.js";
 import { detectClass, levelUpPlan, detectSubclass, newFeatures, invocationOptions, learnLevel, spellCandidates } from "./classes.js";
-import { spellIcon } from "./entities.js";
+import { spellIcon, featureIcon } from "./entities.js";
 import { loadSpells, toSpell, loadFeatures, classFeaturesAt, featureFromLib } from "./library.js";
 import { clone } from "./sheet-util.js";
 
@@ -336,12 +336,41 @@ export function installLevelUp(X) {
         if (boon) ch.info.pactBoon = boon.name;
       }, { render: false }));
       X.renderAll(true);
-      const got = [...newFeats.map(f => f.name), ...newSpells.map(s => s.name), ...newInvs.map(f => f.name)];
-      const lateLib = remaining.some(x => /заклин|заговор|арканум/.test(x));
-      toast(`${icon("star")} <b>${esc(c.name)}: ${plan.to} уровень!</b> Хиты +${gained}.${got.length ? ` Новое: ${esc(got.join(", "))}.` : ""}${remaining.length ? ` Не забудь: ${esc(remaining.join(", "))}.` : ""}${lateLib ? ` <button class="btn sm" data-lu-lib>Библиотека заклинаний</button>` : ""}`, { kind: "good", timeout: 12000 });
+      celebrate({ name: c.name, to: plan.to, d0, d1: S.d, before: c.abilities, after: S.c.abilities, feats: [...newFeats, ...newInvs], spells: newSpells, remaining });
     };
   }
 
-  Object.assign(X, { openLevelUp });
+  function celebrate({ name, to, d0, d1, before, after, feats, spells, remaining }) {
+    const fx = fxSettings();
+    const calm = !fx.anim || reducedMotion();
+    if (fx.sound) playSound("levelup");
+    const rows = [];
+    const row = (ic, label, from, now) => rows.push(`<div class="lu-row">${icon(ic)}<span>${esc(label)}</span><b>${from !== "" ? `<s>${esc(from)}</s> ` : ""}${esc(now)}</b></div>`);
+    row("heart", "Максимум хитов", String(d0.hpMax), `${d1.hpMax} (+${Math.max(0, d1.hpMax - d0.hpMax)})`);
+    if (d1.pb !== d0.pb) row("star", "Бонус мастерства", fmt(d0.pb), fmt(d1.pb));
+    if (slotsText(d0) !== slotsText(d1)) row("sparkle", "Ячейки заклинаний", slotsText(d0), slotsText(d1));
+    if (d1.tier !== d0.tier) row("force", "Заговоры", "", "бьют сильнее");
+    for (const a of ABILITIES) if ((after[a.key] || 0) !== (before[a.key] || 0)) row("upgrade", a.name, String(before[a.key]), String(after[a.key]));
+    const got = [...feats.map(f => `<li>${icon(featureIcon(f))}<span>${esc(f.name)}</span></li>`), ...spells.map(s => `<li style="--c:${spellIcon(S.c, s).color}">${icon(spellIcon(S.c, s).icon)}<span>${esc(s.name)}</span></li>`)];
+    const lateLib = remaining.some(x => /заклин|заговор|арканум/.test(x));
+    const m = openModal({
+      cls: `small levelup-card ${calm ? "calm" : ""}`,
+      body: `<div class="lu-burst" aria-hidden="true"><i></i><i></i><i></i>${icon("star")}</div>
+        <div class="lu-big"><b>${esc(to)}</b><span>уровень</span></div>
+        <p class="lu-who">${esc(name)} становится сильнее</p>
+        <div class="lu-rows">${rows.join("")}</div>
+        ${got.length ? `<h4 class="lu-h">Новое</h4><ul class="lu-got">${got.join("")}</ul>` : ""}
+        ${remaining.length ? `<p class="lu-left">${icon("info")}Не забудь: ${esc(remaining.join(", "))}.</p>` : ""}
+        <div class="form-actions">${lateLib ? `<button class="btn ghost" data-lu-lib-open>${icon("book")}Библиотека заклинаний</button>` : ""}<button class="btn gold" data-close>${icon("check")}Отлично</button></div>`
+    });
+    m.body.addEventListener("click", e => {
+      if (!e.target.closest("[data-lu-lib-open]")) return;
+      m.close();
+      X.openLibrary(null);
+    });
+    return m;
+  }
+
+  Object.assign(X, { openLevelUp, celebrateLevel: celebrate });
 }
 

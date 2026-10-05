@@ -239,6 +239,10 @@ export function playSound(kind) {
     noise(a, { dur: 0.12, vol: 0.12, freq: 420, q: 0.9, type: "lowpass" });
   } else if (kind === "heal") {
     [523.3, 659.3, 784].forEach((f, i) => tone(a, { type: "sine", from: f, at: i * 0.09, dur: 0.7, vol: 0.045 }));
+  } else if (kind === "levelup") {
+    [523.3, 659.3, 784, 1046.5].forEach((f, i) => tone(a, { type: "triangle", from: f, at: i * 0.11, dur: 0.5, vol: 0.06 }));
+    [1046.5, 1318.5, 1568].forEach(f => tone(a, { type: "sine", from: f, at: 0.5, dur: 1.4, vol: 0.035 }));
+    noise(a, { at: 0.48, dur: 0.9, vol: 0.02, freq: 8000, q: 0.6 });
   } else if (kind === "heartbeat") {
     tone(a, { type: "sine", from: 75, to: 48, dur: 0.16, vol: 0.2 });
     tone(a, { type: "sine", from: 68, to: 44, at: 0.24, dur: 0.2, vol: 0.15 });

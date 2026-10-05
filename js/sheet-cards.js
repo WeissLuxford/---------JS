@@ -1,9 +1,10 @@
-import { normalize, fmt, spellCast, usesInfo, addDice, swapType, effectDamage, weaponStats, asWeapon } from "./rules.js";
+import { normalize, fmt, spellCast, usesInfo, addDice, swapType, effectDamage, weaponStats, asWeapon, uid } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, $, toast, openModal, openForm, getPath, setPath, cropImage, pickFile } from "./ui.js";
 import { SECTION_NAME, linkTargets } from "./notes.js";
 import { itemIcon, cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
 import { addHistory } from "./store.js";
+import { PACKS, packItems, packWeight, COMPONENT_POUCH_NOTE } from "./packs.js";
 import { lastSnapshot, clone } from "./sheet-util.js";
 export function installCards(X) {
   const { S, id } = X;
@@ -84,6 +85,7 @@ export function installCards(X) {
       b.push(`<button class="btn" data-x="equip">${e.equipped ? "Снять" : "Экипировать"}</button>`);
       if (e.requiresAttunement) b.push(`<button class="btn" data-x="attune">${e.attuned ? "Снять настройку" : "Настроиться"}</button>`);
       if (S.c.items.some(x => x.isContainer && x.id !== e.id)) b.push(`<button class="btn ghost" data-x="move">${icon("bag")}${e.container ? `В «${esc((S.c.items.find(x => x.id === e.container) || {}).name || "контейнер")}»` : "Переложить"}</button>`);
+      if (e.isContainer && !X.readOnly()) b.push(/компонент/i.test(e.name || "") ? `<button class="btn ghost" data-x="pouch-info">${icon("info")}Что внутри</button>` : `<button class="btn ghost" data-x="pack">${icon("download")}Сложить набор</button>`);
       if (e.isContainer) b.push(`<button class="btn ghost" data-x="stored">${icon(e.stored ? "bag" : "door")}${e.stored ? "Взять с собой" : "Оставить (не нести)"}</button>`);
       b.push(`<span class="qty-ctl"><button class="icon-btn" data-x="qty-" title="Меньше">${icon("minus")}</button><b>${esc(e.qty)}</b><button class="icon-btn" data-x="qty+" title="Больше">${icon("plus")}</button></span>`);
     }
@@ -177,6 +179,8 @@ export function installCards(X) {
         m.close();
         return X.moveItem(eid);
       }
+      if (x === "pouch-info") return openModal({ title: e.name || "Мешочек с компонентами", cls: "small", body: `<p>${esc(COMPONENT_POUCH_NOTE)}</p>` });
+      if (x === "pack") return packDialog(e, m);
       if (x === "stored") return X.mutate(c => { const it = findEntity(c, "item", eid); if (it) it.stored = !it.stored; });
       if (x === "equip") return X.withUndo(e.equipped ? `Снято: ${e.name}` : `Надето: ${e.name}`, () => X.mutate(c => { const it = findEntity(c, "item", eid); if (it) it.equipped = !it.equipped; }));
       if (x === "attune") {
@@ -373,6 +377,25 @@ export function installCards(X) {
           if (to) x.equipped = false;
         }
       }));
+    });
+  }
+
+  function packDialog(box, card) {
+    const m = openModal({
+      title: `Сложить в «${box.name || "контейнер"}»`,
+      cls: "small",
+      body: `<p class="hint">Стандартные наборы из книги игрока. Вещи с весом и ценой лягут внутрь, потом их можно править или выбросить. Деньги не списываются: стартовый набор уже оплачен. Спальник, одеяло и верёвку по традиции привязывают снаружи, они лягут рядом, «при себе».</p><div class="pack-list">${PACKS.map(p => `<button class="pack-row" data-pack="${esc(p.key)}"><span><b>${esc(p.name)}</b><small>${esc(p.note)}</small><small class="pack-items">${esc(p.items.map(x => (x.qty > 1 ? `${x.name} × ${x.qty}` : x.name)).join(", "))}</small></span><em>${esc(String(packWeight(p)).replace(".", ","))} фнт<br>${esc(p.value)}</em></button>`).join("")}</div>`
+    });
+    m.body.addEventListener("click", ev => {
+      const b = ev.target.closest("[data-pack]");
+      if (!b) return;
+      const p = PACKS.find(x => x.key === b.dataset.pack);
+      m.close();
+      if (card) card.close();
+      X.withUndo(`Сложен набор: ${p.name}`, () => X.mutate(c => {
+        c.items.push(...packItems(p.key, box.id, uid));
+      }));
+      toast(`${icon("check")} ${esc(p.name)}: ${p.items.length} предметов в «${esc(box.name)}»`, { kind: "good", timeout: 2600 });
     });
   }
 

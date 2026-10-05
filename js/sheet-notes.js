@@ -26,7 +26,7 @@ export function installNotes(X) {
     if (S.tab !== "notes") {
       S.scroll[S.tab] = window.scrollY;
       S.tab = "notes";
-      history.replaceState(history.state, "", `#/c/${id}/notes`);
+      history.replaceState(history.state, "", X.here("notes"));
       X.renderAll(true);
     } else X.renderTab();
     requestAnimationFrame(() => {

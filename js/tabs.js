@@ -554,7 +554,7 @@ export function tabInventory(ctx) {
       <span class="box-w">${fmtNum(t.inside)}${t.capacity ? ` / ${t.capacity}` : ""} фнт</span>
       <button class="btn ghost sm" data-act="box-stored" data-id="${esc(b.id)}" title="${b.stored ? "Взять с собой" : "Оставить: вес не считается"}">${icon(b.stored ? "bag" : "door")}${b.stored ? "Взять" : "Оставить"}</button></header>
       ${t.capacity ? `<div class="wbar thin ${t.inside > t.capacity ? "over" : ""}"><i style="width:${cpct}%"></i></div>` : ""}
-      <div class="inv-grid">${inside.map(slot).join("") || `<p class="hint box-empty">Пусто. Открой предмет и нажми «Переложить».</p>`}</div>
+      <div class="inv-grid">${inside.map(slot).join("") || `<p class="hint box-empty">Пусто. Открой контейнер и нажми «Сложить набор» или переложи сюда вещи кнопкой «Переложить».</p>`}</div>
     </section>`;
   }).join("") : "";
   return `

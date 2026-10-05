@@ -143,6 +143,7 @@ export function mountHome(root, navigate) {
 
   function tplCard(t, { hidden = false, canCreate, canHide, needSignIn }) {
     const c = t.c;
+    const look = `<a class="btn ghost sm" href="#/t/${esc(t.key)}">${icon("eye")}Посмотреть</a>`;
     const take = canCreate ? `<button class="btn gold sm" data-tpl-take="${esc(t.key)}">${icon("download")}Забрать себе</button>` : needSignIn ? `<button class="btn sm" data-signin>${icon("user")}Войти и забрать</button>` : "";
     const hide = canHide ? `<button class="btn ghost sm" data-tpl-hide="${esc(t.key)}" title="${hidden ? "Снова показывать всем" : "Убрать с главной для всех"}">${icon(hidden ? "eye" : "trash")}${hidden ? "Вернуть" : "Убрать"}</button>` : "";
     return `<article class="ch-card tpl ${hidden ? "arch" : ""}">
@@ -151,7 +152,7 @@ export function mountHome(root, navigate) {
         <span class="ch-name">${esc(c.name)}</span>
         <span class="ch-sub">${esc(subtitle(c))}</span>
         <span class="ch-sub dim">${esc(t.blurb)}</span>
-        <span class="tpl-acts">${take}${hide}</span>
+        <span class="tpl-acts">${look}${take}${hide}</span>
       </span>
     </article>`;
   }

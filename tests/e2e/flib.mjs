@@ -80,6 +80,8 @@ ok("third pick blocked", !(await boxes.nth(2).isChecked()));
 await page.screenshot({ path: OUT + "flib-lvl.png" });
 await page.click(`${M} [data-go]`);
 await sleep(600);
+await page.click(".modal-back.in .levelup-card .form-actions [data-close]");
+await sleep(250);
 await page.click(".tab[data-tab=features]");
 await sleep(300);
 const ft = await page.locator(".sheet").innerText();

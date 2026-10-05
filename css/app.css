@@ -1897,3 +1897,47 @@ body.hp-dying::before { animation: hp-pulse 1.5s ease-in-out infinite; }
 .ch-portrait.tpl-ic svg { width: 46px; height: 46px; filter: drop-shadow(0 0 8px rgba(233, 199, 122, .45)); }
 .tpl-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .tpl-hint { margin: -4px 0 10px; }
+
+.levelup-card { text-align: center; overflow: hidden; }
+.levelup-card .modal-body { position: relative; padding-top: 26px; }
+.lu-burst { position: relative; width: 96px; height: 96px; margin: 0 auto 4px; display: grid; place-items: center; color: #f4d66d; }
+.lu-burst > .ic { width: 56px; height: 56px; filter: drop-shadow(0 0 10px #f4d66d) drop-shadow(0 0 22px rgba(244, 214, 109, .6)); animation: lu-pop .9s cubic-bezier(.2, 1.6, .4, 1) both; }
+.lu-burst i { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(244, 214, 109, .7); animation: lu-ring 1.6s ease-out both; }
+.lu-burst i:nth-child(2) { animation-delay: .25s; }
+.lu-burst i:nth-child(3) { animation-delay: .5s; border-color: rgba(255, 241, 184, .5); }
+.levelup-card .modal-body::before { content: ""; position: absolute; left: 50%; top: 70px; width: 420px; height: 420px; transform: translate(-50%, -50%); pointer-events: none; background: repeating-conic-gradient(from 0deg, rgba(244, 214, 109, .16) 0 8deg, transparent 8deg 22deg); -webkit-mask: radial-gradient(circle, #000 20%, transparent 65%); mask: radial-gradient(circle, #000 20%, transparent 65%); animation: lu-rays 7s linear infinite, lu-fade 1.2s ease-out both; }
+.lu-big { display: flex; align-items: baseline; justify-content: center; gap: 10px; position: relative; }
+.lu-big b { font-family: var(--font-head); font-size: 64px; line-height: 1; color: #fff1b8; text-shadow: 0 0 18px rgba(244, 214, 109, .75); animation: lu-pop 1s .15s cubic-bezier(.2, 1.6, .4, 1) both; }
+.lu-big span { font-family: var(--font-head); font-size: 22px; color: var(--gold-2); letter-spacing: .06em; }
+.lu-who { margin: 4px 0 14px; color: var(--text-2); position: relative; }
+.lu-rows { display: flex; flex-direction: column; gap: 6px; text-align: left; position: relative; }
+.lu-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px; background: rgba(0, 0, 0, .25); border: 1px solid rgba(201, 163, 91, .18); animation: lu-in .5s ease-out both; }
+.lu-row:nth-child(2) { animation-delay: .1s; } .lu-row:nth-child(3) { animation-delay: .2s; } .lu-row:nth-child(4) { animation-delay: .3s; } .lu-row:nth-child(n+5) { animation-delay: .4s; }
+.lu-row > .ic { width: 18px; height: 18px; color: var(--gold-2); flex: none; }
+.lu-row span { flex: 1; color: var(--text-2); }
+.lu-row b { color: var(--gold-3); font-weight: 600; }
+.lu-row s { color: var(--dim); font-weight: 400; margin-right: 4px; }
+.lu-h { margin: 16px 0 6px; font-family: var(--font-head); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); text-align: left; }
+.lu-got { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.lu-got li { --c: var(--gold-2); display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--c) 40%, transparent); background: color-mix(in srgb, var(--c) 8%, transparent); animation: lu-in .5s .45s ease-out both; }
+.lu-got .ic { width: 20px; height: 20px; color: var(--c); flex: none; }
+.lu-left { display: flex; gap: 8px; align-items: flex-start; text-align: left; margin: 12px 0 0; color: var(--text-2); font-size: 15px; }
+.lu-left .ic { width: 18px; height: 18px; flex: none; margin-top: 2px; color: var(--gold); }
+.levelup-card .form-actions { justify-content: center; }
+@keyframes lu-pop { 0% { transform: scale(.2); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes lu-ring { 0% { transform: scale(.3); opacity: 1; } 100% { transform: scale(2.6); opacity: 0; } }
+@keyframes lu-rays { to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes lu-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lu-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.levelup-card.calm *, .levelup-card.calm .modal-body::before { animation: none !important; }
+.levelup-card.calm .lu-burst i { display: none; }
+@media (prefers-reduced-motion: reduce) { .levelup-card *, .levelup-card .modal-body::before { animation: none !important; } .levelup-card .lu-burst i { display: none; } }
+
+.pack-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.pack-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0, 0, 0, .22); text-align: left; }
+.pack-row:hover { border-color: var(--gold-2); background: rgba(201, 163, 91, .08); }
+.pack-row > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pack-row b { font-weight: 600; color: var(--gold-3); }
+.pack-row small { color: var(--text-2); font-size: 14px; line-height: 1.35; }
+.pack-row .pack-items { color: var(--dim); font-size: 13px; }
+.pack-row em { flex: none; font-style: normal; text-align: right; color: var(--gold-2); font-size: 13px; line-height: 1.4; }

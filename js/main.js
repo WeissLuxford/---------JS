@@ -22,6 +22,10 @@ function route() {
   unmount = null;
   window.scrollTo(0, 0);
   let id = null;
+  if (parts[0] === "t" && parts[1] && /^[a-z0-9_-]{1,40}$/i.test(parts[1])) {
+    unmount = mountSheet(root, "tpl-" + parts[1], parts[2], navigate, { template: parts[1] });
+    return;
+  }
   if (parts[0] === "c" && parts[1]) {
     try {
       id = decodeURIComponent(parts[1]);

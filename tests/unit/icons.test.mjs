@@ -67,6 +67,9 @@ test("own entries are still guessed by words, explicit icon wins", () => {
   assert.equal(E.itemIcon({ name: "Боевой посох", type: "weapon" }), "staff");
   assert.equal(E.itemIcon({ name: "Духовая трубка", type: "weapon" }), "arrow");
   assert.equal(E.itemIcon({ name: "Окованный сундук", type: "gear" }), "chest");
+  assert.equal(E.itemIcon({ name: "Рюкзак", type: "gear" }), "backpack");
+  assert.equal(E.itemIcon({ name: "Мешочек с компонентами", type: "gear" }), "pouch");
+  assert.equal(E.itemIcon({ name: "Мешок", type: "gear" }), "bag");
   for (const g of G.GEAR) assert.ok(ALL.has(E.itemIcon({ name: g.name, type: g.kind === "armor" ? "armor" : "weapon" })), g.name);
 });
 

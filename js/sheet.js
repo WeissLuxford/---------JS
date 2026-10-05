@@ -21,8 +21,10 @@ import { installLevelUp } from "./sheet-levelup.js";
 import { installNotes, loadRecent } from "./sheet-notes.js";
 import { keepAwake, setWake, wakeOn, wakeSupported } from "./wake.js";
 import { sheetIssues } from "./checks.js";
+import { loadTemplates, templateCopy } from "./templates.js";
+import { shakeOn, setShake, watchShake, shakeSupported } from "./shake.js";
 
-export function mountSheet(root, id, initialTab, navigate) {
+export function mountSheet(root, id, initialTab, navigate, opts = {}) {
   const S = {
     c: null,
     d: null,
@@ -41,15 +43,17 @@ export function mountSheet(root, id, initialTab, navigate) {
     disposed: false,
     access: getAccess(),
     isEditor: false,
-    aclFor: ""
+    aclFor: "",
+    preview: opts.template || ""
   };
+  const here = tab => (S.preview ? `#/t/${S.preview}/${tab}` : `#/c/${id}/${tab}`);
 
   root.innerHTML = `<div class="loading">${icon("d20")}<span>Загружаю лист...</span></div>`;
   let lastRole = "";
 
   let lastStatus = null;
   const X = { S, root, id, navigate, status: () => lastStatus };
-  Object.assign(X, { backupTick, downloadBackup, paintSync, loaderMessage, rights, checkEditor, readOnly, roText, roBar, inputFocused, rerenderKeepingModal, renderAll, renderTab, grow, calcValue, updateCalcs, snapshot, changed, flush, hasUnsaved, mutate, curHp, clampHp, setHp, filterSpells, rollModeLabel, takeMode, runAction, runActionInner });
+  Object.assign(X, { here, backupTick, downloadBackup, paintSync, loaderMessage, rights, checkEditor, readOnly, roText, roBar, inputFocused, rerenderKeepingModal, renderAll, renderTab, grow, calcValue, updateCalcs, snapshot, changed, flush, hasUnsaved, mutate, curHp, clampHp, setHp, filterSpells, rollModeLabel, takeMode, runAction, runActionInner });
   installRolls(X);
   installUndo(X);
   installMagic(X);
@@ -80,7 +84,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     root.innerHTML = `<div class="loading err">${icon(ic)}<span>${esc(text)}</span>${sub ? `<small>${esc(sub)}</small>` : ""}<a class="btn" href="#/">К списку</a></div>`;
   }
 
-  const unsub = subscribeChar(id, (data, meta = {}) => {
+  const onData = (data, meta = {}) => {
     if (S.disposed) return;
     if (data === undefined) {
       if (meta.denied) {
@@ -120,7 +124,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       S.d = compute(S.c);
       renderAll();
       checkEditor();
-      if (rights().role !== "owner") addRecent({ id, name: S.c.name, sub: subtitle(S.c) });
+      if (rights().role !== "owner" && !S.preview) addRecent({ id, name: S.c.name, sub: subtitle(S.c) });
       return;
     }
     const local = diffPaths(S.base, S.c);
@@ -133,10 +137,17 @@ export function mountSheet(root, id, initialTab, navigate) {
     if (inputFocused()) S.pendingRender = true;
     else rerenderKeepingModal();
     if (!meta.pendingWrites && !meta.self) toast(`${icon("cloud")} Лист обновлён: кто-то внёс изменения`, { kind: "info" });
-  });
+  };
+  const unsub = S.preview
+    ? (loadTemplates().then(list => {
+      const t = list.find(x => x.key === S.preview);
+      onData(t ? templateCopy(t) : null);
+    }).catch(() => onData(undefined, {})), () => {})
+    : subscribeChar(id, onData);
 
   function rights() {
     const a = S.access;
+    if (S.preview) return { canEdit: false, role: "preview" };
     if (S.deleted) return { canEdit: false, role: "deleted" };
     if (S.closed) return { canEdit: false, role: "closed" };
     if (getMode() !== "cloud" || !a.enforced) return { canEdit: true, role: "open" };
@@ -154,7 +165,7 @@ export function mountSheet(root, id, initialTab, navigate) {
   function checkEditor() {
     const a = S.access;
     const key = `${a.uid}|${a.enforced}|${myEmail()}`;
-    if (S.aclFor === key || !S.c || S.disposed) return;
+    if (S.aclFor === key || !S.c || S.disposed || S.preview) return;
     S.aclFor = key;
     offInvite();
     offInvite = () => {};
@@ -180,6 +191,7 @@ export function mountSheet(root, id, initialTab, navigate) {
 
   function roText() {
     const r = rights().role;
+    if (r === "preview") return "Это готовый персонаж, его можно только посмотреть. Понравился? Забери себе: появится твоя копия, её можно менять.";
     if (r === "banned") return "Владелец сайта запретил твоему аккаунту вносить правки. Смотреть лист можно.";
     if (r === "guest") return "Только просмотр. Если владелец дал тебе право править, войди через Google.";
     if (r === "orphan") return "Только просмотр: у персонажа пока нет владельца.";
@@ -193,6 +205,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     const r = rights().role;
     const btn = r === "guest"
       ? `<button class="btn sm gold" data-act="signin">${icon("user")}Войти через Google</button>`
+      : r === "preview" ? `<button class="btn sm gold" data-act="tpl-take">${icon("download")}Забрать себе</button>`
       : r === "viewer" || r === "orphan" || r === "deleted" ? `<button class="btn sm" data-act="duplicate">${icon("copy")}Копия себе</button>` : "";
     const warn = r === "guest" && IN_APP ? `<small>Открыто внутри приложения: для входа открой ссылку в Chrome или Safari.</small>` : "";
     return `<div class="ro-bar">${icon("eye")}<span>${esc(roText())}${warn}</span>${btn}</div>`;
@@ -838,6 +851,26 @@ export function mountSheet(root, id, initialTab, navigate) {
       }
       case "spell-ability": return X.spellAbilityDialog();
       case "sheet-check": return X.sheetCheckDialog();
+      case "tpl-take": {
+        if (getMode() === "cloud" && S.access.enforced && !S.access.signedIn) return runActionInner("signin");
+        try {
+          const nid = newCharId();
+          const copy = clone(c);
+          delete copy.id;
+          await createChar(nid, copy);
+          toast(`${icon("check")} ${esc(c.name)} теперь твой`, { kind: "good" });
+          return navigate(`#/c/${nid}`);
+        } catch {
+          return toast("Не удалось забрать персонажа", { kind: "bad" });
+        }
+      }
+      case "shake-toggle": {
+        const want = !shakeOn();
+        const on = await setShake(want);
+        armShake();
+        if (want && !on) return toast("Телефон не дал доступ к датчику движения", { kind: "bad", timeout: 2600 });
+        return toast(on ? "Встряхни телефон, чтобы бросить d20" : "Бросок встряской выключен", { timeout: 2200 });
+      }
       case "wake-toggle": {
         const on = setWake(!wakeOn());
         return toast(!wakeSupported() ? "Этот браузер не умеет держать экран включённым" : on ? "Экран не гаснет, пока открыт лист" : "Экран гаснет как обычно", { timeout: 2200 });
@@ -989,7 +1022,7 @@ export function mountSheet(root, id, initialTab, navigate) {
       S.tab = tab.dataset.tab;
       S.ui.ordering = false;
       hideHoverCard();
-      history.replaceState(history.state, "", `#/c/${id}/${S.tab}`);
+      history.replaceState(history.state, "", here(S.tab));
       renderTab();
       window.scrollTo({ top: S.scroll[S.tab] || 0 });
       return;
@@ -1082,9 +1115,20 @@ export function mountSheet(root, id, initialTab, navigate) {
   });
 
   keepAwake(true);
+  let offShake = () => {};
+  const onShake = () => {
+    if (S.disposed || !S.c || document.visibilityState !== "visible") return;
+    X.d20("Встряска: d20", 0, "free", "");
+  };
+  const armShake = () => {
+    offShake();
+    offShake = shakeOn() ? watchShake(onShake) : () => {};
+  };
+  armShake();
 
   return () => {
     keepAwake(false);
+    offShake();
     heartbeat(false);
     clearTimeout(S.fxTimer);
     document.body.classList.remove("hp-down", "hp-dying", "fx-hit", "fx-heal");

@@ -70,7 +70,7 @@
 | `meta/templates` | `{hidden[], updatedAt}` ключи готовых персонажей, убранных с главной | все | админ |
 | `admin/probe` | проба прав админа | админ | никто |
 
-Локальный режим: `localStorage` ключи `dnd.chars` (все персонажи), `dnd.hist.<id>` (история), `dnd.recent` (недавно открытые), `dnd.rulesV2` (запомненная версия правил), `dnd.templates.hidden` (убранные готовые персонажи), `dnd.wake` (экран не гаснет), `dnd.explain` (пояснения на экране).
+Локальный режим: `localStorage` ключи `dnd.chars` (все персонажи), `dnd.hist.<id>` (история), `dnd.recent` (недавно открытые), `dnd.rulesV2` (запомненная версия правил), `dnd.templates.hidden` (убранные готовые персонажи), `dnd.wake` (экран не гаснет), `dnd.shake` (бросок встряской), `dnd.explain` (пояснения на экране).
 
 ## Готовые персонажи (`data/templates.json`)
 

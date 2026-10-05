@@ -21,7 +21,9 @@
 | `js/seed.js` | данные персонажа Кирион (сид для локального режима) |
 | `js/entities.js` | модели карточек в стиле BG3 и схемы форм редактирования |
 | `js/tabs.js` | разметка вкладок листа |
-| `js/templates.js` | готовые персонажи: `loadTemplates()` читает `data/templates.json`, `templateCopy()` даёт копию для «Забрать себе»; список убранных в `store.js` (`getHiddenTemplates`, `setHiddenTemplates`) |
+| `js/templates.js` | готовые персонажи (просмотр по адресу `#/t/<ключ>`: `mountSheet(..., { template })`, роль `preview`, только чтение, без сохранения): `loadTemplates()` читает `data/templates.json`, `templateCopy()` даёт копию для «Забрать себе»; список убранных в `store.js` (`getHiddenTemplates`, `setHiddenTemplates`) |
+| `js/shake.js` | бросок встряской: `shakeDetector()` (две встряски за 0,7 с, пауза 1,5 с), `watchShake()`, настройка `dnd.shake`, разрешение iOS |
+| `js/packs.js` | наборы снаряжения книги игрока (`PACKS`, `packItems()`), текст про мешочек с компонентами |
 | `js/checks.js` | проверка листа `sheetIssues(c, d)`: список расхождений с правилами (уровень `warn` или `info`, текст, ссылка на запись или вкладку) |
 | `js/wake.js` | экран не гаснет: Screen Wake Lock, повторный захват при возврате на вкладку, настройка `dnd.wake` |
 | `js/icon-map.js` | точные иконки библиотеки: `SPELL_ICONS` и `FEATURE_ICONS` по английскому названию, `INVOCATION_ICONS` по русскому; `spellIconByName`, `featureIconByName` вызываются из `spellIcon` и `featureIcon` в `entities.js` до угадывания по словам |
