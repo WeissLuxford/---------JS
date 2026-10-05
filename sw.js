@@ -1,4 +1,4 @@
-const VERSION = "v13";
+const VERSION = "v14";
 const SHELL = "dnd-shell-" + VERSION;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -15,6 +15,9 @@ const PRECACHE = [
   "js/ambient.js",
   "js/changes.js",
   "js/classes.js",
+  "js/creator-build.js",
+  "js/creator-data.js",
+  "js/creator.js",
   "js/config.js",
   "js/device.js",
   "js/entities.js",

@@ -21,7 +21,7 @@ export function detectClass(c) {
   return key ? { key, ...CLASSES[key] } : null;
 }
 
-const step = (table, level) => {
+export const step = (table, level) => {
   let v = 0;
   for (const [l, n] of Object.entries(table || {})) if (level >= Number(l)) v = n;
   return v;

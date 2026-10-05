@@ -191,6 +191,16 @@ export function mountHome(root, navigate) {
   }
 
   function createFlow() {
+    import("./creator.js").then(({ openCreator }) => openCreator({
+      onCreate: c => {
+        const id = newCharId();
+        createChar(id, c).then(() => navigate(`#/c/${id}`)).catch(() => toast("Не удалось создать персонажа", { kind: "bad" }));
+      },
+      onBlank: blankFlow
+    })).catch(() => blankFlow());
+  }
+
+  function blankFlow() {
     openForm({
       title: "Новый персонаж",
       fields: [
