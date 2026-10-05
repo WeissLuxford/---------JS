@@ -32,7 +32,9 @@ python3 -m http.server 8765
 ```
 Открыть http://localhost:8765/. Без доступа к Firebase сайт сам уходит в локальный режим (данные в localStorage).
 
-Тесты: `node --test tests/unit/*.test.mjs` (без зависимостей). Правила доступа: см. `docs/testing.md`.
+Тесты: `node --test tests/unit/*.test.mjs` (без зависимостей), браузерные сценарии: `node tests/e2e/run.mjs` при запущенном сервере. Правила доступа: см. `docs/testing.md`.
+
+Перед публикацией: юнит-тесты и e2e зелёные, при новом файле в `js/` добавить его в `PRECACHE` в `sw.js` и поднять `VERSION` (иначе падает `sw.test.mjs`). Что сделано и что дальше: `docs/roadmap.md`.
 
 ## Правила кода (обязательно)
 
