@@ -3,7 +3,7 @@ import { SCHOOLS, DAMAGE, ACTIONS, RECHARGE, FEATURE_CATS, normalize, uid, itemC
 export { itemCharges };
 import { icon } from "./icons.js";
 import { esc, card, openModal, toast, rich } from "./ui.js";
-import { spellModel } from "./entities.js";
+import { spellModel, spellIcon, featureIcon, itemIcon } from "./entities.js";
 import { INVOCATIONS, detectClass, CLASSES as CLASS_TABLE } from "./classes.js";
 import { GEAR, gearToItem } from "./gear.js";
 import { stem, words } from "./notes.js";
@@ -21,6 +21,10 @@ export async function loadSpells() {
   const raw = await res.json();
   cache = (Array.isArray(raw) ? raw : []).filter(x => x && typeof x === "object" && typeof x.name === "string").map((x, i) => ({ ...x, key: String(x.nameEn || x.name) + "#" + i, classes: Array.isArray(x.classes) ? x.classes.filter(k => k in CLASSES) : [] }));
   return cache;
+}
+
+function libIcon(x) {
+  return `<span class="lib-ic" style="${x.color ? `--c:${esc(x.color)}` : ""}">${icon(x.icon)}</span>`;
 }
 
 export function guessClass(c) {
@@ -157,6 +161,7 @@ async function renderSpells(box, { get, onAdd, item = null }) {
       return `<div class="lib-row ${open ? "open" : ""}">
         <button class="lib-head" data-lib-open="${esc(s.key)}" aria-expanded="${open ? "true" : "false"}">
           <span class="lib-lvl">${esc(Number(s.level) || 0)}</span>
+          ${libIcon(spellIcon(get().c, s))}
           <span class="lib-names"><b>${esc(s.name)}</b><small>${esc(s.nameEn || "")} · ${esc(school)}${s.concentration ? " · К" : ""}${s.ritual ? " · Р" : ""}</small></span>
           ${got ? `<span class="badge" style="--c:#4fcf6a">уже есть</span>` : ""}
           <span class="lib-chev">${icon("down")}</span>
@@ -217,7 +222,7 @@ function renderGear(box, { get, onAdd }) {
     listEl.innerHTML = GEAR.map((g, i) => ({ g, i })).filter(({ g }) => !n || norm(g.name).includes(n) || norm(g.nameEn).includes(n)).map(({ g, i }) => {
       const head = g.group !== group ? `<div class="atk-group">${esc((group = g.group))}</div>` : "";
       const stat = g.kind === "weapon" ? `${g.dice} ${((DAMAGE[g.type] || {}).name || "").toLowerCase()}` : g.kind === "armor" ? `КД ${g.base}${g.dex === "0" ? "" : g.dex === "2" ? " + Лов (макс. 2)" : " + Лов"}` : "+2 КД";
-      return `${head}<button class="lib-head gear-row" data-g="${i}"><span class="lib-names"><b>${esc(g.name)}</b><small>${esc(g.nameEn)} · ${esc(stat)}${g.props ? " · " + esc(g.props) : ""} · ${esc(g.value)}</small></span><span class="btn ghost sm">${icon("plus")}</span></button>`;
+      return `${head}<button class="lib-head gear-row" data-g="${i}">${libIcon({ icon: itemIcon({ name: g.name, type: g.kind === "weapon" ? "weapon" : "armor" }) })}<span class="lib-names"><b>${esc(g.name)}</b><small>${esc(g.nameEn)} · ${esc(stat)}${g.props ? " · " + esc(g.props) : ""} · ${esc(g.value)}</small></span><span class="btn ghost sm">${icon("plus")}</span></button>`;
     }).join("") || `<p class="empty">Ничего не нашлось</p>`;
   };
   draw("");
@@ -307,6 +312,7 @@ async function renderFeatures(box, { get, onAdd }) {
       return `${head}<div class="lib-row ${open ? "open" : ""}">
         <button class="lib-head" data-lib-open="${esc(x.key)}" aria-expanded="${open ? "true" : "false"}">
           <span class="lib-lvl" title="${x.level ? "Уровень" : ""}">${x.level ? esc(x.level) : icon(cat.icon)}</span>
+          ${libIcon({ icon: featureIcon({ ...x, category: GROUP_CAT[x.group] || "other" }), color: cat.color || "" })}
           <span class="lib-names"><b>${esc(x.name)}</b><small>${esc(where(x))}${x.nameEn ? ` · ${esc(x.nameEn)}` : ""}</small></span>
           ${got ? `<span class="badge" style="--c:#4fcf6a">уже есть</span>` : ""}
           <span class="lib-chev">${icon("down")}</span>

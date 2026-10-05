@@ -1863,3 +1863,6 @@ body.no-explain .explain { display: none !important; }
   .turn-bar.with-insp .insp.compact { grid-column: span 2; min-height: 38px; }
   .turn-bar.with-insp .turn-new { grid-column: span 2; }
 }
+
+.lib-ic { --c: var(--gold-2); flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--c) 18%, transparent), rgba(0, 0, 0, .3)); color: var(--c); }
+.lib-ic .ic { width: 20px; height: 20px; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--c) 45%, transparent)); }

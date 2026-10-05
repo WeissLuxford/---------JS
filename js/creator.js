@@ -145,7 +145,7 @@ export async function openCreator({ onCreate, onBlank }) {
     const s = start();
     const subs = subOptions();
     const other = st.subclass && !subs.includes(st.subclass);
-    return `<div class="cr-cards">${Object.entries(CLASSES).map(([k, x]) => card(st.cls === k, `data-cls="${k}"`, { barbarian: "fist", bard: "lute", cleric: "sun", druid: "leaf", fighter: "swords", monk: "hand", paladin: "shield", ranger: "bow", rogue: "dagger", sorcerer: "flame", warlock: "pact", wizard: "book" }[k], x.name, `кость хитов d${x.die}`)).join("")}</div>
+    return `<div class="cr-cards">${Object.entries(CLASSES).map(([k, x]) => card(st.cls === k, `data-cls="${k}"`, { barbarian: "battleaxe", bard: "lute", cleric: "sun", druid: "leaf", fighter: "swords", monk: "yinyang", paladin: "shield", ranger: "bow", rogue: "dagger", sorcerer: "flame", warlock: "pact", wizard: "staff" }[k], x.name, `кость хитов d${x.die}`)).join("")}</div>
       <div class="cr-row"><label class="fld cr-lvl"><span>Начальный уровень</span><input type="number" min="1" max="20" inputmode="numeric" data-level value="${st.level}"></label><p class="hint">Обычно игра начинается с 1 уровня. Если Мастер сказал начать выше, укажи: сайт сам добавит умения, хиты и ячейки, а заклинания и выборы предложит дальше.</p></div>
       ${t ? `<section class="cr-detail"><h3>${esc(t.name)}</h3><p>${esc(s.blurb)}</p>
         <ul class="cr-facts"><li>Спасброски: ${s.saves.map(abName).join(", ")}</li><li>Доспехи: ${esc(s.armor || "нет")}</li><li>Оружие: ${esc(s.weapons)}</li>${s.tools ? `<li>Инструменты: ${esc(s.tools)}</li>` : ""}<li>Навыки: ${s.skills} на выбор</li>${s.caster ? `<li>Заклинательная характеристика: ${abName(s.ability)}</li>` : ""}</ul>
