@@ -10,7 +10,7 @@ import { openAccounts } from "./admin.js";
 import { openShare } from "./share.js";
 import { setAmbient } from "./ambient.js";
 import { saveBackup, listBackups, fileDue, markFile, backupFile, backupName, BACKUP_GAP } from "./backup.js";
-import { SNAPSHOT_GAP, lastSnapshot, clone, sameContent, loadUiPrefs, accentStyle, applyAccent, loadJson, loadTurn, saveUiPrefs } from "./sheet-util.js";
+import { SNAPSHOT_GAP, lastSnapshot, clone, sameContent, loadUiPrefs, accentStyle, applyAccent, loadJson, loadTurn, saveUiPrefs, explainOn, setExplain } from "./sheet-util.js";
 import { installRolls } from "./sheet-rolls.js";
 import { installUndo } from "./sheet-undo.js";
 import { installMagic } from "./sheet-magic.js";
@@ -214,6 +214,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     const c = S.c;
     document.title = `${c.name} · Лист персонажа`;
     applyAccent(c.accent);
+    document.body.classList.toggle("no-explain", !explainOn());
     setAmbient(c.scene);
     root.innerHTML = `
       <div class="sheet ${readOnly() ? "viewer" : ""}" style="${accentStyle(c.accent)}">
@@ -534,7 +535,7 @@ export function mountSheet(root, id, initialTab, navigate) {
     return m;
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "note-create-link", "feature-library", "box-stored"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "portrait", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "note-create-link", "feature-library", "box-stored", "spell-ability"]);
 
   const UNDO = {
     "hp-quick": el => (Number(el.dataset.n) < 0 ? `Урон ${-Number(el.dataset.n)}` : `Лечение ${el.dataset.n}`),
@@ -780,8 +781,13 @@ export function mountSheet(root, id, initialTab, navigate) {
         try {
           localStorage.setItem("dnd.tips", on ? "1" : "0");
         } catch {}
-        return toast(on ? "Подсказки в бою включены" : "Подсказки в бою выключены", { timeout: 1800 });
+        return toast(on ? "Подсказки в начале хода включены" : "Подсказки в начале хода выключены", { timeout: 1800 });
       }
+      case "explain-toggle": {
+        const on = setExplain(!explainOn());
+        return toast(on ? "Пояснения на экране включены" : "Пояснения на экране выключены", { timeout: 1800 });
+      }
+      case "spell-ability": return X.spellAbilityDialog();
       case "add-effect": return X.effectPicker();
       case "edit-effect": {
         const ef = (c.effects || []).find(x => x.id === el.dataset.id);

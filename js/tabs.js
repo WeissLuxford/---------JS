@@ -11,7 +11,7 @@ export const TABS = [
   { key: "features", name: "Умения", icon: "pact" },
   { key: "inventory", name: "Снаряжение", short: "Вещи", icon: "bag" },
   { key: "notes", name: "Заметки", icon: "scroll" },
-  { key: "story", name: "История", icon: "feather" }
+  { key: "story", name: "Личность", icon: "feather" }
 ];
 
 const abShort = k => (ABILITIES.find(a => a.key === k) || {}).short || "";
@@ -89,8 +89,8 @@ function xpRow(c) {
   return `<div class="xp-row ${x.canLevel ? "ready" : ""}"><div class="xp-bar"><i style="width:${x.pct}%"></i></div><span class="xp-t">${x.canLevel ? `Опыта хватает на ${x.levelByXp} уровень!` : `Опыт ${x.xp} / ${x.next} до ${x.level + 1} уровня`}</span>${x.canLevel ? `<button class="btn gold sm" data-act="level-up">${icon("star")}Повысить уровень</button>` : ""}<button class="btn ghost sm" data-act="add-xp">${icon("plus")}Опыт</button></div>`;
 }
 
-function inspirationBtn(c) {
-  return `<button class="insp ${c.inspiration ? "on" : ""}" data-act="inspiration" data-card="stat:inspiration" aria-pressed="${c.inspiration ? "true" : "false"}">${icon("sun")}<span>${c.inspiration ? "Вдохновение есть" : "Нет вдохновения"}</span></button>`;
+function inspirationBtn(c, compact = false) {
+  return `<button class="insp ${compact ? "compact" : ""} ${c.inspiration ? "on" : ""}" data-act="inspiration" data-card="stat:inspiration" aria-pressed="${c.inspiration ? "true" : "false"}">${icon("sun")}<span>${c.inspiration ? "Вдохновение есть" : "Нет вдохновения"}</span></button>`;
 }
 
 function statMedal(label, value, { calc, act, roll, ic, card, slow } = {}) {
@@ -273,7 +273,7 @@ function attacksPanel(ctx) {
   const spent = Object.values((ctx.ui && ctx.ui.ammoSpent) || {}).reduce((a, b) => a + b, 0);
   const collect = spent ? `<div class="ammo-bar">${icon("arrow")}<span>Выпущено боеприпасов: ${spent}. После боя можно собрать половину.</span><button class="btn ghost sm" data-act="collect-ammo">Собрать ${Math.floor(spent / 2)}</button></div>` : "";
   const dupes = src.dupes.length ? `<div class="dupe-bar">${icon("info")}<span>${esc(src.dupes.map(a => a.name).join(", "))}: эти записи атак повторяют заклинания или оружие, поэтому спрятаны.</span><button class="btn ghost sm" data-act="dedupe-attacks">${icon("trash")}Удалить копии</button></div>` : "";
-  const hint = `<p class="hint atk-hint">Оружие появляется само, когда оно надето и у него указана атака. Заклинания: атакующие заговоры, остальные по галочке «В панели боя». Умения и предметы: «Показывать в бою» в их настройках.</p>`;
+  const hint = `<p class="hint atk-hint explain">Оружие появляется само, когда оно надето и у него указана атака. Заклинания: атакующие заговоры, остальные по галочке «В панели боя». Умения и предметы: «Показывать в бою» в их настройках.</p>`;
   return panel("Атаки", `${dupes}${body || emptyState("Атак пока нет")}${collect}${hint}`, { ic: "swords", actions: orderBtn(ctx) + addBtn("add-attack", "Атака"), cls: "p-attacks" });
 }
 
@@ -313,11 +313,11 @@ const TURN = [["action", "Действие"], ["bonus", "Бонусное"], ["r
 
 export function turnBar(ctx) {
   const t = (ctx.ui && ctx.ui.turn) || {};
-  return `<div class="turn-bar" data-turn>${TURN.map(([k, l]) => {
+  return `<div class="turn-bar ${ctx.c ? "with-insp" : ""}" data-turn>${TURN.map(([k, l]) => {
     const a = ACTIONS[k];
     const used = !!t[k];
     return `<button class="turn-slot ${used ? "used" : ""}" data-act="turn-open" data-k="${k}" style="--c:${a.color}" aria-label="${l}: ${used ? "потрачено" : "доступно"}. Показать, что можно сделать" title="Что можно сделать"><span class="turn-mark">${actionMark(a.shape, a.color)}</span><span>${l}</span></button>`;
-  }).join("")}<button class="turn-slot move" data-act="turn-open" data-k="move" style="--c:#c9b48a" title="Движение и прыжки"><span class="turn-mark">${icon("boot")}</span><span>Движение</span></button><button class="btn sm turn-new" data-act="new-turn" title="Вернуть действия и отсчитать раунд у эффектов">${icon("history")}Новый ход</button></div>`;
+  }).join("")}<button class="turn-slot move" data-act="turn-open" data-k="move" style="--c:#c9b48a" title="Движение и прыжки"><span class="turn-mark">${icon("boot")}</span><span>Движение</span></button>${ctx.c ? inspirationBtn(ctx.c, true) : ""}<button class="btn sm turn-new" data-act="new-turn" title="Вернуть действия и отсчитать раунд у эффектов">${icon("history")}Новый ход</button></div>`;
 }
 
 function combatStrip(ctx) {
@@ -350,7 +350,7 @@ function effectsPanel(ctx) {
   const actions = `${timed ? `<button class="btn ghost sm" data-act="next-round" title="Уменьшить длительность эффектов на 1 раунд">${icon("hourglass")}Раунд</button>` : ""}<button class="btn ghost sm" data-act="add-effect">${icon("plus")}Эффект</button>`;
   const has = k => list.some(e => e.preset === k);
   const cover = `<div class="cover-row"><span>Укрытие:</span><button class="chip toggle ${has("cover2") ? "on" : ""}" data-act="cover" data-k="cover2" aria-pressed="${has("cover2")}">½ · +2 КД</button><button class="chip toggle ${has("cover5") ? "on" : ""}" data-act="cover" data-k="cover5" aria-pressed="${has("cover5")}">¾ · +5 КД</button></div>`;
-  return panel("Эффекты", `${cover}${rows ? `<div class="eff-list">${rows}</div>${timed ? `<div class="eff-foot"><button class="btn ghost sm" data-act="end-combat">${icon("check")}Бой окончен: снять эффекты до минуты</button></div>` : ""}` : `<p class="hint eff-empty">Благословение, Сглаз, Щит и другие: прибавляются к броскам, КД и урону сами.</p>`}`, { ic: "sparkle", cls: "effects-panel", actions });
+  return panel("Эффекты", `${cover}${rows ? `<div class="eff-list">${rows}</div>${timed ? `<div class="eff-foot"><button class="btn ghost sm" data-act="end-combat">${icon("check")}Бой окончен: снять эффекты до минуты</button></div>` : ""}` : `<p class="hint eff-empty explain">Благословение, Сглаз, Щит и другие: прибавляются к броскам, КД и урону сами.</p>`}`, { ic: "sparkle", cls: `effects-panel ${rows ? "" : "empty"}`, actions });
 }
 
 function conditionsPanel(ctx) {
@@ -362,7 +362,7 @@ function conditionsPanel(ctx) {
   const summary = [...active.map(k => [k.icon, k.name]), c.exhaustion ? ["sleep", `Истощение ${c.exhaustion}`] : null].filter(Boolean);
   return `<details class="panel cond-panel" data-ui-open="condOpen" ${open ? "open" : ""}>
     <summary class="panel-h">${icon("skull")}<h3>Состояния</h3><span class="cond-sum">${summary.length ? summary.map(([ic, t]) => `<span class="chip bad">${icon(ic || "skull")}${esc(t)}</span>`).join("") : `<span class="dim">нет</span>`}</span><span class="spacer"></span><span class="cond-chev">${icon("down")}</span></summary>
-    <div class="panel-b"><p class="hint">Отмеченные состояния сами дают помеху или преимущество на броски. Зажми или наведи, чтобы прочитать описание.</p><div class="chips">${conds}</div>${exh}</div>
+    <div class="panel-b"><p class="hint explain">Отмеченные состояния сами дают помеху или преимущество на броски. Зажми или наведи, чтобы прочитать описание.</p><div class="chips">${conds}</div>${exh}</div>
   </details>`;
 }
 
@@ -387,7 +387,6 @@ export function tabCombat(ctx) {
       ${conditionsPanel(ctx)}
     </div>
     <div class="col">
-      ${inspirationBtn(c)}
       ${attacksPanel(ctx)}
       ${slots || res ? panel("Ресурсы", `${slots}${res}`, { ic: "hourglass", cls: "p-res" }) : ""}
       ${importantPanel(c)}
@@ -414,14 +413,14 @@ function spellTile(ctx, sp) {
 
 export function tabSpells(ctx) {
   const { c, d } = ctx;
-  const abilOpts = ABILITIES.map(a => `<option value="${a.key}" ${c.spellAbility === a.key ? "selected" : ""}>${a.name}</option>`).join("");
+  const abil = (ABILITIES.find(a => a.key === c.spellAbility) || {}).name || "не выбрана";
   const head = `
     <div class="spell-head">
-      <label class="fld compact"><span>Характеристика</span><select data-path="spellAbility" data-rerender>${abilOpts}</select></label>
       ${statMedal("СЛ спасброска", d.spell.dc, { calc: "dc", ic: "drop" })}
       ${statMedal("Бонус атаки", fmt(d.spell.atk), { calc: "satk", roll: "spellatk", ic: "target" })}
       ${statMedal("Модификатор", fmt(d.spell.mod), { ic: "star" })}
     </div>
+    <button class="spell-abil" data-act="spell-ability" title="Изменить заклинательную характеристику">Заклинательная характеристика: <b>${esc(abil)}</b>${icon("edit")}</button>
     ${slotsBlock(ctx)}`;
   const f = ctx.ui.spellFilter || "all";
   const hasUnprep = c.spells.some(sp => Number(sp.level) > 0 && sp.prepared === false);
@@ -448,7 +447,7 @@ export function tabSpells(ctx) {
   const lists = levels.map(l => panel(l === 0 ? "Заговоры" : `${l} круг`, `<div class="tiles" data-reorder="spells">${groups[l].map(s => spellTile(ctx, s)).join("")}</div>`, { ic: l === 0 ? "sparkle" : "book" })).join("") +
     c.items.filter(it => fromItems[it.id]).map(it => {
       const u = usesInfo(d, it);
-      return panel(it.name || "Предмет", `<p class="hint item-panel-hint">Тратит заряды предмета, а не твои ячейки. Круг заклинания не важен.</p><div class="tiles" data-reorder="spells">${fromItems[it.id].map(s => spellTile(ctx, s)).join("")}</div>`, { ic: itemIcon(it), cls: "item-spells-panel", actions: `${u ? `<span class="item-charges">${pips(u.max, u.left, "#4fcf6a")}<b>${u.left}/${u.max}</b></span>` : ""}<button class="btn ghost sm" data-open="item:${esc(it.id)}">${icon("edit")}Предмет</button>` });
+      return panel(it.name || "Предмет", `<p class="hint item-panel-hint explain">Тратит заряды предмета, а не твои ячейки. Круг заклинания не важен.</p><div class="tiles" data-reorder="spells">${fromItems[it.id].map(s => spellTile(ctx, s)).join("")}</div>`, { ic: itemIcon(it), cls: "item-spells-panel", actions: `${u ? `<span class="item-charges">${pips(u.max, u.left, "#4fcf6a")}<b>${u.left}/${u.max}</b></span>` : ""}<button class="btn ghost sm" data-open="item:${esc(it.id)}">${icon("edit")}Предмет</button>` });
     }).join("");
   return `
     ${panel("Заклинательство", head, { ic: "book", actions: orderBtn(ctx) + `<button class="btn ghost sm" data-act="spell-library">${icon("book")}Библиотека</button>` + addBtn("add-spell", "Своё") })}
@@ -644,7 +643,7 @@ function journalBox(c) {
   return `<div class="journal-add">
     <div class="ja-h">${icon("quill")}<span><b>${cur ? esc(cur.title) : "Новая сессия"}</b><small>${cur ? esc(cur.subtitle || "") : "начнётся с первой записи"}</small></span><span class="spacer"></span><button class="btn ghost sm" data-act="session-new">${icon("plus")}Новая сессия</button></div>
     <textarea data-journal rows="2" placeholder="Что случилось? [[ : ссылка на человека или место" aria-label="Запись в журнал"></textarea>
-    <div class="ja-foot"><span class="hint">Enter: записать, Shift+Enter: новая строка. Время подставится само; через 12 часов без записей начнётся новая сессия.</span><button class="btn gold sm" data-act="journal-add">${icon("check")}Записать</button></div>
+    <div class="ja-foot"><span class="hint explain">Enter: записать, Shift+Enter: новая строка. Время подставится само; через 12 часов без записей начнётся новая сессия.</span><button class="btn gold sm" data-act="journal-add">${icon("check")}Записать</button></div>
   </div>`;
 }
 

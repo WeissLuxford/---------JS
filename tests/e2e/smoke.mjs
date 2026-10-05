@@ -117,9 +117,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   ok("exhaustion slows", speed === "15 фт", speed);
   await page.click("[data-act=exhaustion][data-i='0']");
 
-  await page.click(".combat-grid [data-act=inspiration]");
-  ok("inspiration on", await page.locator(".combat-grid .insp.on").count() === 1);
-  await page.click(".combat-grid [data-act=inspiration]");
+  await page.click(".turn-bar [data-act=inspiration]");
+  ok("inspiration on", await page.locator(".turn-bar .insp.on").count() === 1);
+  await page.click(".turn-bar [data-act=inspiration]");
   ok("inspiration spent -> advantage", (await page.locator("[data-act=roll-mode] .rm.adv").count()) === 1);
   await page.click("[data-act=roll-mode]");
   await page.click("[data-act=roll-mode]");

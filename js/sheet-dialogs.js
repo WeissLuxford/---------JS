@@ -1,5 +1,5 @@
 import { canInstall } from "./pwa.js";
-import { SKILLS, compute, normalize, fmt, importCharacter, payCoins, COIN_NAMES, CONDITIONS, FEATURE_CATS, SCENE_TIMES, SCENE_WEATHER, sceneInfo } from "./rules.js";
+import { SKILLS, ABILITIES, mod, compute, normalize, fmt, importCharacter, payCoins, COIN_NAMES, CONDITIONS, FEATURE_CATS, SCENE_TIMES, SCENE_WEATHER, sceneInfo } from "./rules.js";
 import { icon } from "./icons.js";
 import { esc, $, toast, openModal, confirmDialog, promptNumber, rollLog, fxSettings, dateTime, timeAgo, download, pickFile } from "./ui.js";
 import { subtitle } from "./tabs.js";
@@ -10,7 +10,7 @@ import { NOTE_SECTIONS, SECTION_NAME, searchNotes, queryStems, words } from "./n
 import { describeWho, isMe, KIND_ICONS } from "./device.js";
 import { currentUid } from "./access.js";
 import { banAccount } from "./admin.js";
-import { clone } from "./sheet-util.js";
+import { clone, explainOn } from "./sheet-util.js";
 import { listBackups, saveBackup, readBackup, backupFile, backupName } from "./backup.js";
 export function installDialogs(X) {
   const { S, root, id, navigate } = X;
@@ -285,44 +285,79 @@ export function installDialogs(X) {
     const a = S.access;
     const cloud = getMode() === "cloud";
     const manage = r.role === "owner" || r.role === "admin" || r.role === "open";
-    const items = [
-      ["short-rest", "campfire", "Короткий отдых"],
-      ["long-rest", "moon", "Длинный отдых"],
-      ["roll-mode", "d20", "Режим броска: " + (S.rollMode === "adv" ? "преимущество" : S.rollMode === "dis" ? "помеха" : "обычный")],
-      ["dice", "d20", "Бросить кубы"],
-      ...(S.d.level < 20 && r.canEdit ? [["level-up", "star", "Повысить уровень"]] : []),
-      ["switch-char", "people", "Другой персонаж"],
-      ["rules-ref", "book", "Шпаргалка правил"],
-      ...(canInstall() ? [["install", "phone", "Установить как приложение"]] : []),
-      ["search-all", "search", "Поиск по листу"],
-      ["roll-log", "scroll", "Журнал бросков"],
-      ["fx-sound", "bell", "Звуки бросков: " + (fxSettings().sound ? "включены" : "выключены")],
-      ["tips-toggle", "info", "Подсказки в бою: " + (X.tipsOn() ? "включены" : "выключены")],
-      ["fx-anim", "d20", "Анимация кубов: " + (fxSettings().anim ? "включена" : "выключена")],
-      ...(r.canEdit ? [["history", "history", "История изменений"]] : []),
-      ["share", "link", manage && cloud && a.enforced ? "Поделиться и доступ" : "Поделиться"],
-      ["print", "scroll", "Печать и PDF"],
-      ["export", "download", "Скачать файл персонажа"],
-      ["backups", "history", "Резервные копии"],
-      ...(r.canEdit ? [["import", "upload", "Заменить из файла"]] : []),
-      ...(!cloud || a.canCreate ? [["duplicate", "copy", r.canEdit ? "Сделать копию" : "Копия себе"]] : []),
-      ...(manage ? [S.c.archived ? ["unarchive", "archive", "Вернуть из архива"] : ["archive", "archive", "Убрать в архив"]] : []),
-      ...(cloud && a.enforced && manage ? [["delete", "trash", "Удалить навсегда"]] : []),
-      ...(a.isAdmin ? [["accounts", "people", "Аккаунты и запреты"]] : []),
-      ...(cloud && a.enforced && !a.signedIn ? [["signin", "user", "Войти через Google"]] : [])
+    const groups = [
+      ["Игра", [
+        ["short-rest", "campfire", "Короткий отдых"],
+        ["long-rest", "moon", "Длинный отдых"],
+        ["dice", "d20", "Бросить кубы"],
+        ["roll-mode", "d20", "Режим броска: " + (S.rollMode === "adv" ? "преимущество" : S.rollMode === "dis" ? "помеха" : "обычный")],
+        ...(S.d.level < 20 && r.canEdit ? [["level-up", "star", "Повысить уровень"]] : [])
+      ]],
+      ["Найти", [
+        ["search-all", "search", "Поиск по листу"],
+        ["roll-log", "scroll", "Журнал бросков"],
+        ["rules-ref", "book", "Шпаргалка правил"],
+        ["switch-char", "people", "Другой персонаж"],
+        ...(canInstall() ? [["install", "phone", "Установить как приложение"]] : [])
+      ]],
+      ["Лист и файлы", [
+        ...(r.canEdit ? [["history", "history", "История изменений"]] : []),
+        ["backups", "history", "Резервные копии"],
+        ["share", "link", manage && cloud && a.enforced ? "Поделиться и доступ" : "Поделиться"],
+        ["print", "scroll", "Печать и PDF"],
+        ["export", "download", "Скачать файл персонажа"],
+        ...(r.canEdit ? [["import", "upload", "Заменить из файла"]] : []),
+        ...(!cloud || a.canCreate ? [["duplicate", "copy", r.canEdit ? "Сделать копию" : "Копия себе"]] : []),
+        ...(manage ? [S.c.archived ? ["unarchive", "archive", "Вернуть из архива"] : ["archive", "archive", "Убрать в архив"]] : []),
+        ...(cloud && a.enforced && manage ? [["delete", "trash", "Удалить навсегда"]] : [])
+      ]],
+      ["Аккаунт", [
+        ...(a.isAdmin ? [["accounts", "people", "Аккаунты и запреты"]] : []),
+        ...(cloud && a.enforced && !a.signedIn ? [["signin", "user", "Войти через Google"]] : [])
+      ]]
+    ].filter(g => g[1].length);
+    const switches = () => [
+      ["explain-toggle", "info", "Пояснения на экране", "Серые подсказки под панелями: что делает кнопка и откуда что берётся", explainOn()],
+      ["tips-toggle", "bell", "Подсказки в начале хода", "Напоминания о концентрации, эффектах и спасбросках от смерти", X.tipsOn()],
+      ["fx-sound", "bell", "Звуки бросков", "", fxSettings().sound],
+      ["fx-anim", "d20", "Анимация кубов", "", fxSettings().anim]
     ];
+    const switchRow = ([act, ic, label, sub, on]) => `<button class="menu-item menu-switch ${on ? "on" : ""}" data-sw="${act}" role="switch" aria-checked="${on}">${icon(ic)}<span>${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ""}</span><i class="sw"></i></button>`;
     const roles = { owner: "Ты владелец этого листа.", admin: "Ты владелец сайта и можешь править любой лист.", editor: "Тебя пригласили редактором этого листа.", viewer: "Ты смотришь чужой лист.", guest: "Ты не вошёл: лист только для просмотра.", banned: "Твой аккаунт запрещён.", orphan: "У листа нет владельца.", open: cloud ? "Пока правила базы не обновлены, править может любой, у кого есть ссылка." : "Облако недоступно: данные хранятся только в этом браузере." };
     const st = X.status() || {};
     const m = openModal({
       title: "Меню",
       cls: "small",
-      body: `<div class="menu-list">${items.map(([a, ic, l]) => `<button class="menu-item" data-m="${a}">${icon(ic)}<span>${l}</span></button>`).join("")}</div><p class="hint">${esc(roles[r.role] || "")}${st.error ? `<br>${esc(st.error)}` : ""}</p>`
+      body: `${groups.map(([title, list]) => `<div class="menu-group"><h4>${esc(title)}</h4><div class="menu-list">${list.map(([act, ic, l]) => `<button class="menu-item" data-m="${act}">${icon(ic)}<span>${esc(l)}</span></button>`).join("")}</div></div>`).join("")}<div class="menu-group"><h4>Настройки</h4><div class="menu-list menu-switches">${switches().map(switchRow).join("")}</div></div><p class="hint">${esc(roles[r.role] || "")}${st.error ? `<br>${esc(st.error)}` : ""}</p>`
     });
-    m.body.addEventListener("click", e => {
+    m.body.addEventListener("click", async e => {
+      const sw = e.target.closest("[data-sw]");
+      if (sw) {
+        await X.runAction(sw.dataset.sw);
+        const row = switches().find(x => x[0] === sw.dataset.sw);
+        sw.classList.toggle("on", !!row[4]);
+        sw.setAttribute("aria-checked", String(!!row[4]));
+        return;
+      }
       const b = e.target.closest("[data-m]");
       if (!b) return;
       m.close();
       X.runAction(b.dataset.m, $("[data-act=roll-mode]", root));
+    });
+  }
+
+  function spellAbilityDialog() {
+    const cur = S.c.spellAbility;
+    const m = openModal({
+      title: "Заклинательная характеристика",
+      cls: "small",
+      body: `<p class="hint">От неё считаются бонус атаки заклинанием и Сл спасброска. Колдун, бард, чародей и паладин: Харизма. Волшебник и изобретатель: Интеллект. Жрец, друид и следопыт: Мудрость. Мастер может разрешить другую.</p><div class="menu-list">${ABILITIES.map(x => [x.key, x.name]).map(([k, n]) => `<button class="menu-item ${k === cur ? "on" : ""}" data-ab="${k}">${k === cur ? icon("check") : icon("sparkle")}<span>${esc(n)}<small>Модификатор ${esc(fmt(mod(S.c.abilities[k])))}</small></span></button>`).join("")}</div>`
+    });
+    m.body.addEventListener("click", e => {
+      const b = e.target.closest("[data-ab]");
+      if (!b) return;
+      m.close();
+      X.mutate(c => { c.spellAbility = b.dataset.ab; });
     });
   }
 
@@ -388,5 +423,5 @@ export function installDialogs(X) {
     });
   }
 
-  Object.assign(X, { backupDialog, sceneDialog, coinDialog, searchAll, switchChar, shortRest, longRest, restSummary, historyDialog, rollLogDialog, importDialog, menu });
+  Object.assign(X, { backupDialog, sceneDialog, coinDialog, searchAll, switchChar, shortRest, longRest, restSummary, historyDialog, rollLogDialog, importDialog, menu, spellAbilityDialog });
 }

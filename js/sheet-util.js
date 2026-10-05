@@ -71,3 +71,21 @@ export function saveUiPrefs(ui) {
     localStorage.setItem(UI_PREFS, JSON.stringify({ invSort: ui.invSort, invEqFirst: ui.invEqFirst }));
   } catch {}
 }
+
+export const EXPLAIN_KEY = "dnd.explain";
+
+export function explainOn() {
+  try {
+    return localStorage.getItem(EXPLAIN_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+export function setExplain(on) {
+  try {
+    localStorage.setItem(EXPLAIN_KEY, on ? "1" : "0");
+  } catch {}
+  if (typeof document !== "undefined" && document.body) document.body.classList.toggle("no-explain", !on);
+  return on;
+}
