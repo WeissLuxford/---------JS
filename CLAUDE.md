@@ -35,9 +35,9 @@
 ## Как запустить
 
 ```
-python3 -m http.server 8765
+docker compose up -d
 ```
-Открыть http://localhost:8765/. Без доступа к Firebase сайт сам уходит в локальный режим (данные в localStorage).
+Открыть http://localhost:8765/ (nginx из `docker-compose.yml`, конфиг `tools/nginx.conf`, без кэша; контейнер `dnd-sheet-web` живёт между сессиями, остановить: `docker compose down`). На машине владельца сервер поднимать только так, а не через `python -m http.server`. Где Docker нет (облачная среда), запасной вариант: `python3 -m http.server 8765`. Без доступа к Firebase сайт сам уходит в локальный режим (данные в localStorage).
 
 Тесты: `node --test tests/unit/*.test.mjs` (без зависимостей), браузерные сценарии: `node tests/e2e/run.mjs` при запущенном сервере. Правила доступа: см. `docs/testing.md`.
 

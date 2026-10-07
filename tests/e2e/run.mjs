@@ -11,7 +11,7 @@ try {
   const res = await fetch("http://localhost:8765/");
   if (!res.ok) throw new Error(String(res.status));
 } catch {
-  console.error("Сначала запусти сервер: python3 -m http.server 8765");
+  console.error("Сначала запусти сервер: docker compose up -d (или python3 -m http.server 8765)");
   process.exit(2);
 }
 

@@ -472,7 +472,7 @@ export function addDice(...exprs) {
   return diceToString({ dice, flat });
 }
 
-export function rollDice(expr) {
+export function rollDice(expr, take) {
   const p = parseDice(expr);
   if (!p) return null;
   const rolls = [];
@@ -480,7 +480,8 @@ export function rollDice(expr) {
   for (const d of p.dice) {
     const sign = d.n < 0 ? -1 : 1;
     for (let i = 0; i < Math.abs(d.n); i++) {
-      const r = 1 + Math.floor(Math.random() * d.f);
+      const v = take ? take(d.f) : undefined;
+      const r = Number.isInteger(v) && v >= 1 && v <= d.f ? v : 1 + Math.floor(Math.random() * d.f);
       rolls.push({ f: d.f, r, sign });
       total += sign * r;
     }

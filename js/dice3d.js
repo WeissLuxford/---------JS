@@ -1,13 +1,16 @@
-import { fxSettings, reducedMotion, playSound } from "./ui.js";
+import { fxSettings, reducedMotion, playSound, setDiceThrower } from "./ui.js";
 
 const KEY = "dnd.dice3d";
-const COLOR = "#5a1e1e";
+const FALLBACK = "#c9a35b";
+let color = FALLBACK;
 let box = null;
 let loading = null;
 let failed = false;
 let host = null;
+let label = null;
 let hideTimer = null;
 let busy = false;
+let lastRolls = [];
 
 export function dice3dOn() {
   try {
@@ -25,6 +28,13 @@ export function setDice3d(on) {
   return !!on;
 }
 
+export function setDiceColor(hex) {
+  const next = typeof hex === "string" && /^#[0-9a-f]{6}$/i.test(hex) ? hex : FALLBACK;
+  if (next === color) return;
+  color = next;
+  if (box) box.updateConfig({ themeColor: color }).catch(() => {});
+}
+
 function enabled() {
   return dice3dOn() && !failed && fxSettings().anim && !reducedMotion();
 }
@@ -35,9 +45,17 @@ function ensureHost() {
     host = document.createElement("div");
     host.id = "dice3d";
     host.setAttribute("aria-hidden", "true");
+    label = document.createElement("div");
+    label.className = "d3-total";
+    host.appendChild(label);
     document.body.appendChild(host);
   }
+  label = host.querySelector(".d3-total");
   return host;
+}
+
+export function dice3dBusy() {
+  return busy;
 }
 
 export function dice3dReady() {
@@ -58,7 +76,7 @@ export function preloadDice3d() {
         assetPath: new URL("../vendor/dice-box/dist/assets/", import.meta.url).pathname,
         origin: location.origin,
         theme: "default",
-        themeColor: COLOR,
+        themeColor: color,
         scale: 7,
         enableShadows: true,
         shadowTransparency: 0.6,
@@ -79,32 +97,48 @@ export function preloadDice3d() {
 }
 
 function hide() {
+  clearTimeout(hideTimer);
+  document.removeEventListener("pointerdown", hide, true);
   if (!host) return;
-  host.classList.remove("on");
+  host.classList.remove("on", "landed", "crit", "fumble");
   setTimeout(() => {
     if (box && host && !host.classList.contains("on")) box.clear();
   }, 450);
 }
 
-export async function throw3d(count, faces = 20) {
-  if (!enabled() || busy) return null;
-  if (!box) {
-    preloadDice3d();
-    return null;
-  }
+async function throwGroups(groups) {
+  if (!enabled() || busy || !box) return null;
   busy = true;
+  hide();
   clearTimeout(hideTimer);
-  ensureHost().classList.add("on");
+  ensureHost();
+  label.textContent = "";
+  host.classList.add("on");
+  const count = groups.reduce((a, g) => a + g.n, 0);
   playSound("roll", { dice: count });
   try {
-    const res = await Promise.race([box.roll(`${count}d${faces}`), new Promise(ok => setTimeout(() => ok(null), 6000))]);
-    const values = Array.isArray(res) ? res.map(x => Number(x.value)).filter(v => Number.isInteger(v) && v >= 1 && v <= faces) : [];
-    if (values.length !== count) {
+    const res = await Promise.race([box.roll(groups.map(g => `${g.n}d${g.f}`)), new Promise(ok => setTimeout(() => ok(null), 7000))]);
+    if (!Array.isArray(res) || res.length !== count) {
       hide();
       return null;
     }
-    hideTimer = setTimeout(hide, 1500);
-    return values;
+    const ids = [...new Set(res.map(x => x.groupId))].sort((a, b) => a - b);
+    const out = groups.map(() => []);
+    lastRolls = [];
+    for (const x of res) {
+      const k = ids.indexOf(x.groupId);
+      const v = Number(x.value);
+      if (k < 0 || !Number.isInteger(v) || v < 1 || v > groups[k].f) {
+        hide();
+        return null;
+      }
+      out[k].push(v);
+      lastRolls.push(x);
+    }
+    host.classList.add("landed");
+    hideTimer = setTimeout(hide, 2600);
+    setTimeout(() => document.addEventListener("pointerdown", hide, true), 0);
+    return out;
   } catch {
     hide();
     return null;
@@ -112,3 +146,30 @@ export async function throw3d(count, faces = 20) {
     busy = false;
   }
 }
+
+export async function throw3d(count, faces = 20) {
+  const out = await throwGroups([{ n: count, f: faces }]);
+  return out ? out[0] : null;
+}
+
+export function landDice({ text = "", kind = "", discard = -1 } = {}) {
+  if (!host || !host.classList.contains("on")) return;
+  label.textContent = text;
+  host.classList.toggle("crit", kind === "crit");
+  host.classList.toggle("fumble", kind === "fumble");
+  const drop = lastRolls[discard];
+  if (drop && box) {
+    setTimeout(() => {
+      try {
+        box.remove({ groupId: drop.groupId, rollId: drop.rollId });
+      } catch {}
+    }, 350);
+  }
+}
+
+setDiceThrower({
+  ready: () => dice3dReady(),
+  busy: () => busy,
+  groups: throwGroups,
+  land: landDice
+});

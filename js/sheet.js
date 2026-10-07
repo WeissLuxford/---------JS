@@ -1,4 +1,4 @@
-import { compute, normalize, fmt, usesInfo, addDice, swapType, NOTE_KEYS, reorderSubset, presetEffect, xpInfo } from "./rules.js";
+import { compute, normalize, fmt, usesInfo, addDice, swapType, NOTE_KEYS, reorderSubset, presetEffect, xpInfo, ACCENTS } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, warmSounds, reducedMotion, getPath, setPath, download, timeAgo } from "./ui.js";
 import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources } from "./tabs.js";
@@ -23,7 +23,7 @@ import { keepAwake, setWake, wakeOn, wakeSupported } from "./wake.js";
 import { sheetIssues } from "./checks.js";
 import { loadTemplates, templateCopy } from "./templates.js";
 import { shakeOn, setShake, watchShake, shakeSupported } from "./shake.js";
-import { dice3dOn, setDice3d, preloadDice3d } from "./dice3d.js";
+import { dice3dOn, setDice3d, preloadDice3d, setDiceColor } from "./dice3d.js";
 
 export function mountSheet(root, id, initialTab, navigate, opts = {}) {
   const S = {
@@ -296,6 +296,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     const c = S.c;
     document.title = `${c.name} · Лист персонажа`;
     applyAccent(c.accent);
+    setDiceColor((ACCENTS[c.accent] || ACCENTS.gold).c[0]);
     document.body.classList.toggle("no-explain", !explainOn());
     setAmbient(c.scene);
     root.innerHTML = `

@@ -309,6 +309,23 @@ function reduced() {
   return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+function critBanner(kind) {
+  if (!fxSettings().anim) return;
+  let el = document.getElementById("crit-banner");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "crit-banner";
+    el.setAttribute("aria-hidden", "true");
+    document.body.appendChild(el);
+  }
+  el.className = "";
+  el.innerHTML = kind === "crit" ? `<b>Критический успех</b><span>Естественная 20</span>` : `<b>Критический провал</b><span>Естественная 1</span>`;
+  void el.offsetWidth;
+  el.className = `in ${kind}`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => (el.className = ""), 1900);
+}
+
 function rollFx(el, { finals = [], crit = false, fumble = false, ms = 620, dice = 1, landed = false } = {}) {
   const fx = fxSettings();
   const totals = Array.from(el.querySelectorAll("[data-final]"));
@@ -318,9 +335,11 @@ function rollFx(el, { finals = [], crit = false, fumble = false, ms = 620, dice 
     if (crit) {
       el.classList.add("crit-fx");
       playSound("crit");
+      critBanner("crit");
     } else if (fumble) {
       el.classList.add("fumble-fx");
       playSound("fumble");
+      critBanner("fumble");
     }
   };
   if (landed) return land();
@@ -378,14 +397,65 @@ export function showBeams(label, modifier, results, mode, { why = [], extra = ""
   rollFx(t.el, { crit: results.some(r => r.nat20), fumble: results.every(r => r.nat1), dice: results.length, landed });
 }
 
-export function showDamage(label, lines, crit = false, { after } = {}) {
+let thrower = null;
+
+export function setDiceThrower(t) {
+  thrower = t;
+}
+
+export function diceBusy() {
+  return !!(thrower && thrower.busy());
+}
+
+const FACES_3D = new Set([4, 6, 8, 10, 12, 20, 100]);
+
+function diceGroups(exprs) {
+  const groups = [];
+  exprs.forEach((expr, i) => {
+    const p = parseDice(expr);
+    if (p) p.dice.forEach(d => groups.push({ i, n: d.n, f: d.f }));
+  });
+  const total = groups.reduce((a, g) => a + g.n, 0);
+  if (!total || total > 30 || groups.some(g => g.n < 1 || !FACES_3D.has(g.f))) return null;
+  return groups;
+}
+
+function takers(groups, vals, count) {
+  const q = Array.from({ length: count }, () => ({}));
+  groups.forEach((g, k) => {
+    const box = q[g.i];
+    (box[g.f] = box[g.f] || []).push(...(vals[k] || []));
+  });
+  return q.map(box => f => (box[f] && box[f].length ? box[f].shift() : undefined));
+}
+
+export function throwExprs(exprs) {
+  if (!thrower || !thrower.ready()) return null;
+  const groups = diceGroups(exprs);
+  if (!groups) return null;
+  return thrower.groups(groups).then(vals => (vals ? takers(groups, vals, exprs.length) : null));
+}
+
+export function landDice(info) {
+  if (thrower) thrower.land(info);
+}
+
+export function showDamage(label, lines, crit = false, opts = {}) {
+  if (diceBusy()) return null;
+  const exprs = lines.map(line => (crit || line.crit ? critExpr(line.dice) : line.dice));
+  const pending = throwExprs(exprs);
+  if (pending) return pending.then(take => renderDamage(label, lines, crit, exprs, take, opts));
+  return renderDamage(label, lines, crit, exprs, null, opts);
+}
+
+function renderDamage(label, lines, crit, exprs, take, { after } = {}) {
   const parts = [];
   const byType = {};
   let total = 0;
   let count = 0;
-  for (const line of lines) {
-    const expr = crit || line.crit ? critExpr(line.dice) : line.dice;
-    const r = rollDice(expr);
+  for (const [i, line] of lines.entries()) {
+    const expr = exprs[i];
+    const r = rollDice(expr, take ? take[i] : undefined);
     if (!r) continue;
     total += r.total;
     count += r.rolls.length;
@@ -402,7 +472,8 @@ export function showDamage(label, lines, crit = false, { after } = {}) {
     `<div class="roll dmg">${die(maxFace(lines[0].dice), firstType.color, "")}<div class="r-body"><div class="r-label">${esc(label)}${crit ? " · крит" : ""}</div>${parts.join("")}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div><div class="r-total" data-final="${total}">${total}</div></div>`,
     { timeout: extra ? 9000 : 5500 }
   );
-  rollFx(t.el, { ms: 420, dice: count });
+  rollFx(t.el, { ms: 420, dice: count, landed: !!take });
+  if (take) landDice({ text: String(total) });
   return { total, byType };
 }
 
@@ -441,7 +512,14 @@ export function openDiceRoller() {
   const cur = () => parseDice(input.value) || { dice: [], flat: 0 };
   let timer = null;
   const roll = expr => {
-    const r = rollDice(expr);
+    if (diceBusy()) return;
+    if (!parseDice(expr)) return toast("Не понял бросок. Пример: 2d6+3", { kind: "bad" });
+    const pending = throwExprs([expr]);
+    if (pending) return pending.then(take => rollNow(expr, take ? take[0] : undefined));
+    rollNow(expr);
+  };
+  const rollNow = (expr, take) => {
+    const r = rollDice(expr, take);
     if (!r) return toast("Не понял бросок. Пример: 2d6+3", { kind: "bad" });
     clearTimeout(timer);
     logRoll({ label: "Бросок " + expr, text: String(r.total) });
@@ -458,6 +536,10 @@ export function openDiceRoller() {
         playSound("fumble");
       }
     };
+    if (take) {
+      landDice({ text: String(r.total), kind: one === 20 ? "crit" : one === 1 ? "fumble" : "" });
+      return land();
+    }
     playSound("roll", { dice: r.rolls.length });
     if (!fxSettings().anim || reduced()) return land();
     tray.classList.add("rolling");

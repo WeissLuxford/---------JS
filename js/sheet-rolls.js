@@ -4,7 +4,7 @@ import { esc, $, toast, promptNumber, showD20, showBeams, showDamage } from "./u
 import { turnBar } from "./tabs.js";
 import { findEntity, spellAtk } from "./entities.js";
 import { abName } from "./sheet-util.js";
-import { throw3d, dice3dReady } from "./dice3d.js";
+import { throw3d, dice3dReady, dice3dBusy, landDice } from "./dice3d.js";
 export function installRolls(X) {
   const { S, root, id } = X;
 
@@ -42,14 +42,18 @@ export function installRolls(X) {
 
   const twoDice = mode => mode === "adv" || mode === "dis";
   const roll3d = n => (dice3dReady() ? throw3d(n) : null);
+  const dropped = (r, mode) => (r.b == null ? -1 : mode === "adv" ? (r.a >= r.b ? 1 : 0) : r.a <= r.b ? 1 : 0);
+  const landD20 = (r, mode, text = String(r.total)) => landDice({ text, kind: r.nat20 ? "crit" : r.nat1 ? "fumble" : "", discard: dropped(r, mode) });
 
   async function d20(label, modifier, kind, ability, extra) {
+    if (dice3dBusy()) return null;
     const st = rollSetup(kind, ability, X.takeMode());
     const pending = roll3d(twoDice(st.mode) ? 2 : 1);
     const preset = pending ? await pending : null;
     if (S.disposed) return null;
     const r = rollD20(modifier, st.mode, preset || []);
     const parts = addBonus(r, st);
+    if (preset) landD20(r, st.mode, st.fail ? "✕" : String(r.total));
     showD20(label, modifier, r, st.mode, { why: [...bonusLines(parts), ...st.why], fail: st.fail, extra: typeof extra === "function" ? extra(r) : extra || "", landed: !!preset });
     consumeOnce(st);
     return r;
@@ -118,8 +122,11 @@ export function installRolls(X) {
     const res = showDamage(label, lines, crit, {
       after: bt => (bt.healing && !X.readOnly() ? `<button class="btn sm heal" data-heal-self="${bt.healing}">${icon("heart")}Вылечить себя на ${bt.healing}</button>` : "")
     });
-    if (res && res.byType.temp) giveTemp(res.byType.temp);
-    return res;
+    const done = r => {
+      if (r && r.byType.temp && !S.disposed) giveTemp(r.byType.temp);
+      return r;
+    };
+    return res && typeof res.then === "function" ? res.then(done) : done(res);
   }
 
   function attackProfile(kind, id) {
@@ -174,6 +181,7 @@ export function installRolls(X) {
   }
 
   async function doRoll(spec) {
+    if (dice3dBusy()) return;
     const { c, d } = S;
     if (!c) return;
     const [k, a] = spec.split(":");
@@ -224,6 +232,7 @@ export function installRolls(X) {
       if (S.disposed || !S.c) return;
       const r = rollD20(0, st.mode, preset || []);
       const parts = addBonus(r, st);
+      if (preset) landD20(r, st.mode);
       showD20("Спасбросок от смерти", 0, r, st.mode, { why: [...bonusLines(parts), ...st.why], landed: !!preset });
       consumeOnce(st);
       let outcome = "";

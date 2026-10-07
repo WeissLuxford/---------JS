@@ -54,7 +54,7 @@ node tests/rules/rules.test.mjs
 Сценарии лежат в `tests/e2e/` (31 файл, около 450 проверок). Запуск всех:
 
 ```
-python3 -m http.server 8765 &
+docker compose up -d              # или python3 -m http.server 8765 & там, где нет Docker
 node tests/e2e/run.mjs            # все
 node tests/e2e/run.mjs notes2 creator   # выборочно
 ```
@@ -66,7 +66,7 @@ Playwright (`playwright-core`) с Chromium. Пример сценария: со�
 
 Публиковать только после полностью зелёного прогона: `node --test tests/unit/*.test.mjs` и `node tests/e2e/run.mjs` с итогом «сценариев с ошибками: 0». Один раз сценарий упал случайно и прошёл при повторе; если такое повторится, выяснить какой, а не публиковать «на авось».
 
-Сервер для e2e: `curl -s -o /dev/null localhost:8765 || (python3 -m http.server 8765 &)`. Не останавливать его через `pkill -f "http.server 8765"`: шаблон совпадает с самой командой и убивает оболочку.
+Сервер для e2e: `curl -s -o /dev/null localhost:8765 || docker compose up -d` (без Docker: `python3 -m http.server 8765 &`). Не останавливать его через `pkill -f "http.server 8765"`: шаблон совпадает с самой командой и убивает оболочку.
 
 Иконки: посмотреть все разом можно, отрисовав `icon(name)` для каждого ключа из `js/icons.js` на тёмном фоне в Playwright (контакт-лист, 12 в ряд, подписи ключами); новые варианты сравнивать там же на 56 и 20 пикселях.
 
