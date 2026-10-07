@@ -4,6 +4,7 @@ import { esc, $, toast, promptNumber, showD20, showBeams, showDamage } from "./u
 import { turnBar } from "./tabs.js";
 import { findEntity, spellAtk } from "./entities.js";
 import { abName } from "./sheet-util.js";
+import { throw3d, dice3dReady } from "./dice3d.js";
 export function installRolls(X) {
   const { S, root, id } = X;
 
@@ -39,11 +40,17 @@ export function installRolls(X) {
     toast(`${icon("sparkle")} Потрачено: ${esc([...new Set(names)].join(", "))}`, { timeout: 2200 });
   }
 
-  function d20(label, modifier, kind, ability, extra) {
+  const twoDice = mode => mode === "adv" || mode === "dis";
+  const roll3d = n => (dice3dReady() ? throw3d(n) : null);
+
+  async function d20(label, modifier, kind, ability, extra) {
     const st = rollSetup(kind, ability, X.takeMode());
-    const r = rollD20(modifier, st.mode);
+    const pending = roll3d(twoDice(st.mode) ? 2 : 1);
+    const preset = pending ? await pending : null;
+    if (S.disposed) return null;
+    const r = rollD20(modifier, st.mode, preset || []);
     const parts = addBonus(r, st);
-    showD20(label, modifier, r, st.mode, { why: [...bonusLines(parts), ...st.why], fail: st.fail, extra: typeof extra === "function" ? extra(r) : extra || "" });
+    showD20(label, modifier, r, st.mode, { why: [...bonusLines(parts), ...st.why], fail: st.fail, extra: typeof extra === "function" ? extra(r) : extra || "", landed: !!preset });
     consumeOnce(st);
     return r;
   }
@@ -166,7 +173,7 @@ export function installRolls(X) {
     rollDamage(`${p.name}: урон${n > 1 ? ` (${n} ${n < 5 ? "луча" : "лучей"})` : ""}`, profileLines(p, n, crits), false);
   }
 
-  function doRoll(spec) {
+  async function doRoll(spec) {
     const { c, d } = S;
     if (!c) return;
     const [k, a] = spec.split(":");
@@ -188,10 +195,14 @@ export function installRolls(X) {
       if (kind === "item" || kind === "attack") spendAmmo(findEntity(c, kind, a), p.beams);
       if (p.beams > 1) {
         const st = rollSetup("attack", "", X.takeMode());
-        const rs = Array.from({ length: p.beams }, () => rollD20(p.hit, st.mode));
+        const per = twoDice(st.mode) ? 2 : 1;
+        const pending = roll3d(p.beams * per);
+        const preset = pending ? await pending : null;
+        if (S.disposed) return;
+        const rs = Array.from({ length: p.beams }, (_, i) => rollD20(p.hit, st.mode, preset ? preset.slice(i * per, i * per + per) : []));
         const parts = rs.flatMap((r, i) => addBonus(r, st, i > 0));
         const crits = rs.filter(r => r.nat20).length;
-        showBeams(`${p.name}: ${p.beams} ${p.beams < 5 ? "луча" : "лучей"}`, p.hit, rs, st.mode, { why: [...bonusLines(parts), ...st.why], extra: dmgButtons(kind, a, p.beams, crits, rs.every(r => r.nat1)) });
+        showBeams(`${p.name}: ${p.beams} ${p.beams < 5 ? "луча" : "лучей"}`, p.hit, rs, st.mode, { why: [...bonusLines(parts), ...st.why], extra: dmgButtons(kind, a, p.beams, crits, rs.every(r => r.nat1)), landed: !!preset });
         consumeOnce(st);
         return;
       }
@@ -208,9 +219,12 @@ export function installRolls(X) {
       if (c.hp.deathFail >= 3) return toast("Персонаж погиб: спасброски больше не нужны", { kind: "bad" });
       if (c.hp.stable || c.hp.deathSuccess >= 3) return toast("Персонаж стабилизирован", { kind: "good" });
       const st = rollSetup("death", "", X.takeMode());
-      const r = rollD20(0, st.mode);
+      const pending = roll3d(twoDice(st.mode) ? 2 : 1);
+      const preset = pending ? await pending : null;
+      if (S.disposed || !S.c) return;
+      const r = rollD20(0, st.mode, preset || []);
       const parts = addBonus(r, st);
-      showD20("Спасбросок от смерти", 0, r, st.mode, { why: [...bonusLines(parts), ...st.why] });
+      showD20("Спасбросок от смерти", 0, r, st.mode, { why: [...bonusLines(parts), ...st.why], landed: !!preset });
       consumeOnce(st);
       let outcome = "";
       X.mutate(ch => {

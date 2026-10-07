@@ -13,6 +13,7 @@ import { banAccount } from "./admin.js";
 import { clone, explainOn } from "./sheet-util.js";
 import { wakeOn, wakeSupported } from "./wake.js";
 import { shakeOn, shakeSupported } from "./shake.js";
+import { dice3dOn } from "./dice3d.js";
 import { sheetIssues } from "./checks.js";
 import { listBackups, saveBackup, readBackup, backupFile, backupName } from "./backup.js";
 export function installDialogs(X) {
@@ -328,7 +329,8 @@ export function installDialogs(X) {
       ["explain-toggle", "info", "Пояснения на экране", "Серые подсказки под панелями: что делает кнопка и откуда что берётся", explainOn()],
       ["tips-toggle", "bell", "Подсказки в начале хода", "Напоминания о концентрации, эффектах и спасбросках от смерти", X.tipsOn()],
       ["fx-sound", "bell", "Звуки", "Кубики, монеты, снаряжение, удары и лечение", fxSettings().sound],
-      ["fx-anim", "d20", "Анимация кубов", "", fxSettings().anim]
+      ["fx-anim", "d20", "Анимация кубов", "", fxSettings().anim],
+      ["dice3d-toggle", "d20", "3D-кубики", "d20 катятся по экрану, при преимуществе и помехе два кубика", dice3dOn()]
     ];
     const switchRow = ([act, ic, label, sub, on]) => `<button class="menu-item menu-switch ${on ? "on" : ""}" data-sw="${act}" role="switch" aria-checked="${on}">${icon(ic)}<span>${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ""}</span><i class="sw"></i></button>`;
     const roles = { owner: "Ты владелец этого листа.", admin: "Ты владелец сайта и можешь править любой лист.", editor: "Тебя пригласили редактором этого листа.", viewer: "Ты смотришь чужой лист.", guest: "Ты не вошёл: лист только для просмотра.", banned: "Твой аккаунт запрещён.", orphan: "У листа нет владельца.", open: cloud ? "Пока правила базы не обновлены, править может любой, у кого есть ссылка." : "Облако недоступно: данные хранятся только в этом браузере." };

@@ -23,6 +23,7 @@ import { keepAwake, setWake, wakeOn, wakeSupported } from "./wake.js";
 import { sheetIssues } from "./checks.js";
 import { loadTemplates, templateCopy } from "./templates.js";
 import { shakeOn, setShake, watchShake, shakeSupported } from "./shake.js";
+import { dice3dOn, setDice3d, preloadDice3d } from "./dice3d.js";
 
 export function mountSheet(root, id, initialTab, navigate, opts = {}) {
   const S = {
@@ -733,6 +734,10 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         const v = setFx("anim", !fxSettings().anim);
         return toast(v.anim ? "Анимация кубов включена" : "Анимация кубов выключена", { timeout: 1800 });
       }
+      case "dice3d-toggle": {
+        const on = setDice3d(!dice3dOn());
+        return toast(on ? "3D-кубики включены: первый бросок загрузит их" : "3D-кубики выключены", { timeout: 2200 });
+      }
       case "history": return X.historyDialog();
       case "accounts": return openAccounts();
       case "share": return openShare({ ...c, id });
@@ -1202,6 +1207,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     }, 380);
   };
   document.addEventListener("pointerdown", warmSounds, { once: true });
+  const dicePreload = setTimeout(() => preloadDice3d(), 1500);
   const armShake = () => {
     offShake();
     offShake = shakeOn() ? watchShake(onShake) : () => {};
@@ -1211,6 +1217,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
   return () => {
     keepAwake(false);
     closeStatus();
+    clearTimeout(dicePreload);
     offShake();
     heartbeat(false);
     clearTimeout(S.fxTimer);

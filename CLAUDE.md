@@ -29,7 +29,7 @@
 | `assets/icons/dnd5e-logos/` | 61 эмблема в стиле официального D&D: `class`, `race`, `faction`, `adventurers-league`, `ravnica-guild`, `logo`. Стиль другой: viewBox 100, тонкие детализированные эмблемы, цвета зашиты в `<style>` (часть цветные). Автор и лицензия неизвестны, на сайт без выяснения не ставить |
 | `assets/templates/` | арт, доска и портрет готовых персонажей (`<key>-art/board/portrait.webp`), картинки владельца; портрет вшивает `tools/build-templates.mjs` |
 | `assets/audio/` | звуки Kenney (CC0): полные паки `kenney-casino-audio/`, `kenney-rpg-audio/`; на сайте играют только копии из `sfx/` (OGG + M4A, список `SAMPLES` в `js/ui.js`, новый звук: положить оба формата через ffmpeg) |
-| `vendor/` | сырьё, на сайт не подключено: `srd/` (PDF SRD 5.2.1 и 5.1, CC BY 4.0), `5e-database/` (JSON SRD 2014 и 2024: монстры, магические предметы, черты), `dice-box/` (3D-кубики, MIT, сборка без зависимостей). Источник и лицензия в `source.json` каждой папки |
+| `vendor/` | сторонние файлы: `srd/` (PDF SRD 5.2.1 и 5.1, CC BY 4.0), `5e-database/` (JSON SRD 2014 и 2024: монстры, магические предметы, черты), `dice-box/` (3D-кубики, MIT, подключены через `js/dice3d.js`). Источник и лицензия в `source.json` каждой папки |
 | `tests/unit/`, `tests/rules/` | юнит-тесты и тесты правил доступа |
 
 ## Как запустить

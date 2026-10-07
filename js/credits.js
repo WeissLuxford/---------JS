@@ -3,7 +3,8 @@ export const LICENSES = {
   "CC BY 3.0": "https://creativecommons.org/licenses/by/3.0/",
   "CC BY-SA 4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
   "CC0": "https://creativecommons.org/publicdomain/zero/1.0/",
-  "OFL 1.1": "https://openfontlicense.org/"
+  "OFL 1.1": "https://openfontlicense.org/",
+  "MIT": "https://opensource.org/license/mit"
 };
 
 export const CREDITS = [
@@ -23,6 +24,12 @@ export const CREDITS = [
     group: "Звуки",
     items: [
       { title: "Casino Audio и RPG Audio", url: "https://kenney.nl/assets", author: "Kenney", authorUrl: "https://kenney.nl", license: "CC0", note: "Стук и тряска кубиков, монеты, снаряжение." }
+    ]
+  },
+  {
+    group: "Библиотеки",
+    items: [
+      { title: "Dice Box", url: "https://fantasticdice.games", author: "Frank Ali, 3D Dice", authorUrl: "https://github.com/3d-dice", license: "MIT", note: "3D-кубики, которые катятся по экрану." }
     ]
   },
   {

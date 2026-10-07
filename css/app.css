@@ -1914,6 +1914,9 @@ body.hp-dying::before { animation: hp-pulse 1.5s ease-in-out infinite; }
 .ch-portrait.tpl-ic svg { width: 46px; height: 46px; filter: drop-shadow(0 0 8px rgba(233, 199, 122, .45)); }
 .tpl-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .tpl-hint { margin: -4px 0 10px; }
+#dice3d { position: fixed; inset: 0; z-index: 190; pointer-events: none; opacity: 0; transition: opacity .35s ease; background: radial-gradient(ellipse at 50% 55%, rgba(10, 7, 5, .1), rgba(10, 7, 5, .55)); }
+#dice3d.on { opacity: 1; transition-duration: .12s; }
+#dice3d canvas { width: 100% !important; height: 100% !important; display: block; }
 .tpl-hero.own { position: relative; }
 .tpl-hero.own .tpl-art { cursor: pointer; text-decoration: none; }
 .own-ph { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(circle at 50% 35%, rgba(201, 163, 91, .18), #140f0b 70%); }

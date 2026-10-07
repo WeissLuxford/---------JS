@@ -488,9 +488,10 @@ export function rollDice(expr) {
   return { total, rolls, flat: p.flat };
 }
 
-export function rollD20(modifier, mode) {
-  const a = 1 + Math.floor(Math.random() * 20);
-  const b = 1 + Math.floor(Math.random() * 20);
+export function rollD20(modifier, mode, preset = []) {
+  const face = v => (Number.isInteger(v) && v >= 1 && v <= 20 ? v : 1 + Math.floor(Math.random() * 20));
+  const a = face(preset[0]);
+  const b = face(preset[1]);
   let pick = a;
   if (mode === "adv") pick = Math.max(a, b);
   if (mode === "dis") pick = Math.min(a, b);

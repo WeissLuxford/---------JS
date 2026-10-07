@@ -309,7 +309,7 @@ function reduced() {
   return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function rollFx(el, { finals = [], crit = false, fumble = false, ms = 620, dice = 1 } = {}) {
+function rollFx(el, { finals = [], crit = false, fumble = false, ms = 620, dice = 1, landed = false } = {}) {
   const fx = fxSettings();
   const totals = Array.from(el.querySelectorAll("[data-final]"));
   const land = () => {
@@ -323,6 +323,7 @@ function rollFx(el, { finals = [], crit = false, fumble = false, ms = 620, dice 
       playSound("fumble");
     }
   };
+  if (landed) return land();
   playSound("roll", { dice });
   if (!fx.anim || reduced() || !totals.length) return land();
   el.classList.add("rolling");
@@ -351,7 +352,7 @@ function whyHtml(why, fail) {
   return `${fail ? `<div class="r-fail">Автоматический провал: ${esc(fail)}</div>` : ""}${(why || []).map(w => `<div class="r-why">${esc(w)}</div>`).join("")}`;
 }
 
-export function showD20(label, modifier, result, mode, { why = [], fail = "", extra = "" } = {}) {
+export function showD20(label, modifier, result, mode, { why = [], fail = "", extra = "", landed = false } = {}) {
   const cls = result.nat20 ? "crit" : result.nat1 ? "fumble" : "";
   const both = result.b != null ? `<span class="r-both">${result.a} / ${result.b} ${mode === "adv" ? "преим." : "помеха"}</span>` : "";
   const note = result.nat20 ? "Естественная 20!" : result.nat1 ? "Естественная 1" : "";
@@ -360,10 +361,10 @@ export function showD20(label, modifier, result, mode, { why = [], fail = "", ex
     `<div class="roll ${cls} ${fail ? "failed" : ""}">${die(20, result.nat20 ? "#f4d66d" : result.nat1 ? "#e5533d" : "#cbbfa8", result.pick)}<div class="r-body"><div class="r-label">${esc(label)}</div><div class="r-calc">${result.pick} ${fmt(modifier).replace(/^([+−])/, "$1 ")} ${both}</div>${note ? `<div class="r-note">${note}</div>` : ""}${whyHtml(why, fail)}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div><div class="r-total" ${fail ? "" : `data-final="${result.total}"`}>${fail ? "✕" : result.total}</div></div>`,
     { timeout: extra ? 9000 : why.length || fail ? 6500 : 4500 }
   );
-  rollFx(t.el, { crit: result.nat20, fumble: result.nat1, dice: result.b != null ? 2 : 1 });
+  rollFx(t.el, { crit: result.nat20, fumble: result.nat1, dice: result.b != null ? 2 : 1, landed });
 }
 
-export function showBeams(label, modifier, results, mode, { why = [], extra = "" } = {}) {
+export function showBeams(label, modifier, results, mode, { why = [], extra = "", landed = false } = {}) {
   const rows = results.map((r, i) => {
     const both = r.b != null ? `<span class="r-both">${r.a} / ${r.b}</span>` : "";
     return `<div class="r-beam ${r.nat20 ? "crit" : r.nat1 ? "fumble" : ""}"><span>Луч ${i + 1}</span><span class="r-calc">${r.pick} ${fmt(modifier).replace(/^([+−])/, "$1 ")} ${both}</span><b data-final="${r.total}">${r.total}</b>${r.nat20 ? `<em>крит</em>` : r.nat1 ? `<em>промах</em>` : ""}</div>`;
@@ -374,7 +375,7 @@ export function showBeams(label, modifier, results, mode, { why = [], extra = ""
     `<div class="roll beams">${die(20, top, results.length + "×")}<div class="r-body"><div class="r-label">${esc(label)}${mode !== "normal" ? ` · ${mode === "adv" ? "преимущество" : "помеха"}` : ""}</div>${rows}${whyHtml(why, "")}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div></div>`,
     { timeout: 12000 }
   );
-  rollFx(t.el, { crit: results.some(r => r.nat20), fumble: results.every(r => r.nat1), dice: results.length });
+  rollFx(t.el, { crit: results.some(r => r.nat20), fumble: results.every(r => r.nat1), dice: results.length, landed });
 }
 
 export function showDamage(label, lines, crit = false, { after } = {}) {
