@@ -1,4 +1,4 @@
-const VERSION = "v34";
+const VERSION = "v36";
 const SHELL = "dnd-shell-" + VERSION;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [

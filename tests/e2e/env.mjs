@@ -9,6 +9,7 @@ const { chromium: real } = await import(core);
 const quietDice = () => {
   try {
     if (localStorage.getItem("dnd.dice3d") === null) localStorage.setItem("dnd.dice3d", "0");
+    if (localStorage.getItem("dnd.rollcard") === null) localStorage.setItem("dnd.rollcard", "0");
   } catch {}
 };
 export const chromium = {

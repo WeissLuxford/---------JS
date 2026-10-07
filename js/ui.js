@@ -309,7 +309,87 @@ function reduced() {
   return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function critBanner(kind) {
+const RC_KEY = "dnd.rollcard";
+const DAMAGE_ROLL = /^(dmg|idmg|sdmg|crit|icrit):/;
+
+export function rollCardOn() {
+  try {
+    return localStorage.getItem(RC_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+export function setRollCard(on) {
+  try {
+    localStorage.setItem(RC_KEY, on ? "1" : "0");
+  } catch {}
+  if (!on) closeRollCard();
+  return !!on;
+}
+
+let rollCard = null;
+
+export function closeRollCard() {
+  if (!rollCard || !rollCard.classList.contains("in")) return;
+  rollCard.classList.remove("in");
+  rollCard.dataset.last = "";
+}
+
+function cardDown(e) {
+  if (!rollCard || !rollCard.classList.contains("in")) return;
+  if (rollCard.contains(e.target)) {
+    if (!e.target.closest("button, a, input")) closeRollCard();
+    return;
+  }
+  const r = e.target.closest && e.target.closest("[data-roll]");
+  if (r && DAMAGE_ROLL.test(r.dataset.roll) && rollCard.dataset.last === "attack") return;
+  closeRollCard();
+}
+
+function cardHost() {
+  if (!rollCard) {
+    rollCard = document.createElement("div");
+    rollCard.id = "roll-card";
+    rollCard.setAttribute("role", "status");
+    rollCard.setAttribute("aria-live", "polite");
+    document.body.appendChild(rollCard);
+    document.addEventListener("pointerdown", cardDown, true);
+  }
+  return rollCard;
+}
+
+export function spendDamageButtons(scope) {
+  if (!scope) return;
+  scope.querySelectorAll("[data-hit-dmg], [data-crit], .r-btns-l").forEach(b => b.remove());
+  scope.querySelectorAll(".r-btns").forEach(b => {
+    if (!b.children.length) b.remove();
+  });
+}
+
+function rollOut(html, { timeout, kind = "", append = false } = {}) {
+  if (!rollCardOn()) return toast(html, { timeout });
+  const host = cardHost();
+  if (append && host.classList.contains("in") && host.dataset.last === "attack") spendDamageButtons(host);
+  else host.innerHTML = "";
+  const el = document.createElement("div");
+  el.className = "rc-entry";
+  el.innerHTML = html;
+  host.appendChild(el);
+  host.dataset.last = kind;
+  host.classList.remove("in");
+  void host.offsetWidth;
+  host.classList.add("in");
+  const close = () => closeRollCard();
+  close.el = el;
+  return close;
+}
+
+function critBanner(kind, entry) {
+  if (rollCardOn()) {
+    if (entry && !entry.querySelector(".rc-crit")) entry.insertAdjacentHTML("afterbegin", `<div class="rc-crit ${kind}">${kind === "crit" ? "Критический успех" : "Критический провал"}</div>`);
+    return;
+  }
   if (!fxSettings().anim) return;
   let el = document.getElementById("crit-banner");
   if (!el) {
@@ -335,11 +415,11 @@ function rollFx(el, { finals = [], crit = false, fumble = false, ms = 620, dice 
     if (crit) {
       el.classList.add("crit-fx");
       playSound("crit");
-      critBanner("crit");
+      critBanner("crit", el);
     } else if (fumble) {
       el.classList.add("fumble-fx");
       playSound("fumble");
-      critBanner("fumble");
+      critBanner("fumble", el);
     }
   };
   if (landed) return land();
@@ -376,9 +456,9 @@ export function showD20(label, modifier, result, mode, { why = [], fail = "", ex
   const both = result.b != null ? `<span class="r-both">${result.a} / ${result.b} ${mode === "adv" ? "преим." : "помеха"}</span>` : "";
   const note = result.nat20 ? "Естественная 20!" : result.nat1 ? "Естественная 1" : "";
   logRoll({ label, text: `${fail ? "провал" : result.total} (${result.pick}${fmt(modifier)})` });
-  const t = toast(
+  const t = rollOut(
     `<div class="roll ${cls} ${fail ? "failed" : ""}">${die(20, result.nat20 ? "#f4d66d" : result.nat1 ? "#e5533d" : "#cbbfa8", result.pick)}<div class="r-body"><div class="r-label">${esc(label)}</div><div class="r-calc">${result.pick} ${fmt(modifier).replace(/^([+−])/, "$1 ")} ${both}</div>${note ? `<div class="r-note">${note}</div>` : ""}${whyHtml(why, fail)}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div><div class="r-total" ${fail ? "" : `data-final="${result.total}"`}>${fail ? "✕" : result.total}</div></div>`,
-    { timeout: extra ? 9000 : why.length || fail ? 6500 : 4500 }
+    { timeout: extra ? 9000 : why.length || fail ? 6500 : 4500, kind: /атака/i.test(label) || /data-hit-dmg/.test(extra) ? "attack" : "d20" }
   );
   rollFx(t.el, { crit: result.nat20, fumble: result.nat1, dice: result.b != null ? 2 : 1, landed });
 }
@@ -390,9 +470,9 @@ export function showBeams(label, modifier, results, mode, { why = [], extra = ""
   }).join("");
   results.forEach((r, i) => logRoll({ label: `${label} (луч ${i + 1})`, text: `${r.total} (${r.pick}${fmt(modifier)})` }));
   const top = results.some(r => r.nat20) ? "#f4d66d" : "#cbbfa8";
-  const t = toast(
+  const t = rollOut(
     `<div class="roll beams">${die(20, top, results.length + "×")}<div class="r-body"><div class="r-label">${esc(label)}${mode !== "normal" ? ` · ${mode === "adv" ? "преимущество" : "помеха"}` : ""}</div>${rows}${whyHtml(why, "")}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div></div>`,
-    { timeout: 12000 }
+    { timeout: 12000, kind: "attack" }
   );
   rollFx(t.el, { crit: results.some(r => r.nat20), fumble: results.every(r => r.nat1), dice: results.length, landed });
 }
@@ -436,8 +516,8 @@ export function throwExprs(exprs) {
   return thrower.groups(groups).then(vals => (vals ? takers(groups, vals, exprs.length) : null));
 }
 
-export function landDice(info) {
-  if (thrower) thrower.land(info);
+export function landDice(info = {}) {
+  if (thrower) thrower.land(rollCardOn() ? { ...info, text: "" } : info);
 }
 
 export function showDamage(label, lines, crit = false, opts = {}) {
@@ -468,9 +548,9 @@ function renderDamage(label, lines, crit, exprs, take, { after } = {}) {
   logRoll({ label, text: String(total) });
   const extra = after ? after(byType) : "";
   const firstType = DAMAGE[lines[0].type] || DAMAGE.bludgeoning;
-  const t = toast(
+  const t = rollOut(
     `<div class="roll dmg">${die(maxFace(lines[0].dice), firstType.color, "")}<div class="r-body"><div class="r-label">${esc(label)}${crit ? " · крит" : ""}</div>${parts.join("")}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div><div class="r-total" data-final="${total}">${total}</div></div>`,
-    { timeout: extra ? 9000 : 5500 }
+    { timeout: extra ? 9000 : 5500, kind: "damage", append: true }
   );
   rollFx(t.el, { ms: 420, dice: count, landed: !!take });
   if (take) landDice({ text: String(total) });

@@ -1,6 +1,6 @@
 import { compute, normalize, fmt, usesInfo, addDice, swapType, NOTE_KEYS, reorderSubset, presetEffect, xpInfo, ACCENTS } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
-import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, warmSounds, reducedMotion, getPath, setPath, download, timeAgo } from "./ui.js";
+import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, warmSounds, reducedMotion, getPath, setPath, download, timeAgo, rollCardOn, setRollCard, closeRollCard, spendDamageButtons } from "./ui.js";
 import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources } from "./tabs.js";
 import { cardFor, findEntity } from "./entities.js";
 import { subscribeChar, saveChanges, addHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
@@ -735,6 +735,10 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         const v = setFx("anim", !fxSettings().anim);
         return toast(v.anim ? "Анимация кубов включена" : "Анимация кубов выключена", { timeout: 1800 });
       }
+      case "rollcard-toggle": {
+        const on = setRollCard(!rollCardOn());
+        return toast(on ? "Результат броска: карточка по центру" : "Результат броска: уведомление внизу", { timeout: 2200 });
+      }
       case "dice3d-toggle": {
         const on = setDice3d(!dice3dOn());
         return toast(on ? "3D-кубики включены: первый бросок загрузит их" : "3D-кубики выключены", { timeout: 2200 });
@@ -1132,19 +1136,27 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       closeStatus();
       return downloadBackup();
     }
-    if (e.target.closest("#toasts [data-rem-death]")) X.doRoll("death");
-    if (e.target.closest("#toasts [data-lu-lib]")) X.openLibrary(null);
-    const hs = e.target.closest("#toasts [data-heal-self]");
+    if (e.target.closest(":is(#toasts, #roll-card) [data-rem-death]")) X.doRoll("death");
+    if (e.target.closest(":is(#toasts, #roll-card) [data-lu-lib]")) X.openLibrary(null);
+    const hs = e.target.closest(":is(#toasts, #roll-card) [data-heal-self]");
     if (hs) X.applyHp("heal", Number(hs.dataset.healSelf) || 0);
-    const tf = e.target.closest("#toasts [data-temp-force]");
+    const tf = e.target.closest(":is(#toasts, #roll-card) [data-temp-force]");
     if (tf) X.giveTemp(Number(tf.dataset.tempForce) || 0, true);
-    const ae = e.target.closest("#toasts [data-add-effect]");
+    const ae = e.target.closest(":is(#toasts, #roll-card) [data-add-effect]");
     if (ae) X.addEffect(presetEffect(ae.dataset.addEffect, { mine: ae.dataset.mine === "1", concName: ae.dataset.mine === "1" ? ae.dataset.conc : "" }, S.d.level));
-    const hit = e.target.closest("#toasts [data-hit-dmg]");
-    if (hit) X.hitDamage(hit.dataset.kind || "attack", hit.dataset.hitDmg, Number(hit.dataset.n) || 1, Number(hit.dataset.c) || 0);
-    const crit = e.target.closest("#toasts [data-crit]");
-    if (crit) X.doRoll("crit:" + crit.dataset.crit);
-    if (e.target.closest("#toasts [data-conc-roll]")) X.doRoll("save:con");
+    const hit = e.target.closest(":is(#toasts, #roll-card) [data-hit-dmg]");
+    if (hit) {
+      const args = [hit.dataset.kind || "attack", hit.dataset.hitDmg, Number(hit.dataset.n) || 1, Number(hit.dataset.c) || 0];
+      spendDamageButtons(hit.closest(".roll"));
+      X.hitDamage(...args);
+    }
+    const crit = e.target.closest(":is(#toasts, #roll-card) [data-crit]");
+    if (crit) {
+      const key = crit.dataset.crit;
+      spendDamageButtons(crit.closest(".roll"));
+      X.doRoll("crit:" + key);
+    }
+    if (e.target.closest(":is(#toasts, #roll-card) [data-conc-roll]")) X.doRoll("save:con");
   };
 
   const onKey = e => {
@@ -1218,6 +1230,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
   return () => {
     keepAwake(false);
     closeStatus();
+    closeRollCard();
     clearTimeout(dicePreload);
     offShake();
     heartbeat(false);

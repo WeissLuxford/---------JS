@@ -1,10 +1,10 @@
 import { SKILLS, DAMAGE, DAMAGE_TYPES, fmt, rollD20, rollDice, spellCast, maxDie, rollContext, resolveMode, rollReasons, applyDefenses, effectDamage, weaponStats, asWeapon, ammoFor } from "./rules.js";
 import { icon } from "./icons.js";
-import { esc, $, toast, promptNumber, showD20, showBeams, showDamage } from "./ui.js";
+import { esc, $, toast, promptNumber, showD20, showBeams, showDamage, landDice } from "./ui.js";
 import { turnBar } from "./tabs.js";
 import { findEntity, spellAtk } from "./entities.js";
 import { abName } from "./sheet-util.js";
-import { throw3d, dice3dReady, dice3dBusy, landDice } from "./dice3d.js";
+import { throw3d, dice3dReady, dice3dBusy } from "./dice3d.js";
 export function installRolls(X) {
   const { S, root, id } = X;
 

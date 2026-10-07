@@ -28,7 +28,7 @@ async function open(viewport, path) {
   await page.waitForSelector(".menu-group");
   const heads = await page.locator(".menu-group h4").allInnerTexts();
   ok("menu grouped", ["Игра", "Найти", "Лист и файлы", "Настройки"].every(h => heads.some(x => x.toLowerCase() === h.toLowerCase())), heads.join(","));
-  ok("settings are switches", await page.locator(".menu-switch").count() === 7);
+  ok("settings are switches", await page.locator(".menu-switch").count() === 8);
   const explainVisible = () => page.locator(".atk-hint").first().isVisible();
   ok("explanations shown by default", await explainVisible());
   await page.click("[data-sw=explain-toggle]");
