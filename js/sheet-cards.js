@@ -1,6 +1,6 @@
 import { normalize, fmt, spellCast, usesInfo, addDice, swapType, effectDamage, weaponStats, asWeapon, uid } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
-import { esc, $, toast, openModal, openForm, getPath, setPath, cropImage, pickFile } from "./ui.js";
+import { esc, $, toast, openModal, openForm, getPath, setPath, cropImage, pickFile, playSound } from "./ui.js";
 import { SECTION_NAME, linkTargets } from "./notes.js";
 import { itemIcon, cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
 import { addHistory } from "./store.js";
@@ -198,7 +198,10 @@ export function installCards(X) {
       if (x === "pouch-info") return openModal({ title: e.name || "Мешочек с компонентами", cls: "small", body: `<p>${esc(COMPONENT_POUCH_NOTE)}</p>` });
       if (x === "pack") return packDialog(e, m);
       if (x === "stored") return X.mutate(c => { const it = findEntity(c, "item", eid); if (it) it.stored = !it.stored; });
-      if (x === "equip") return X.withUndo(e.equipped ? `Снято: ${e.name}` : `Надето: ${e.name}`, () => X.mutate(c => { const it = findEntity(c, "item", eid); if (it) it.equipped = !it.equipped; }));
+      if (x === "equip") {
+        playSound(e.equipped ? "unequip" : "equip");
+        return X.withUndo(e.equipped ? `Снято: ${e.name}` : `Надето: ${e.name}`, () => X.mutate(c => { const it = findEntity(c, "item", eid); if (it) it.equipped = !it.equipped; }));
+      }
       if (x === "attune") {
         if (!e.attuned && S.d.attuned >= 3) return toast("Уже настроено 3 предмета: это максимум", { kind: "bad" });
         return X.mutate(c => { const it = findEntity(c, "item", eid); if (it) it.attuned = !it.attuned; });

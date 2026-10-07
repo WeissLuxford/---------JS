@@ -30,7 +30,7 @@ const TEMPLATES = [];
 
 {
   const c = B.buildCharacter({
-    name: "Брэнн Каменный Щит", race: "human", cls: "fighter", level: 3, subclass: "Чемпион", background: "soldier",
+    name: "Гарвен", race: "human", cls: "fighter", level: 3, subclass: "Чемпион", background: "soldier",
     base: { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 }, skills: ["perception", "survival"], options: ["style-defense"], alignment: "Законно-добрый", age: "34"
   }, { features, spells });
   c.personality = {
@@ -45,12 +45,12 @@ const TEMPLATES = [];
   c.notes.quests = [note("Серый брод", "Узнать, кто выжил из отряда «Каменные щиты». Говорят, двоих видели в [[Портовом квартале]].", { status: "active" })];
   c.notes.places = [note("Портовый квартал", "Шумно, тесно, много наёмников. Таверна «Пьяный якорь».", { aliases: "Портовом квартале" })];
   c.accent = "steel";
-  TEMPLATES.push({ key: "fighter", icon: "swords", blurb: "Воин 3 уровня. Простой в игре: крепкий доспех, меч и щит, Второе дыхание и Всплеск действий.", c: ids(c, "brann") });
+  TEMPLATES.push({ key: "fighter", icon: "swords", blurb: "Воин 3 уровня. Простой в игре: крепкий доспех, меч и щит, Второе дыхание и Всплеск действий.", c: ids(c, "garven") });
 }
 
 {
   const c = B.buildCharacter({
-    name: "Сестра Илва", race: "dwarf", subrace: "hill", cls: "cleric", level: 3, subclass: "Домен жизни", background: "acolyte",
+    name: "Бельдра", race: "dwarf", subrace: "hill", cls: "cleric", level: 3, subclass: "Домен жизни", background: "acolyte",
     base: { str: 13, dex: 10, con: 14, int: 8, wis: 15, cha: 12 }, skills: ["medicine", "persuasion"], alignment: "Нейтрально-добрый", age: "96",
     spells: ["Sacred Flame", "Guidance", "Spare the Dying", "Healing Word", "Shield of Faith", "Guiding Bolt", "Aid", "Prayer of Healing", "Sanctuary"].map(sp)
   }, { features, spells });
@@ -71,7 +71,7 @@ const TEMPLATES = [];
   c.notes.people = [note("Настоятель Борин", "Наставник. Остался в Дунхольме, пишет раз в месяц.", { attitude: "ally" })];
   c.notes.quests = [note("Храм Дунхольма", "Собрать 500 зм на восстановление храма. Собрано: 40 зм.", { status: "active" })];
   c.accent = "copper";
-  TEMPLATES.push({ key: "cleric", icon: "sun", blurb: "Жрец 3 уровня, домен жизни. Лечит, поддерживает отряд, держит удар в кольчуге.", c: ids(c, "ilva") });
+  TEMPLATES.push({ key: "cleric", icon: "sun", blurb: "Жрец 3 уровня, домен жизни. Лечит, поддерживает отряд, держит удар в кольчуге.", c: ids(c, "beldra") });
 }
 
 {
@@ -101,7 +101,10 @@ const out = TEMPLATES.map(t => {
   const c = R.normalize({ ...t.c, archived: false });
   for (const k of ["id", "createdAt", "updatedAt", "updatedBy", "ownerUid", "ownerName", "visibility"]) delete c[k];
   c.hp.current = R.compute(c).hpMax;
-  return { key: t.key, icon: t.icon, blurb: t.blurb, c };
+  const pic = new URL(`assets/templates/${t.key}-portrait.webp`, root);
+  if (fs.existsSync(pic)) c.portrait = "data:image/webp;base64," + fs.readFileSync(pic).toString("base64");
+  const art = `assets/templates/${t.key}-art.webp`, board = `assets/templates/${t.key}-board.webp`;
+  return { key: t.key, icon: t.icon, blurb: t.blurb, ...(fs.existsSync(new URL(art, root)) ? { art } : {}), ...(fs.existsSync(new URL(board, root)) ? { board } : {}), c };
 });
 fs.writeFileSync(new URL("data/templates.json", root), JSON.stringify(out));
 console.log(out.map(t => `${t.c.name}: ${t.c.info.race} ${t.c.info.cls} ${t.c.info.level}, ${t.c.spells.length} закл., ${t.c.features.length} ум., ${t.c.items.length} предм.`).join("\n"));

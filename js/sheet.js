@@ -1,6 +1,6 @@
 import { compute, normalize, fmt, usesInfo, addDice, swapType, NOTE_KEYS, reorderSubset, presetEffect, xpInfo } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
-import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, reducedMotion, getPath, setPath, download } from "./ui.js";
+import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, warmSounds, reducedMotion, getPath, setPath, download } from "./ui.js";
 import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources } from "./tabs.js";
 import { cardFor, findEntity } from "./entities.js";
 import { subscribeChar, saveChanges, addHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
@@ -562,6 +562,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     const path = el.dataset.path;
     if (el.hasAttribute("data-num")) v = v === "" ? 0 : Number(v);
     if (path.startsWith("coins.")) v = Math.max(0, Math.floor(Number(v) || 0));
+    if (path.startsWith("coins.") && e.type === "change" && getPath(S.c, path) !== v) playSound("coins");
     const affectsHp = path.startsWith("abilities.") || path === "info.level";
     if (getPath(S.c, path) === v) {
       if (e.type === "change" && affectsHp && (Number(S.c.hp.current) || 0) > S.d.hpMax) {
@@ -657,7 +658,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       case "fx-sound": {
         const v = setFx("sound", !fxSettings().sound);
         if (v.sound) playSound("crit");
-        return toast(v.sound ? "Звуки бросков включены" : "Звуки бросков выключены", { timeout: 1800 });
+        return toast(v.sound ? "Звуки включены" : "Звуки выключены", { timeout: 1800 });
       }
       case "fx-anim": {
         const v = setFx("anim", !fxSettings().anim);
@@ -1118,8 +1119,12 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
   let offShake = () => {};
   const onShake = () => {
     if (S.disposed || !S.c || document.visibilityState !== "visible") return;
-    X.d20("Встряска: d20", 0, "free", "");
+    playSound("shake");
+    setTimeout(() => {
+      if (!S.disposed && S.c) X.d20("Встряска: d20", 0, "free", "");
+    }, 380);
   };
+  document.addEventListener("pointerdown", warmSounds, { once: true });
   const armShake = () => {
     offShake();
     offShake = shakeOn() ? watchShake(onShake) : () => {};

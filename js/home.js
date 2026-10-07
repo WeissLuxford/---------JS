@@ -9,6 +9,7 @@ import { subtitle } from "./tabs.js";
 import { shortWho } from "./device.js";
 import { openShare, quickShare } from "./share.js";
 import { openAccounts, backupAll } from "./admin.js";
+import { CREDITS, LICENSES } from "./credits.js";
 
 export function mountHome(root, navigate) {
   document.title = "Листы персонажей";
@@ -146,7 +147,7 @@ export function mountHome(root, navigate) {
     const look = `<a class="btn ghost sm" href="#/t/${esc(t.key)}">${icon("eye")}Посмотреть</a>`;
     const take = canCreate ? `<button class="btn gold sm" data-tpl-take="${esc(t.key)}">${icon("download")}Забрать себе</button>` : needSignIn ? `<button class="btn sm" data-signin>${icon("user")}Войти и забрать</button>` : "";
     const hide = canHide ? `<button class="btn ghost sm" data-tpl-hide="${esc(t.key)}" title="${hidden ? "Снова показывать всем" : "Убрать с главной для всех"}">${icon(hidden ? "eye" : "trash")}${hidden ? "Вернуть" : "Убрать"}</button>` : "";
-    return `<article class="ch-card tpl ${hidden ? "arch" : ""}">
+    if (!t.art) return `<article class="ch-card tpl ${hidden ? "arch" : ""}">
       <span class="ch-portrait tpl-ic">${icon(t.icon)}</span>
       <span class="ch-info">
         <span class="ch-name">${esc(c.name)}</span>
@@ -155,6 +156,32 @@ export function mountHome(root, navigate) {
         <span class="tpl-acts">${look}${take}${hide}</span>
       </span>
     </article>`;
+    const i = c.info;
+    const rows = [["people", i.subrace], [t.icon, [i.cls, i.level ? `${i.level} уровня` : ""].filter(Boolean).join(" ")], ["sparkle", i.subclass], ["book", i.background], ["scales", i.alignment]].filter(r => r[1]);
+    const lead = [i.race, i.age ? `${i.age} ${years(i.age)}` : ""].filter(Boolean).join(" · ");
+    return `<article class="tpl-hero ${hidden ? "arch" : ""}">
+      <button class="tpl-art" ${t.board ? `data-tpl-board="${esc(t.key)}" aria-label="Доска персонажа: ${esc(c.name)}"` : "disabled"}>
+        <img src="${esc(t.art)}" alt="" loading="lazy">
+        <span class="tpl-name"><b>${esc(c.name)}</b><small>${esc(lead)}</small></span>
+        ${t.board ? `<span class="tpl-zoom">${icon("frame")}Доска</span>` : ""}
+      </button>
+      <div class="tpl-body">
+        <ul class="tpl-rows">${rows.map(([ic, text]) => `<li>${icon(ic)}<span>${esc(text)}</span></li>`).join("")}</ul>
+        ${c.personality.ideals ? `<p class="tpl-quote">«${esc(c.personality.ideals)}»</p>` : ""}
+        <p class="tpl-blurb">${esc(t.blurb)}</p>
+        <div class="tpl-acts">${take}${look}${hide}</div>
+      </div>
+    </article>`;
+  }
+
+  function years(n) {
+    const v = Math.abs(parseInt(n, 10)) % 100, d = v % 10;
+    if (v > 10 && v < 20) return "лет";
+    return d === 1 ? "год" : d > 1 && d < 5 ? "года" : "лет";
+  }
+
+  function showBoard(t) {
+    openModal({ cls: "tpl-board", wide: true, body: `<img src="${esc(t.board)}" alt="Доска персонажа: ${esc(t.c.name)}">` });
   }
 
   function tplSection(canCreate) {
@@ -167,8 +194,8 @@ export function mountHome(root, navigate) {
     if (!shown.length && !canHide) return "";
     const opts = { canCreate, canHide, needSignIn };
     return section("Готовые персонажи", "people", `<p class="hint tpl-hint">Готовые листы, чтобы попробовать сайт или сразу сесть играть. «Забрать себе» делает твою копию, её можно менять как угодно, образец остаётся для других.</p>
-      <div class="ch-grid">${shown.map(t => tplCard(t, opts)).join("")}</div>
-      ${canHide && hidden.length ? `<div class="arch-toggle"><button class="btn ghost sm" data-tpl-hidden>${icon("archive")}Убранные (${hidden.length})</button></div>${showHiddenTpl ? `<div class="ch-grid">${hidden.map(t => tplCard(t, { ...opts, hidden: true })).join("")}</div>` : ""}` : ""}`);
+      <div class="ch-grid tpl-grid">${shown.map(t => tplCard(t, opts)).join("")}</div>
+      ${canHide && hidden.length ? `<div class="arch-toggle"><button class="btn ghost sm" data-tpl-hidden>${icon("archive")}Убранные (${hidden.length})</button></div>${showHiddenTpl ? `<div class="ch-grid tpl-grid">${hidden.map(t => tplCard(t, { ...opts, hidden: true })).join("")}</div>` : ""}` : ""}`);
   }
 
   function section(title, ic, body) {
@@ -197,7 +224,7 @@ export function mountHome(root, navigate) {
     const recents = getRecents().filter(x => !mineIds.has(x.id) && !invIds.has(x.id) && !allIds.has(x.id));
     const others = all ? all.filter(c => !mineIds.has(c.id)) : [];
     const createCards = canCreate
-      ? `<button class="ch-card new" data-new>${icon("plus")}<span>Новый персонаж</span></button><button class="ch-card new subtle" data-import>${icon("upload")}<span>Загрузить из файла</span></button>`
+      ? `<button class="ch-card new" data-new><span class="new-ic">${icon("plus")}</span><span class="new-tx"><b>Новый персонаж</b><small>Мастер по шагам: раса, класс, характеристики, снаряжение</small></span></button><button class="ch-card new subtle" data-import><span class="new-ic">${icon("upload")}</span><span class="new-tx"><b>Загрузить из файла</b><small>Файл .json, скачанный из меню листа</small></span></button>`
       : "";
     const mySection = !cloud || open || access.signedIn
       ? section(cloud && !open ? "Мои персонажи" : "Персонажи", "user", `<div class="ch-grid">${active.map(c => charCard(c)).join("")}${createCards}</div>
@@ -221,7 +248,7 @@ export function mountHome(root, navigate) {
         ${inv.length ? section("Со мной поделились", "edit", `<div class="ch-grid">${inv.map(x => miniCard(x, "invite")).join("")}</div>`) : ""}
         ${recents.length ? section("Недавно открытые", "eye", `<div class="ch-grid">${recents.map(x => miniCard(x, "recent")).join("")}</div>`) : ""}
         ${adminSection}
-        <footer class="home-foot"><button class="link-btn" data-privacy>${icon("shield")}Что мы храним</button><a href="old/">Старый проект: Math Quiz</a><span>${cloud ? "Синхронизация через облако" : "Локальный режим"}</span></footer>
+        <footer class="home-foot"><button class="link-btn" data-privacy>${icon("shield")}Что мы храним</button><button class="link-btn" data-thanks>${icon("heart")}Благодарности</button><span>${cloud ? "Синхронизация через облако" : "Локальный режим"}</span></footer>
       </div>`;
   }
 
@@ -269,6 +296,22 @@ export function mountHome(root, navigate) {
         <p><b>История правок:</b> кто и когда менял лист, с какого устройства (телефон или компьютер, браузер). Видят только владелец листа, редакторы и владелец сайта.</p>
         <p><b>Чего нет:</b> рекламы, аналитики и слежки. Данные лежат в Google Firebase и никому не передаются.</p>
         <p><b>Удаление:</b> «Аккаунт», затем «Удалить аккаунт» стирает твой профиль и всех твоих персонажей вместе с историей.</p>
+      </div>`
+    });
+  }
+
+  function creditLine(it) {
+    const link = (url, text) => url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(text)}</a>` : esc(text);
+    return `<p><b>${link(it.url, it.title)}</b>, ${link(it.authorUrl, it.author)}. Лицензия ${link(LICENSES[it.license], it.license)}.${it.note ? ` ${esc(it.note)}` : ""}</p>`;
+  }
+
+  function showThanks() {
+    openModal({
+      title: "Благодарности",
+      cls: "small",
+      body: `<div class="privacy thanks">
+        <p class="hint">Сайт собран на бесплатных материалах. Спасибо их авторам.</p>
+        ${CREDITS.map(g => `<h4>${esc(g.group)}</h4>${g.items.map(creditLine).join("")}`).join("")}
       </div>`
     });
   }
@@ -326,6 +369,7 @@ export function mountHome(root, navigate) {
     }
     if (t.closest("[data-myid]")) return showMyId();
     if (t.closest("[data-privacy]")) return showPrivacy();
+    if (t.closest("[data-thanks]")) return showThanks();
     if (t.closest("[data-accounts]")) return openAccounts();
     if (t.closest("[data-backup]")) return backupAll();
     const share = t.closest("[data-share]");
@@ -343,6 +387,11 @@ export function mountHome(root, navigate) {
         toast("Не получилось: проверь правила Firestore", { kind: "bad" });
       }
       return;
+    }
+    const board = t.closest("[data-tpl-board]");
+    if (board) {
+      const tp = templates.find(x => x.key === board.dataset.tplBoard);
+      return tp && showBoard(tp);
     }
     const take = t.closest("[data-tpl-take]");
     if (take) {

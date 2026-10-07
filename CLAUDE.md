@@ -24,6 +24,12 @@
 | `data/spells-srd.json` | библиотека заклинаний SRD 5.1 на русском (318 шт.), окно в `js/library.js` |
 | `data/features-srd.json` | библиотека умений SRD 5.1 на русском: 12 классов с подклассами SRD, 9 рас, боевые стили, черта, предыстория (266 шт.), окно в `js/library.js` |
 | `data/templates.json` | три готовых персонажа для главной, собирается `node tools/build-templates.mjs` |
+| `assets/icons/tw-dnd/` | 286 SVG-иконок D&D (intrinsical/tw-dnd, CC BY-SA 4.0, нужна атрибуция) по папкам-категориям: ability, skill, condition, damage, dice, class, monster, spell, slot, weapon, entity, hp, target, movement и др.; список в `index.json`. Стиль: viewBox 100, сплошной силуэт без заливки (перекрашивается через `fill`/`mask`). Автор указан в «Благодарностях» (`showThanks()` в `js/home.js`) |
+| `assets/icons/game-icons/` | 3894 SVG с game-icons.net (CC BY 3.0, у viscious-speed CC0; при использовании добавить автора в «Благодарности»), папки по авторам (`lorc/`, `delapouite/` и др.). `index.json`: `tags` (тег, например `weapon`, `skull`, `potion`, ведёт к списку `автор/имя`) и `icons` (обратно). Стиль близок к tw-dnd: viewBox 512, сплошной силуэт, но `fill="#fff"` зашит в path |
+| `assets/icons/dnd5e-logos/` | 61 эмблема в стиле официального D&D: `class`, `race`, `faction`, `adventurers-league`, `ravnica-guild`, `logo`. Стиль другой: viewBox 100, тонкие детализированные эмблемы, цвета зашиты в `<style>` (часть цветные). Автор и лицензия неизвестны, на сайт без выяснения не ставить |
+| `assets/templates/` | арт, доска и портрет готовых персонажей (`<key>-art/board/portrait.webp`), картинки владельца; портрет вшивает `tools/build-templates.mjs` |
+| `assets/audio/` | звуки Kenney (CC0): полные паки `kenney-casino-audio/`, `kenney-rpg-audio/`; на сайте играют только копии из `sfx/` (OGG + M4A, список `SAMPLES` в `js/ui.js`, новый звук: положить оба формата через ffmpeg) |
+| `vendor/` | сырьё, на сайт не подключено: `srd/` (PDF SRD 5.2.1 и 5.1, CC BY 4.0), `5e-database/` (JSON SRD 2014 и 2024: монстры, магические предметы, черты), `dice-box/` (3D-кубики, MIT, сборка без зависимостей). Источник и лицензия в `source.json` каждой папки |
 | `tests/unit/`, `tests/rules/` | юнит-тесты и тесты правил доступа |
 
 ## Как запустить
@@ -50,6 +56,7 @@ python3 -m http.server 8765
 - Сохранение в облако только по путям полей (`saveChanges`), списки сущностей сливаются по `id`.
 - Обучающие подсказки в разметке: `class="hint explain"` (прячутся переключателем в меню); новые пункты меню кладутся в свою группу в `menu()` (`js/sheet-dialogs.js`), см. `docs/ui-style.md`.
 - Не трогать без просьбы владельца: размер портрета и вкладку «Персонаж», шапку листа; не заменять подписи голыми иконками.
+- Любой сторонний бесплатный материал (иконки, шрифты, тексты, звуки, библиотеки), попавший на сайт, сразу вписывается в `CREDITS` в `js/credits.js` (окно «Благодарности» в футере главной).
 - Тесты и эксперименты никогда не пишут в боевой Firestore: только эмулятор (`?emu` на localhost) или локальный режим.
 
 ## Пользователь

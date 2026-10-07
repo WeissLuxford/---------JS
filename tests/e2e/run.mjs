@@ -1,8 +1,9 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const dir = path.dirname(new URL(import.meta.url).pathname);
+const dir = path.dirname(fileURLToPath(import.meta.url));
 const only = process.argv.slice(2);
 const files = fs.readdirSync(dir).filter(f => f.endsWith(".mjs") && !["env.mjs", "run.mjs"].includes(f)).filter(f => !only.length || only.includes(f.replace(/\.mjs$/, ""))).sort();
 

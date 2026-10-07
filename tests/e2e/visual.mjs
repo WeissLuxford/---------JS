@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium, launchOpts, E2E_OUT } from "./env.mjs";
 
-const BASE = new URL("../visual/", import.meta.url).pathname;
+const BASE = fileURLToPath(new URL("../visual/", import.meta.url));
 const UPDATE = process.env.VISUAL_UPDATE === "1";
 const PIXEL = 48;
 const LIMIT = 0.005;
@@ -87,7 +88,7 @@ for (const [size, vp] of Object.entries(SIZES)) {
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   await page.goto("http://localhost:8765/#/");
-  await page.waitForSelector(".ch-card.tpl");
+  await page.waitForSelector(".tpl-hero");
   await shot(`${size}-home`, page);
   for (const tab of TABS) {
     await page.goto(`http://localhost:8765/#/c/kirion-thorndike/${tab}`);

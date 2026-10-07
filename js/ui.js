@@ -222,9 +222,61 @@ function noise(a, { at = 0, dur = 0.05, vol = 0.12, freq = 3000, q = 1.2, type =
   src.stop(t + dur + 0.02);
 }
 
-export function playSound(kind) {
+const SAMPLES = {
+  roll: ["die-throw-1", "die-throw-2", "die-throw-3", "die-throw-4"],
+  rollMany: ["dice-throw-1", "dice-throw-2", "dice-throw-3"],
+  shake: ["dice-shake-1", "dice-shake-2", "dice-shake-3"],
+  coins: ["handleCoins", "handleCoins2"],
+  equip: ["cloth1", "cloth2", "cloth3", "beltHandle1"],
+  unequip: ["metalClick", "cloth2"]
+};
+const sampleBufs = new Map();
+let sampleExt = "";
+
+function loadSamples(a, kind) {
+  if (!sampleExt) {
+    try {
+      sampleExt = new Audio().canPlayType('audio/ogg; codecs="vorbis"') ? "ogg" : "m4a";
+    } catch {
+      sampleExt = "m4a";
+    }
+  }
+  for (const name of SAMPLES[kind] || []) {
+    if (sampleBufs.has(name)) continue;
+    sampleBufs.set(name, null);
+    fetch(new URL(`../assets/audio/sfx/${name}.${sampleExt}`, import.meta.url))
+      .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+      .then(b => new Promise((ok, bad) => a.decodeAudioData(b, ok, bad)))
+      .then(buf => sampleBufs.set(name, buf))
+      .catch(() => sampleBufs.delete(name));
+  }
+}
+
+function playSample(a, kind, vol = 0.6) {
+  loadSamples(a, kind);
+  const ready = (SAMPLES[kind] || []).map(n => sampleBufs.get(n)).filter(Boolean);
+  if (!ready.length) return false;
+  const src = a.createBufferSource();
+  src.buffer = ready[Math.floor(Math.random() * ready.length)];
+  src.playbackRate.value = 0.94 + Math.random() * 0.12;
+  const g = a.createGain();
+  g.gain.value = vol;
+  src.connect(g);
+  g.connect(a.destination);
+  src.start();
+  return true;
+}
+
+export function warmSounds() {
+  const a = audio();
+  if (a) ["roll", "rollMany", "shake"].forEach(k => loadSamples(a, k));
+}
+
+export function playSound(kind, { dice = 1 } = {}) {
   const a = audio();
   if (!a) return;
+  if (SAMPLES[kind] && kind !== "roll") return void playSample(a, kind);
+  if (kind === "roll" && playSample(a, dice > 1 ? "rollMany" : "roll")) return;
   if (kind === "roll") {
     [0, 0.07, 0.15, 0.26].forEach((at, i) => noise(a, { at: at + Math.random() * 0.02, dur: 0.045, vol: 0.09 - i * 0.015, freq: 2200 + Math.random() * 2200 }));
   } else if (kind === "crit") {
@@ -257,7 +309,7 @@ function reduced() {
   return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function rollFx(el, { finals = [], crit = false, fumble = false, ms = 620 } = {}) {
+function rollFx(el, { finals = [], crit = false, fumble = false, ms = 620, dice = 1 } = {}) {
   const fx = fxSettings();
   const totals = Array.from(el.querySelectorAll("[data-final]"));
   const land = () => {
@@ -271,8 +323,8 @@ function rollFx(el, { finals = [], crit = false, fumble = false, ms = 620 } = {}
       playSound("fumble");
     }
   };
+  playSound("roll", { dice });
   if (!fx.anim || reduced() || !totals.length) return land();
-  playSound("roll");
   el.classList.add("rolling");
   const start = Date.now();
   const tick = () => {
@@ -308,7 +360,7 @@ export function showD20(label, modifier, result, mode, { why = [], fail = "", ex
     `<div class="roll ${cls} ${fail ? "failed" : ""}">${die(20, result.nat20 ? "#f4d66d" : result.nat1 ? "#e5533d" : "#cbbfa8", result.pick)}<div class="r-body"><div class="r-label">${esc(label)}</div><div class="r-calc">${result.pick} ${fmt(modifier).replace(/^([+−])/, "$1 ")} ${both}</div>${note ? `<div class="r-note">${note}</div>` : ""}${whyHtml(why, fail)}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div><div class="r-total" ${fail ? "" : `data-final="${result.total}"`}>${fail ? "✕" : result.total}</div></div>`,
     { timeout: extra ? 9000 : why.length || fail ? 6500 : 4500 }
   );
-  rollFx(t.el, { crit: result.nat20, fumble: result.nat1 });
+  rollFx(t.el, { crit: result.nat20, fumble: result.nat1, dice: result.b != null ? 2 : 1 });
 }
 
 export function showBeams(label, modifier, results, mode, { why = [], extra = "" } = {}) {
@@ -322,18 +374,20 @@ export function showBeams(label, modifier, results, mode, { why = [], extra = ""
     `<div class="roll beams">${die(20, top, results.length + "×")}<div class="r-body"><div class="r-label">${esc(label)}${mode !== "normal" ? ` · ${mode === "adv" ? "преимущество" : "помеха"}` : ""}</div>${rows}${whyHtml(why, "")}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div></div>`,
     { timeout: 12000 }
   );
-  rollFx(t.el, { crit: results.some(r => r.nat20), fumble: results.every(r => r.nat1) });
+  rollFx(t.el, { crit: results.some(r => r.nat20), fumble: results.every(r => r.nat1), dice: results.length });
 }
 
 export function showDamage(label, lines, crit = false, { after } = {}) {
   const parts = [];
   const byType = {};
   let total = 0;
+  let count = 0;
   for (const line of lines) {
     const expr = crit || line.crit ? critExpr(line.dice) : line.dice;
     const r = rollDice(expr);
     if (!r) continue;
     total += r.total;
+    count += r.rolls.length;
     byType[line.type] = (byType[line.type] || 0) + r.total;
     const dt = DAMAGE[line.type] || DAMAGE.bludgeoning;
     const rolls = r.rolls.length ? `<span class="r-rolls">[${r.rolls.map(x => (x.sign < 0 ? "−" : "") + x.r).join(", ")}]</span>` : "";
@@ -347,7 +401,7 @@ export function showDamage(label, lines, crit = false, { after } = {}) {
     `<div class="roll dmg">${die(maxFace(lines[0].dice), firstType.color, "")}<div class="r-body"><div class="r-label">${esc(label)}${crit ? " · крит" : ""}</div>${parts.join("")}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div><div class="r-total" data-final="${total}">${total}</div></div>`,
     { timeout: extra ? 9000 : 5500 }
   );
-  rollFx(t.el, { ms: 420 });
+  rollFx(t.el, { ms: 420, dice: count });
   return { total, byType };
 }
 
@@ -403,8 +457,8 @@ export function openDiceRoller() {
         playSound("fumble");
       }
     };
+    playSound("roll", { dice: r.rolls.length });
     if (!fxSettings().anim || reduced()) return land();
-    playSound("roll");
     tray.classList.add("rolling");
     const start = Date.now();
     const tick = () => {

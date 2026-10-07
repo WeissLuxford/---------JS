@@ -1,4 +1,4 @@
-const VERSION = "v29";
+const VERSION = "v30";
 const SHELL = "dnd-shell-" + VERSION;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -30,6 +30,7 @@ const PRECACHE = [
   "js/shake.js",
   "js/packs.js",
   "js/gear.js",
+  "js/credits.js",
   "js/home.js",
   "js/icons.js",
   "js/library.js",

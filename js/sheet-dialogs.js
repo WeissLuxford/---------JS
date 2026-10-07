@@ -1,7 +1,7 @@
 import { canInstall } from "./pwa.js";
 import { SKILLS, ABILITIES, mod, compute, normalize, fmt, importCharacter, payCoins, COIN_NAMES, CONDITIONS, FEATURE_CATS, SCENE_TIMES, SCENE_WEATHER, sceneInfo } from "./rules.js";
 import { icon } from "./icons.js";
-import { esc, $, toast, openModal, confirmDialog, promptNumber, rollLog, fxSettings, dateTime, timeAgo, download, pickFile } from "./ui.js";
+import { esc, $, toast, openModal, confirmDialog, promptNumber, rollLog, fxSettings, playSound, dateTime, timeAgo, download, pickFile } from "./ui.js";
 import { subtitle } from "./tabs.js";
 import { cardFor, itemIcon, spellIcon, featureIcon, attackIcon } from "./entities.js";
 import { listHistory, createChar, getMode, subscribeList, getRecents, newCharId } from "./store.js";
@@ -37,6 +37,7 @@ export function installDialogs(X) {
       if (!Number.isInteger(n)) return toast("Получить можно только целое число монет", { kind: "bad" });
       X.mutate(c => { c.coins[unit] = (Number(c.coins[unit]) || 0) + n; });
     }
+    playSound("coins");
     toast(`${icon("coin")} ${pay ? "Заплачено" : "Получено"} ${n} ${COIN_NAMES[unit]}. В кошельке: ${Object.entries(COIN_NAMES).filter(([k]) => Number(S.c.coins[k])).map(([k, nm]) => `${S.c.coins[k]} ${nm}`).join(", ") || "пусто"}`, { kind: "good", timeout: 4000 });
   }
 
@@ -326,7 +327,7 @@ export function installDialogs(X) {
       ["shake-toggle", "d20", "Встряхни, чтобы бросить", shakeSupported() ? "Встряхни телефон: бросок d20 с текущим режимом" : "На этом устройстве нет датчика движения", shakeOn()],
       ["explain-toggle", "info", "Пояснения на экране", "Серые подсказки под панелями: что делает кнопка и откуда что берётся", explainOn()],
       ["tips-toggle", "bell", "Подсказки в начале хода", "Напоминания о концентрации, эффектах и спасбросках от смерти", X.tipsOn()],
-      ["fx-sound", "bell", "Звуки бросков", "", fxSettings().sound],
+      ["fx-sound", "bell", "Звуки", "Кубики, монеты, снаряжение, удары и лечение", fxSettings().sound],
       ["fx-anim", "d20", "Анимация кубов", "", fxSettings().anim]
     ];
     const switchRow = ([act, ic, label, sub, on]) => `<button class="menu-item menu-switch ${on ? "on" : ""}" data-sw="${act}" role="switch" aria-checked="${on}">${icon(ic)}<span>${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ""}</span><i class="sw"></i></button>`;
