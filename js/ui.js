@@ -337,6 +337,7 @@ export function closeRollCard() {
 }
 
 function cardDown(e) {
+  swallowing = false;
   if (!rollCard || !rollCard.classList.contains("in")) return;
   if (rollCard.contains(e.target)) {
     if (!e.target.closest("button, a, input")) closeRollCard();
@@ -345,6 +346,18 @@ function cardDown(e) {
   const r = e.target.closest && e.target.closest("[data-roll]");
   if (r && DAMAGE_ROLL.test(r.dataset.roll) && rollCard.dataset.last === "attack") return;
   closeRollCard();
+  swallowing = true;
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+let swallowing = false;
+
+function swallow(e) {
+  if (!swallowing) return;
+  e.stopPropagation();
+  if (!e.type.startsWith("touch")) e.preventDefault();
+  if (e.type === "click") swallowing = false;
 }
 
 function cardHost() {
@@ -355,6 +368,7 @@ function cardHost() {
     rollCard.setAttribute("aria-live", "polite");
     document.body.appendChild(rollCard);
     document.addEventListener("pointerdown", cardDown, true);
+    for (const t of ["mousedown", "touchstart", "pointerup", "mouseup", "touchend", "click", "contextmenu"]) document.addEventListener(t, swallow, { capture: true, passive: false });
   }
   return rollCard;
 }

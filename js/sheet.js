@@ -349,6 +349,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     const [k, a] = key.split(".");
     switch (k) {
       case "mod": return fmt(d.mods[a]);
+      case "score": return String(c.abilities[a]);
       case "save": return fmt(d.saves[a]);
       case "skill": return fmt(d.skills[a]);
       case "pb": return fmt(d.pb);
@@ -669,7 +670,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     return m;
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "note-create-link", "feature-library", "box-stored", "spell-ability"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "edit-abilities", "edit-prof", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "note-create-link", "feature-library", "box-stored", "spell-ability"]);
 
   const UNDO = {
     "hp-quick": el => (Number(el.dataset.n) < 0 ? `Урон ${-Number(el.dataset.n)}` : `Лечение ${el.dataset.n}`),
@@ -1008,6 +1009,12 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       case "edit-info": return X.editInfo();
       case "scene": return X.sceneDialog();
       case "edit-armor": return X.editArmor();
+      case "edit-abilities": return X.editAbilities();
+      case "edit-prof": return X.editProf();
+      case "go-tab": {
+        const t = root.querySelector(`.tab[data-tab="${CSS.escape(el.dataset.to)}"]`);
+        return t && t.click();
+      }
       case "portrait": return X.portraitDialog();
       case "add-attack": return X.editEntity("attack", null);
       case "add-spell": return X.editEntity("spell", null);

@@ -636,6 +636,8 @@ export function infoFields() {
   ];
 }
 
+export const PROF_KINDS = [["armor", "Доспехи"], ["weapons", "Оружие"], ["tools", "Инструменты"], ["languages", "Языки"]];
+
 export function armorFields() {
   return [
     { key: "armor.name", label: "Доспех", span: 2 },

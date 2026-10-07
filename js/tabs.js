@@ -1,7 +1,7 @@
 import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, containerTree, fmt, usesInfo, spellCast, effectSummary, spellInCombat, itemInCombat, featureInCombat, xpInfo, ammoFor, sceneInfo } from "./rules.js";
 import { icon, actionMark, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, pips, rich } from "./ui.js";
-import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum } from "./entities.js";
+import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum, PROF_KINDS } from "./entities.js";
 import { NOTE_SECTIONS, SECTION_NAME, NOTE_STATUS, NOTE_ATTITUDE, CLUE_STATE, noteTagsOf, searchNotes, queryStems, highlight, snippetHtml, plainText, richLinks, backlinks, currentSession, pinnedNotes, linkTargets } from "./notes.js";
 
 export const TABS = [
@@ -130,8 +130,7 @@ export function tabChar(ctx) {
   const { c, d } = ctx;
   const abil = ABILITIES.map(a => `
     <div class="abil" data-card="ability:${a.key}">
-      <button class="abil-top" data-roll="check:${a.key}"><span class="abil-name">${a.short}</span><span class="abil-mod" data-calc="mod.${a.key}">${fmt(d.mods[a.key])}</span></button>
-      <input class="abil-score" type="number" inputmode="numeric" min="1" max="30" data-path="abilities.${a.key}" data-num value="${esc(c.abilities[a.key])}" aria-label="${a.name}">
+      <button class="abil-top" data-roll="check:${a.key}"><span class="abil-name">${a.short}</span><span class="abil-mod" data-calc="mod.${a.key}">${fmt(d.mods[a.key])}</span><span class="abil-score" data-calc="score.${a.key}">${esc(c.abilities[a.key])}</span></button>
     </div>`).join("");
   const saves = ABILITIES.map(a => `
     <div class="row">
@@ -147,13 +146,17 @@ export function tabChar(ctx) {
       <span class="row-val" data-calc="skill.${s.key}">${fmt(d.skills[s.key])}</span>
     </div>`;
   }).join("");
-  const prof = [["armor", "Доспехи"], ["weapons", "Оружие"], ["tools", "Инструменты"], ["languages", "Языки"]].map(([k, l]) => `
-    <label class="fld inline"><span>${l}</span><textarea class="autogrow" rows="1" data-path="proficiencies.${k}">${esc(c.proficiencies[k])}</textarea></label>`).join("");
+  const prof = PROF_KINDS.map(([k, l]) => {
+    const list = String(c.proficiencies[k] || "").split(/[,;\n]/).map(x => x.trim()).filter(Boolean);
+    return `<div class="prof-line"><span class="prof-l">${l}</span><span class="prof-chips">${list.length ? list.map(x => `<span class="prof-chip">${esc(x)}</span>`).join("") : `<span class="dim">Нет</span>`}</span></div>`;
+  }).join("");
+  const caster = c.spellAbility && ((c.spells || []).length || (c.casterType && c.casterType !== "none"));
+  const spellLine = caster ? `<button class="spell-line" data-act="go-tab" data-to="spells">${icon("book")}<span>Заклинания: СЛ <b data-calc="dc">${d.spell.dc}</b> · атака <b data-calc="satk">${fmt(d.spell.atk)}</b></span></button>` : "";
 
   return `
   <div class="char-grid">
     <div class="col col-left">
-      ${panel("Характеристики", `<div class="abil-grid">${abil}</div>`, { ic: "star", cls: "p-abil" })}
+      ${panel("Характеристики", `<div class="abil-grid">${abil}</div>`, { ic: "star", cls: "p-abil", actions: `<button class="btn ghost sm" data-act="edit-abilities">${icon("edit")}Изменить</button>` })}
       ${panel("Спасброски", `<div class="rows">${saves}</div>`, { ic: "shield", cls: "p-saves" })}
     </div>
     <div class="col col-center">
@@ -174,6 +177,7 @@ export function tabChar(ctx) {
         ${statMedal("Скорость", d.speed + " фт", { calc: "speed", act: "edit-info", ic: "boot", card: "stat:speed", slow: d.speed < d.baseSpeed })}
         ${statMedal("Мастерство", fmt(d.pb), { calc: "pb", ic: "star", card: "stat:pb" })}
       </div>
+      ${spellLine}
       ${inspirationBtn(c)}
       ${concentrationBar(c)}
       ${activeConditions(c)}
@@ -191,7 +195,7 @@ export function tabChar(ctx) {
       ${panel("Навыки", `<div class="rows">${skills}</div>`, { ic: "d20", cls: "p-skills" })}
     </div>
   </div>
-  ${panel("Владения и языки", `<div class="prof-grid">${prof}</div>`, { ic: "wrench" })}`;
+  ${panel("Владения и языки", `<div class="prof-grid">${prof}</div>`, { ic: "wrench", actions: `<button class="btn ghost sm" data-act="edit-prof">${icon("edit")}Изменить</button>` })}`;
 }
 
 function combatRow({ rid, open, name, sub, color, ic, hit, dmg }) {

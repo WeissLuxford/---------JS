@@ -1,8 +1,8 @@
-import { normalize, fmt, spellCast, usesInfo, addDice, swapType, effectDamage, weaponStats, asWeapon, uid } from "./rules.js";
+import { ABILITIES, normalize, fmt, spellCast, usesInfo, addDice, swapType, effectDamage, weaponStats, asWeapon, uid } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, $, toast, openModal, openForm, getPath, setPath, cropImage, pickFile, playSound, openBoard, compressImage, confirmDialog } from "./ui.js";
 import { SECTION_NAME, linkTargets } from "./notes.js";
-import { itemIcon, cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
+import { itemIcon, cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, PROF_KINDS, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
 import { addHistory, getBoard, saveBoard, removeBoard } from "./store.js";
 import { PACKS, packItems, packWeight, COMPONENT_POUCH_NOTE } from "./packs.js";
 import { lastSnapshot, clone } from "./sheet-util.js";
@@ -312,6 +312,33 @@ export function installCards(X) {
     });
   }
 
+  function editAbilities() {
+    const initial = clone(S.c.abilities);
+    openForm({
+      title: "Характеристики",
+      fields: ABILITIES.map(a => ({ key: "abilities." + a.key, label: a.name, type: "number" })),
+      value: S.c,
+      onSave: val => X.mutate(c => {
+        for (const k of changedKeys(initial, val.abilities)) c.abilities[k] = val.abilities[k];
+        c.abilities = normalize(c).abilities;
+        X.clampHp(c);
+      })
+    });
+  }
+
+  function editProf() {
+    const initial = clone(S.c.proficiencies);
+    openForm({
+      title: "Владения и языки",
+      fields: PROF_KINDS.map(([k, l]) => ({ key: "proficiencies." + k, label: l, type: "textarea", rows: 2, span: 2, hint: k === "languages" ? "Через запятую" : "" })),
+      value: S.c,
+      onSave: val => X.mutate(c => {
+        for (const k of changedKeys(initial, val.proficiencies)) c.proficiencies[k] = val.proficiencies[k];
+        c.proficiencies = normalize(c).proficiencies;
+      })
+    });
+  }
+
   function boardSource() {
     if (S.preview) return `assets/templates/${S.preview}-board.webp`;
     return S.c.boardAt ? getBoard(X.id).catch(() => "") : "";
@@ -494,5 +521,5 @@ export function installCards(X) {
     });
   }
 
-  Object.assign(X, { moveItem, entityButtons, entityBody, refreshEntityModal, openEntity, changedKeys, editEntity, editNote, editInfo, editArmor, portraitDialog, replaceWith });
+  Object.assign(X, { moveItem, entityButtons, entityBody, refreshEntityModal, openEntity, changedKeys, editEntity, editNote, editInfo, editArmor, editAbilities, editProf, portraitDialog, replaceWith });
 }

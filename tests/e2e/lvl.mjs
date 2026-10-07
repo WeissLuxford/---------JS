@@ -54,7 +54,7 @@ await page.click(".modal-back.in [data-go]");
 await sleep(300);
 await page.click(".modal-back.in .levelup-card .form-actions [data-close]");
 await sleep(250);
-ok("int 19 con 17", (await page.inputValue("input[data-path='abilities.int']")) === "19" && (await page.inputValue("input[data-path='abilities.con']")) === "17");
+ok("int 19 con 17", (await page.innerText("[data-calc='score.int']")) === "19" && (await page.innerText("[data-calc='score.con']")) === "17");
 ok("no errors", errors.length === 0, errors.join("|"));
 await browser.close();
 console.log(r.join("\n"));
