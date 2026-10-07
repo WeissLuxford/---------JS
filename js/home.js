@@ -30,6 +30,8 @@ export function mountHome(root, navigate) {
   let templates = [];
   let hiddenTpl = [];
   let showHiddenTpl = false;
+  let accOpen = false;
+  const PENDING = "dnd.takeAfterSignIn";
 
   const offStatus = onStatus(st => {
     const next = st.mode === "local" ? st.error || "Только в этом браузере" : st.state === "error" || st.state === "offline" ? st.error : "";
@@ -97,7 +99,88 @@ export function mountHome(root, navigate) {
     if (!a.ready && getMode() === "cloud") return;
     resubscribe();
     paint();
+    takePending();
   });
+
+  function pendingKey() {
+    try {
+      return sessionStorage.getItem(PENDING) || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function setPending(key) {
+    try {
+      if (key) sessionStorage.setItem(PENDING, key);
+      else sessionStorage.removeItem(PENDING);
+    } catch {}
+  }
+
+  function canCreateNow() {
+    const cloud = getMode() === "cloud";
+    return !cloud || !access.enforced || (access.signedIn && !access.banned);
+  }
+
+  function takePending() {
+    const key = pendingKey();
+    if (!key || disposed || !templates.length || !access.signedIn || !canCreateNow()) return;
+    setPending("");
+    const tp = templates.find(x => x.key === key);
+    if (tp) takeTemplate(tp);
+  }
+
+  async function takeTemplate(tp, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      const id = newCharId();
+      await createChar(id, await templateCopy(tp));
+      toast(`${icon("check")} ${esc(tp.c.name)} теперь твой`, { kind: "good" });
+      navigate(`#/c/${id}`);
+    } catch {
+      if (btn) btn.disabled = false;
+      toast("Не удалось забрать персонажа", { kind: "bad" });
+    }
+  }
+
+  function ownCard(c) {
+    const d = compute(c);
+    const cur = Math.max(0, Number(c.hp.current) || 0);
+    const pct = d.hpMax ? Math.max(0, Math.min(100, Math.round((cur / d.hpMax) * 100))) : 0;
+    const i = c.info;
+    const rows = [["sparkle", i.subclass], ["book", i.background]].filter(r => r[1]);
+    const when = c.updatedAt ? "изменён " + timeAgo(c.updatedAt) + (shortWho(c.updatedBy) ? " · " + shortWho(c.updatedBy) : "") : "";
+    const lock = c.visibility === "private" && getMode() === "cloud" && access.enforced;
+    const href = `#/c/${encodeURIComponent(c.id)}`;
+    return `<article class="tpl-hero own ${c.archived ? "arch" : ""} ${cur === 0 && d.hpMax ? "down" : ""}">
+      <a class="tpl-art" href="${href}" aria-label="Открыть: ${esc(c.name)}">
+        ${c.portrait ? `<img src="${esc(c.portrait)}" alt="" loading="lazy">` : `<span class="own-ph">${PORTRAIT_PLACEHOLDER}</span>`}
+        <span class="tpl-name"><b>${esc(c.name)}</b><small>${esc(subtitle(c))}</small></span>
+      </a>
+      <button class="own-share" data-share="${esc(c.id)}" title="${lock ? "Доступ по ссылке выключен" : "Поделиться"}" aria-label="Поделиться: ${esc(c.name)}">${icon(lock ? "shield" : "link")}</button>
+      <a class="tpl-body own-body" href="${href}" tabindex="-1">
+        <span class="own-stats"><span class="own-hp ${pct <= 25 ? "low" : ""}"><span class="own-bar"><i style="width:${pct}%"></i></span><span><b>${cur}</b>/${d.hpMax} ХП</span></span><span class="own-ac">${icon("shield")}<b>${d.ac}</b> КД</span></span>
+        ${rows.length ? `<ul class="tpl-rows">${rows.map(([ic, text]) => `<li>${icon(ic)}<span>${esc(text)}</span></li>`).join("")}</ul>` : ""}
+        ${when ? `<small class="own-when">${esc(when)}</small>` : ""}
+      </a>
+    </article>`;
+  }
+
+  function accountButton() {
+    if (getMode() !== "cloud" || !access.ready) return "";
+    if (!access.signedIn) return `<button class="btn gold sm acc-in" data-signin>${icon("user")}Войти</button>`;
+    return `<div class="acc-wrap"><button class="acc-btn" data-acc-menu aria-expanded="${accOpen}" aria-label="Аккаунт: ${esc(access.name)}">${access.photo ? `<img src="${esc(access.photo)}" alt="" referrerpolicy="no-referrer">` : icon("user")}</button>${accOpen ? accountMenu() : ""}</div>`;
+  }
+
+  function accountMenu() {
+    return `<div class="st-pop acc-pop" role="dialog" aria-label="Аккаунт">
+      <div class="acc-who"><b>${esc(access.name)}</b><small>${esc(access.email)}</small>${access.isAdmin ? `<span class="hist-tag gold">владелец сайта</span>` : ""}${access.banned ? `<span class="hist-tag bad">аккаунт запрещён</span>` : ""}</div>
+      ${access.isAdmin ? `<button class="acc-item" data-accounts>${icon("people")}Аккаунты</button><button class="acc-item" data-backup>${icon("download")}Бэкап всех персонажей</button>` : ""}
+      <button class="acc-item" data-myid>${icon("gear")}Аккаунт и удаление</button>
+      <button class="acc-item" data-privacy>${icon("shield")}Что мы храним</button>
+      <button class="acc-item" data-signout>${icon("back")}Выйти</button>
+    </div>`;
+  }
 
   function charCard(c, { owner = true, badge = "" } = {}) {
     return `<article class="ch-card ${c.archived ? "arch" : ""}">
@@ -127,25 +210,10 @@ export function mountHome(root, navigate) {
     </article>`;
   }
 
-  function accountBar() {
-    if (getMode() !== "cloud" || !access.ready) return "";
-    if (!access.signedIn) {
-      return `<section class="signin">
-        <div class="signin-text">${icon("user")}<div><b>Войди через Google</b><small>Чтобы создавать своих персонажей и править те, к которым тебе дали доступ. Смотреть листы по ссылке можно и без входа. <button class="link-btn inline" data-privacy>Что мы храним</button></small>${IN_APP ? `<small class="warn">Похоже, сайт открыт внутри приложения (Telegram, Instagram и т.п.). Google не пускает войти оттуда: открой ссылку в Chrome или Safari.</small>` : ""}${access.authError ? `<small class="warn">${esc(access.authError)}</small>` : ""}</div></div>
-        <button class="btn gold" data-signin>${icon("user")}Войти через Google</button>
-      </section>`;
-    }
-    return `<section class="account">
-      <span class="acc-ava">${access.photo ? `<img src="${esc(access.photo)}" alt="" referrerpolicy="no-referrer">` : icon("user")}</span>
-      <div class="acc-main"><b>${esc(access.name)}</b>${access.isAdmin ? `<span class="hist-tag gold">владелец сайта</span>` : ""}${access.banned ? `<span class="hist-tag bad">аккаунт запрещён</span>` : ""}<small>${esc(access.email)}</small></div>
-      <div class="acc-actions">${access.isAdmin ? `<button class="btn sm gold" data-accounts>${icon("people")}Аккаунты</button><button class="btn sm" data-backup>${icon("download")}Бэкап</button>` : ""}<button class="btn sm ghost" data-myid>${icon("gear")}Аккаунт</button><button class="btn sm ghost" data-signout>Выйти</button></div>
-    </section>`;
-  }
-
   function tplCard(t, { hidden = false, canCreate, canHide, needSignIn }) {
     const c = t.c;
     const look = `<a class="btn ghost sm" href="#/t/${esc(t.key)}">${icon("eye")}Посмотреть</a>`;
-    const take = canCreate ? `<button class="btn gold sm" data-tpl-take="${esc(t.key)}">${icon("download")}Забрать себе</button>` : needSignIn ? `<button class="btn sm" data-signin>${icon("user")}Войти и забрать</button>` : "";
+    const take = canCreate ? `<button class="btn gold sm" data-tpl-take="${esc(t.key)}">${icon("download")}Забрать себе</button>` : needSignIn ? `<button class="btn sm" data-tpl-signin="${esc(t.key)}">${icon("user")}Войти и забрать</button>` : "";
     const hide = canHide ? `<button class="btn ghost sm" data-tpl-hide="${esc(t.key)}" title="${hidden ? "Снова показывать всем" : "Убрать с главной для всех"}">${icon(hidden ? "eye" : "trash")}${hidden ? "Вернуть" : "Убрать"}</button>` : "";
     if (!t.art) return `<article class="ch-card tpl ${hidden ? "arch" : ""}">
       <span class="ch-portrait tpl-ic">${icon(t.icon)}</span>
@@ -159,7 +227,7 @@ export function mountHome(root, navigate) {
     const i = c.info;
     const rows = [["people", i.subrace], [t.icon, [i.cls, i.level ? `${i.level} уровня` : ""].filter(Boolean).join(" ")], ["sparkle", i.subclass], ["book", i.background], ["scales", i.alignment]].filter(r => r[1]);
     const lead = [i.race, i.age ? `${i.age} ${years(i.age)}` : ""].filter(Boolean).join(" · ");
-    return `<article class="tpl-hero ${hidden ? "arch" : ""}">
+    return `<article class="tpl-hero tpl-card ${hidden ? "arch" : ""}">
       <button class="tpl-art" ${t.board ? `data-tpl-board="${esc(t.key)}" aria-label="Доска персонажа: ${esc(c.name)}"` : "disabled"}>
         <img src="${esc(t.art)}" alt="" loading="lazy">
         <span class="tpl-name"><b>${esc(c.name)}</b><small>${esc(lead)}</small></span>
@@ -193,7 +261,7 @@ export function mountHome(root, navigate) {
     const hidden = templates.filter(t => hiddenTpl.includes(t.key));
     if (!shown.length && !canHide) return "";
     const opts = { canCreate, canHide, needSignIn };
-    return section("Готовые персонажи", "people", `<p class="hint tpl-hint">Готовые листы, чтобы попробовать сайт или сразу сесть играть. «Забрать себе» делает твою копию, её можно менять как угодно, образец остаётся для других.</p>
+    return section("Готовые персонажи", "people", `<p class="hint tpl-hint">${needSignIn ? "Посмотреть можно и без входа. «Войти и забрать» войдёт через Google и сразу сделает твою копию." : "Готовые листы, чтобы попробовать сайт или сразу сесть играть. «Забрать себе» делает твою копию, её можно менять как угодно, образец остаётся для других."}</p>
       <div class="ch-grid tpl-grid">${shown.map(t => tplCard(t, opts)).join("")}</div>
       ${canHide && hidden.length ? `<div class="arch-toggle"><button class="btn ghost sm" data-tpl-hidden>${icon("archive")}Убранные (${hidden.length})</button></div>${showHiddenTpl ? `<div class="ch-grid tpl-grid">${hidden.map(t => tplCard(t, { ...opts, hidden: true })).join("")}</div>` : ""}` : ""}`);
   }
@@ -223,28 +291,30 @@ export function mountHome(root, navigate) {
     const allIds = new Set((all || []).map(c => c.id));
     const recents = getRecents().filter(x => !mineIds.has(x.id) && !invIds.has(x.id) && !allIds.has(x.id));
     const others = all ? all.filter(c => !mineIds.has(c.id)) : [];
-    const createCards = canCreate
-      ? `<button class="ch-card new" data-new><span class="new-ic">${icon("plus")}</span><span class="new-tx"><b>Новый персонаж</b><small>Мастер по шагам: раса, класс, характеристики, снаряжение</small></span></button><button class="ch-card new subtle" data-import><span class="new-ic">${icon("upload")}</span><span class="new-tx"><b>Загрузить из файла</b><small>Файл .json, скачанный из меню листа</small></span></button>`
+    const createCard = canCreate
+      ? `<button class="tpl-hero new-hero" data-new><span class="new-ic">${icon("plus")}</span><span class="new-tx"><b>Новый персонаж</b><small>Мастер по шагам: раса, класс, характеристики, снаряжение</small></span></button>`
       : "";
+    const more = [canCreate ? `<button class="link-btn" data-import>${icon("upload")}Загрузить из файла</button>` : "", archived.length ? `<button class="link-btn" data-arch>${icon("archive")}Архив (${archived.length})</button>` : ""].filter(Boolean).join("");
     const mySection = !cloud || open || access.signedIn
-      ? section(cloud && !open ? "Мои персонажи" : "Персонажи", "user", `<div class="ch-grid">${active.map(c => charCard(c)).join("")}${createCards}</div>
-          ${archived.length ? `<div class="arch-toggle"><button class="btn ghost sm" data-arch>${icon("archive")}Архив (${archived.length})</button></div>${showArchived ? `<div class="ch-grid">${archived.map(c => charCard(c)).join("")}</div>` : ""}` : ""}`)
+      ? section(cloud && !open ? "Мои персонажи" : "Персонажи", "user", `<div class="ch-grid tpl-grid own-grid">${active.map(c => ownCard(c)).join("")}${createCard}</div>
+          ${more ? `<div class="home-more">${more}</div>` : ""}${showArchived && archived.length ? `<div class="ch-grid tpl-grid own-grid">${archived.map(c => ownCard(c)).join("")}</div>` : ""}`)
       : "";
+    const firstTime = canCreate && !active.length;
     const adminSection = access.isAdmin && others.length
       ? section("Все остальные персонажи сайта", "shield", `<div class="ch-grid">${others.map(c => charCard(c, { owner: false, badge: c.ownerUid ? `владелец: ${esc(c.ownerName || c.ownerUid.slice(0, 8))}` : `<button class="btn sm gold ch-claim" data-claim="${esc(c.id)}">${icon("check")}Без владельца: забрать себе</button>` })).join("")}</div>`)
       : "";
     root.innerHTML = `
       <div class="home">
         <header class="home-head">
-          <div class="home-title">${icon("d20")}<div><h1>Листы персонажей</h1><p>Интерактивный лист персонажа D&amp;D 5e</p></div></div>
+          <div class="home-top"><div class="home-title">${icon("d20")}<div><h1>Листы персонажей</h1><p>D&amp;D 5e: сам считает бонусы, бросает в одно касание, работает без интернета</p></div></div>${accountButton()}</div>
           ${statusText ? `<div class="home-status">${icon("cloudOff")}${esc(statusText)}</div>` : ""}
           ${fromCache && !mine.length ? `<div class="home-status">${icon("cloudOff")}Нет связи с облаком: список появится, когда будет интернет</div>` : ""}
-          ${accountBar()}
+          ${cloud && access.ready && !access.signedIn && IN_APP ? `<div class="home-status">${icon("eye")}Похоже, сайт открыт внутри приложения (Telegram, Instagram и т.п.). Google не пускает войти оттуда: открой ссылку в Chrome или Safari.</div>` : ""}
+          ${cloud && access.ready && !access.signedIn && access.authError ? `<div class="home-status">${icon("cloudOff")}${esc(access.authError)}</div>` : ""}
           ${access.banned ? `<div class="home-status">${icon("eye")}Владелец сайта запретил твоему аккаунту вносить правки: можно только смотреть листы по ссылке</div>` : ""}
           ${installBanner()}
         </header>
-        ${mySection}
-        ${tplSection(canCreate)}
+        ${firstTime ? tplSection(canCreate) + mySection : mySection + tplSection(canCreate)}
         ${inv.length ? section("Со мной поделились", "edit", `<div class="ch-grid">${inv.map(x => miniCard(x, "invite")).join("")}</div>`) : ""}
         ${recents.length ? section("Недавно открытые", "eye", `<div class="ch-grid">${recents.map(x => miniCard(x, "recent")).join("")}</div>`) : ""}
         ${adminSection}
@@ -354,7 +424,26 @@ export function mountHome(root, navigate) {
   const onClick = async e => {
     if (e.target.closest("[data-install]")) return installApp();
     const t = e.target;
+    if (t.closest("[data-acc-menu]")) {
+      accOpen = !accOpen;
+      return paint();
+    }
+    if (accOpen) {
+      accOpen = false;
+      paint();
+    }
     if (t.closest("[data-new]")) return createFlow();
+    const tSign = t.closest("[data-tpl-signin]");
+    if (tSign) {
+      setPending(tSign.dataset.tplSignin);
+      try {
+        await signIn();
+      } catch (err) {
+        setPending("");
+        toast(esc(err.message), { kind: "bad", timeout: 7000 });
+      }
+      return;
+    }
     if (t.closest("[data-signin]")) {
       try {
         await signIn();
@@ -396,18 +485,7 @@ export function mountHome(root, navigate) {
     const take = t.closest("[data-tpl-take]");
     if (take) {
       const tp = templates.find(x => x.key === take.dataset.tplTake);
-      if (!tp) return;
-      take.disabled = true;
-      try {
-        const id = newCharId();
-        await createChar(id, templateCopy(tp));
-        toast(`${icon("check")} ${esc(tp.c.name)} теперь твой`, { kind: "good" });
-        navigate(`#/c/${id}`);
-      } catch {
-        take.disabled = false;
-        toast("Не удалось забрать персонажа", { kind: "bad" });
-      }
-      return;
+      return tp && takeTemplate(tp, take);
     }
     const tHide = t.closest("[data-tpl-hide]");
     if (tHide) {
@@ -460,6 +538,7 @@ export function mountHome(root, navigate) {
     templates = list;
     hiddenTpl = hidden;
     paint();
+    takePending();
   }).catch(() => {});
 
   return () => {

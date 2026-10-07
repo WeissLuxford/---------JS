@@ -31,7 +31,7 @@ ok("celebration card", /6\s*уровень/.test(t) && t.includes("Максим�
 await page.screenshot({ path: OUT + "lvl-card.png" });
 await page.click(".modal-back.in .levelup-card .form-actions [data-close]");
 await sleep(250);
-ok("undo available", (await page.locator("#undo-bar.in").count()) === 1);
+ok("undo available", (await page.locator(".st-btn.has-undo").count()) === 1);
 await page.click("[data-act=menu]");
 await page.click("[data-m=level-up]");
 await sleep(200);

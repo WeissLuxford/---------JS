@@ -45,7 +45,7 @@ const TEMPLATES = [];
   c.notes.quests = [note("Серый брод", "Узнать, кто выжил из отряда «Каменные щиты». Говорят, двоих видели в [[Портовом квартале]].", { status: "active" })];
   c.notes.places = [note("Портовый квартал", "Шумно, тесно, много наёмников. Таверна «Пьяный якорь».", { aliases: "Портовом квартале" })];
   c.accent = "steel";
-  TEMPLATES.push({ key: "fighter", icon: "swords", blurb: "Воин 3 уровня. Простой в игре: крепкий доспех, меч и щит, Второе дыхание и Всплеск действий.", c: ids(c, "garven") });
+  TEMPLATES.push({ key: "fighter", icon: "swords", blurb: "Простой в игре: крепкий доспех, меч и щит, Второе дыхание и Всплеск действий.", c: ids(c, "garven") });
 }
 
 {
@@ -71,7 +71,7 @@ const TEMPLATES = [];
   c.notes.people = [note("Настоятель Борин", "Наставник. Остался в Дунхольме, пишет раз в месяц.", { attitude: "ally" })];
   c.notes.quests = [note("Храм Дунхольма", "Собрать 500 зм на восстановление храма. Собрано: 40 зм.", { status: "active" })];
   c.accent = "copper";
-  TEMPLATES.push({ key: "cleric", icon: "sun", blurb: "Жрец 3 уровня, домен жизни. Лечит, поддерживает отряд, держит удар в кольчуге.", c: ids(c, "beldra") });
+  TEMPLATES.push({ key: "cleric", icon: "sun", blurb: "Лечит, поддерживает отряд, держит удар в кольчуге.", c: ids(c, "beldra") });
 }
 
 {
@@ -94,17 +94,15 @@ const TEMPLATES = [];
   c.notes.clues = [note("Пропавшая страница", "Страница вырвана аккуратно, ножом. На полях знак, похожий на перевёрнутую звезду.", { state: "lead" })];
   c.notes.quests = [note("Учитель Аэрхен", "Найти, куда исчез учитель. Начать с [[Пропавшая страница|пропавшей страницы]].", { status: "active" })];
   c.accent = "ice";
-  TEMPLATES.push({ key: "wizard", icon: "staff", blurb: "Волшебник 3 уровня, школа Воплощения. Огненный снаряд, Щит, Волшебная стрела, книга заклинаний.", c: ids(c, "kaelen") });
+  TEMPLATES.push({ key: "wizard", icon: "staff", blurb: "Огненный снаряд, Щит, Волшебная стрела и толстая книга заклинаний.", c: ids(c, "kaelen") });
 }
 
 const out = TEMPLATES.map(t => {
   const c = R.normalize({ ...t.c, archived: false });
   for (const k of ["id", "createdAt", "updatedAt", "updatedBy", "ownerUid", "ownerName", "visibility"]) delete c[k];
   c.hp.current = R.compute(c).hpMax;
-  const pic = new URL(`assets/templates/${t.key}-portrait.webp`, root);
-  if (fs.existsSync(pic)) c.portrait = "data:image/webp;base64," + fs.readFileSync(pic).toString("base64");
-  const art = `assets/templates/${t.key}-art.webp`, board = `assets/templates/${t.key}-board.webp`;
-  return { key: t.key, icon: t.icon, blurb: t.blurb, ...(fs.existsSync(new URL(art, root)) ? { art } : {}), ...(fs.existsSync(new URL(board, root)) ? { board } : {}), c };
+  const files = Object.fromEntries(["art", "board", "portrait"].map(k => [k, `assets/templates/${t.key}-${k}.webp`]).filter(([, f]) => fs.existsSync(new URL(f, root))));
+  return { key: t.key, icon: t.icon, blurb: t.blurb, ...files, c };
 });
 fs.writeFileSync(new URL("data/templates.json", root), JSON.stringify(out));
 console.log(out.map(t => `${t.c.name}: ${t.c.info.race} ${t.c.info.cls} ${t.c.info.level}, ${t.c.spells.length} закл., ${t.c.features.length} ум., ${t.c.items.length} предм.`).join("\n"));

@@ -10,7 +10,7 @@ const LIMIT = 0.005;
 const TABS = ["char", "combat", "spells", "features", "inventory", "notes", "story"];
 const SIZES = { phone: { width: 390, height: 844, isMobile: true, hasTouch: true }, desktop: { width: 1280, height: 900 } };
 const FREEZE = `*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }
-  #toasts, #undo-bar, .ambient, .fab-quick { visibility: hidden !important; }`;
+  #toasts, .st-pop, .ambient, .fab-quick { visibility: hidden !important; }`;
 
 const r = [];
 const ok = (n, c, x = "") => r.push(`${c ? "PASS" : "FAIL"} ${n}${x ? " :: " + x : ""}`);
@@ -88,7 +88,7 @@ for (const [size, vp] of Object.entries(SIZES)) {
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   await page.goto("http://localhost:8765/#/");
-  await page.waitForSelector(".tpl-hero");
+  await page.waitForSelector(".tpl-card");
   await shot(`${size}-home`, page);
   for (const tab of TABS) {
     await page.goto(`http://localhost:8765/#/c/kirion-thorndike/${tab}`);

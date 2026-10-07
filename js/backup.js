@@ -78,6 +78,14 @@ export function fileDue(id, now = Date.now(), store = globalThis.localStorage) {
   }
 }
 
+export function lastFile(id, store = globalThis.localStorage) {
+  try {
+    return Number(store.getItem(FILE_KEY(id))) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 export function markFile(id, now = Date.now(), store = globalThis.localStorage) {
   try {
     store.setItem(FILE_KEY(id), String(now));

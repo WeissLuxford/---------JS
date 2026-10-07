@@ -16,27 +16,22 @@ export function installUndo(X) {
   function showUndo(label, before) {
     if (X.readOnly()) return;
     S.undo = { label, before };
-    let bar = document.getElementById("undo-bar");
-    if (!bar) {
-      bar = document.createElement("div");
-      bar.id = "undo-bar";
-      document.body.appendChild(bar);
+    X.paintSync();
+    const btn = document.querySelector("[data-sync]");
+    if (btn) {
+      btn.classList.remove("st-flash");
+      void btn.offsetWidth;
+      btn.classList.add("st-flash");
     }
-    bar.innerHTML = `<span>${esc(label)}</span><button class="btn sm" data-undo>${icon("history")}Отменить</button>`;
-    bar.classList.add("in");
-    clearTimeout(S.undoTimer);
-    S.undoTimer = setTimeout(hideUndo, 7000);
   }
 
   function hideUndo() {
-    clearTimeout(S.undoTimer);
-    const bar = document.getElementById("undo-bar");
-    if (bar) bar.classList.remove("in");
+    S.undo = null;
+    X.paintSync();
   }
 
   function doUndo() {
     const u = S.undo;
-    S.undo = null;
     hideUndo();
     if (!u || S.disposed) return;
     X.mutate(c => restoreFrom(c, u.before), { render: false });

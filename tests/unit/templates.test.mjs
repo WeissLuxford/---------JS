@@ -15,8 +15,9 @@ test("three ready characters, clean and playable", () => {
     const c = R.normalize(t.c);
     const d = R.compute(c);
     assert.ok(t.blurb && t.icon, t.key);
-    assert.ok(fs.existsSync(new URL("../../" + t.art, import.meta.url)) && fs.existsSync(new URL("../../" + t.board, import.meta.url)), t.key);
-    assert.ok(c.portrait.startsWith("data:image/webp;base64,") && c.portrait.length < 300000, t.key);
+    for (const k of ["art", "board", "portrait"]) assert.ok(t[k] && fs.existsSync(new URL("../../" + t[k], import.meta.url)), `${t.key} ${k}`);
+    assert.ok(fs.statSync(new URL("../../" + t.portrait, import.meta.url)).size < 200000, t.key);
+    assert.equal(c.portrait, "", t.key);
     assert.equal(c.info.level, 3, t.key);
     assert.ok(c.info.subclass, t.key);
     assert.equal(c.hp.current, d.hpMax, t.key);

@@ -20,7 +20,7 @@ ok("pinned group", (await page.locator(".atk-group", { hasText: "Закрепл�
 await page.click("[data-act=pin-use]");
 await sleep(200);
 ok("pinned use spends", (await page.locator("[data-act=pin-use]").innerText()).includes("2/3"));
-ok("undo for pinned use", await page.locator("#undo-bar.in").count() === 1);
+ok("undo for pinned use", await page.locator(".st-btn.has-undo").count() === 1);
 ok("no errors", errors.length === 0, errors.join("|"));
 await browser.close();
 console.log(r.join("\n"));

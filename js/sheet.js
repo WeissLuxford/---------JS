@@ -1,6 +1,6 @@
 import { compute, normalize, fmt, usesInfo, addDice, swapType, NOTE_KEYS, reorderSubset, presetEffect, xpInfo } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
-import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, warmSounds, reducedMotion, getPath, setPath, download } from "./ui.js";
+import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, warmSounds, reducedMotion, getPath, setPath, download, timeAgo } from "./ui.js";
 import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources } from "./tabs.js";
 import { cardFor, findEntity } from "./entities.js";
 import { subscribeChar, saveChanges, addHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
@@ -9,7 +9,7 @@ import { onAccess, getAccess, myEmail, signIn, IN_APP } from "./access.js";
 import { openAccounts } from "./admin.js";
 import { openShare } from "./share.js";
 import { setAmbient } from "./ambient.js";
-import { saveBackup, listBackups, fileDue, markFile, backupFile, backupName, BACKUP_GAP } from "./backup.js";
+import { saveBackup, listBackups, fileDue, lastFile, markFile, backupFile, backupName, BACKUP_GAP } from "./backup.js";
 import { SNAPSHOT_GAP, lastSnapshot, clone, sameContent, loadUiPrefs, accentStyle, applyAccent, loadJson, loadTurn, saveUiPrefs, explainOn, setExplain } from "./sheet-util.js";
 import { installRolls } from "./sheet-rolls.js";
 import { installUndo } from "./sheet-undo.js";
@@ -70,14 +70,76 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     lastError = st.state === "error" ? st.error : "";
   });
 
+  function syncState() {
+    const st = lastStatus;
+    if (!st) return "idle";
+    return st.state === "error" ? "error" : st.mode === "local" ? "local" : st.state;
+  }
+
+  function syncText() {
+    const st = lastStatus || {};
+    const state = syncState();
+    if (state === "error") return st.error || "Не удалось сохранить";
+    if (state === "local") return st.error || "Лист хранится только в этом браузере";
+    if (state === "offline") return "Нет сети: всё сохранится, когда появится интернет";
+    if (state === "saving") return "Сохраняю...";
+    return st.error || "Всё сохранено в облаке";
+  }
+
   function paintSync() {
     const el = $("[data-sync]", root);
-    const st = lastStatus;
-    if (!el || !st) return;
-    const state = st.state === "error" ? "error" : st.mode === "local" ? "local" : st.state;
-    el.className = "sync " + state;
-    el.title = st.error || (st.mode === "local" ? "Только в этом браузере" : st.state === "saving" ? "Сохраняю..." : "Сохранено в облаке");
-    el.innerHTML = icon(state === "local" || state === "error" || state === "offline" ? "cloudOff" : "cloud");
+    if (!el) return;
+    const state = syncState();
+    const due = !readOnly() && S.fileDue;
+    const news = S.remoteAt && !S.remoteSeen;
+    el.className = `st-btn sync ${state}${S.undo && !readOnly() ? " has-undo" : ""}${due || news ? " has-dot" : ""}`;
+    el.setAttribute("aria-label", "Состояние листа: " + syncText());
+    el.title = syncText();
+    el.innerHTML = icon(state === "local" || state === "error" || state === "offline" ? "cloudOff" : "cloud") + `<i class="st-dot"></i>`;
+    fillStatus();
+  }
+
+  let statusPop = null;
+
+  function closeStatus() {
+    if (!statusPop) return;
+    statusPop.remove();
+    statusPop = null;
+    document.removeEventListener("pointerdown", statusOutside, true);
+  }
+
+  function statusOutside(e) {
+    if (statusPop && !statusPop.contains(e.target) && !e.target.closest("[data-sync]")) closeStatus();
+  }
+
+  function openStatus() {
+    if (statusPop) return closeStatus();
+    statusPop = document.createElement("div");
+    statusPop.className = "st-pop";
+    statusPop.setAttribute("role", "dialog");
+    statusPop.setAttribute("aria-label", "Состояние листа");
+    document.body.appendChild(statusPop);
+    document.addEventListener("pointerdown", statusOutside, true);
+    S.remoteSeen = true;
+    paintSync();
+  }
+
+  function fillStatus() {
+    if (!statusPop) return;
+    const btn = $("[data-sync]", root);
+    if (!btn) return closeStatus();
+    const r = btn.getBoundingClientRect();
+    statusPop.style.top = `${Math.round(r.bottom + 8)}px`;
+    statusPop.style.left = `${Math.round(Math.max(8, Math.min(r.left - 6, window.innerWidth - 328)))}px`;
+    const state = syncState();
+    const rows = [`<div class="st-row ${state}">${icon(state === "local" || state === "error" || state === "offline" ? "cloudOff" : "cloud")}<span>${esc(syncText())}</span></div>`];
+    if (S.undo && !readOnly()) rows.push(`<div class="st-row">${icon("history")}<span>Последнее: ${esc(S.undo.label)}</span><button class="btn sm" data-undo>Отменить</button></div>`);
+    if (S.remoteAt) rows.push(`<div class="st-row">${icon("people")}<span>Лист обновился с другого устройства ${esc(timeAgo(S.remoteAt))}</span></div>`);
+    if (!readOnly()) {
+      const at = lastFile(id);
+      rows.push(`<div class="st-row ${S.fileDue ? "warn" : ""}">${icon("download")}<span>${at ? `Копия файлом: ${esc(timeAgo(at))}` : "Копии файлом ещё не было"}${S.fileDue ? ". Стоит скачать свежую" : ""}</span><button class="btn sm ${S.fileDue ? "gold" : "ghost"}" data-backup-file>Скачать</button></div>`);
+    }
+    statusPop.innerHTML = rows.join("");
   }
 
   function loaderMessage(ic, text, sub = "") {
@@ -136,12 +198,16 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     S.d = compute(S.c);
     if (inputFocused()) S.pendingRender = true;
     else rerenderKeepingModal();
-    if (!meta.pendingWrites && !meta.self) toast(`${icon("cloud")} Лист обновлён: кто-то внёс изменения`, { kind: "info" });
+    if (!meta.pendingWrites && !meta.self) {
+      S.remoteAt = Date.now();
+      S.remoteSeen = false;
+      paintSync();
+    }
   };
   const unsub = S.preview
-    ? (loadTemplates().then(list => {
+    ? (loadTemplates().then(async list => {
       const t = list.find(x => x.key === S.preview);
-      onData(t ? templateCopy(t) : null);
+      onData(t ? await templateCopy(t) : null);
     }).catch(() => onData(undefined, {})), () => {})
     : subscribeChar(id, onData);
 
@@ -236,11 +302,11 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         <button class="fab-quick" data-act="quick-note" title="Быстрая заметка" aria-label="Быстрая заметка">${icon("quill")}</button>
         <header class="topbar">
           <a class="icon-btn" href="#/" title="Все персонажи">${icon("back")}</a>
+          <button class="st-btn sync" data-sync></button>
           <button class="tb-portrait" data-act="portrait" title="Портрет">${c.portrait ? `<img src="${esc(c.portrait)}" alt="">` : PORTRAIT_PLACEHOLDER}</button>
           <button class="tb-id" data-act="edit-info"><span class="tb-name" data-calc="name">${esc(c.name)}</span><span class="tb-sub" data-calc="sub">${esc(subtitle(c))}</span></button>
           <button class="hp-mini" data-act="hp" title="Хиты"><span class="hp-mini-bar"><i data-hpbar></i></span><span><b data-calc="hp"></b>/<span data-calc="hpmax"></span></span></button>
           <button class="roll-mode" data-act="roll-mode" title="Режим следующего броска d20: обычный, с преимуществом, с помехой">${rollModeLabel()}</button>
-          <span class="sync" data-sync></span>
           <button class="icon-btn tb-quick" data-act="quick-note" title="Быстрая заметка" aria-label="Быстрая заметка">${icon("quill")}</button>
           <button class="icon-btn tb-search" data-act="search-all" title="Поиск по листу" aria-label="Поиск по листу">${icon("search")}</button>
           <button class="icon-btn" data-act="menu" title="Меню">${icon("dots")}</button>
@@ -394,15 +460,18 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       saveBackup(id, S.c);
       S.backupAt = Date.now();
     }
-    if (S.editedThisSession && !S.fileAsked && fileDue(id)) {
-      S.fileAsked = true;
-      toast(`${icon("download")} Давно не было копии листа файлом. <button class="btn sm" data-backup-file>Скачать копию</button>`, { timeout: 12000 });
+    const due = S.editedThisSession && fileDue(id);
+    if (due !== !!S.fileDue) {
+      S.fileDue = due;
+      paintSync();
     }
   }
 
   function downloadBackup() {
     download(backupName(S.c), backupFile(S.c));
     markFile(id);
+    S.fileDue = false;
+    paintSync();
   }
 
   function changed({ render = true } = {}) {
@@ -1006,6 +1075,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
   }
 
   const onClick = e => {
+    if (e.target.closest("[data-sync]") && root.contains(e.target)) return openStatus();
     const si = e.target.closest("[data-act=signin]");
     if (si && root.contains(si) && !S.c) {
       e.preventDefault();
@@ -1048,10 +1118,16 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
 
   const onToastClick = e => {
     if (S.disposed) return;
-    if (e.target.closest("#undo-bar [data-undo]")) return X.doUndo();
+    if (e.target.closest(".st-pop [data-undo]")) {
+      closeStatus();
+      return X.doUndo();
+    }
+    if (e.target.closest(".st-pop [data-backup-file]")) {
+      closeStatus();
+      return downloadBackup();
+    }
     if (e.target.closest("#toasts [data-rem-death]")) X.doRoll("death");
     if (e.target.closest("#toasts [data-lu-lib]")) X.openLibrary(null);
-    if (e.target.closest("#toasts [data-backup-file]")) downloadBackup();
     const hs = e.target.closest("#toasts [data-heal-self]");
     if (hs) X.applyHp("heal", Number(hs.dataset.healSelf) || 0);
     const tf = e.target.closest("#toasts [data-temp-force]");
@@ -1066,6 +1142,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
   };
 
   const onKey = e => {
+    if (e.key === "Escape" && statusPop) closeStatus();
     if (e.key === "Enter" && e.target.matches("input[data-path]")) e.target.blur();
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.target.matches("[data-journal]")) {
       e.preventDefault();
@@ -1133,6 +1210,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
 
   return () => {
     keepAwake(false);
+    closeStatus();
     offShake();
     heartbeat(false);
     clearTimeout(S.fxTimer);

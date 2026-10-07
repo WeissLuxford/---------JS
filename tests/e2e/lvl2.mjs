@@ -70,7 +70,7 @@ await sleep(250);
 await page.click(".tab[data-tab=features]");
 await sleep(300);
 ok("invocation added", (await page.locator(".sheet").innerText()).includes("Мучительный заряд"));
-await page.click("#undo-bar [data-undo]").catch(() => {});
+await page.click("[data-sync]").then(() => page.click(".st-pop [data-undo]")).catch(() => {});
 await sleep(300);
 ok("undo removes invocation", !(await page.locator(".sheet").innerText()).includes("Мучительный заряд"));
 const wide = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
