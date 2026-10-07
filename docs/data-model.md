@@ -9,6 +9,7 @@
 | `name` | строка до 120 | имя |
 | `archived` | bool | в архиве |
 | `portrait` | data URL до ~300 КБ | портрет 520×624 (webp или jpeg) |
+| `boardAt` | число, мс | когда загружена доска персонажа, 0 если нет; сама картинка лежит отдельно, при импорте и копии сбрасывается |
 | `info` | объект | `race, subrace, cls, subclass, level, background, alignment, age, xp, setting, patron, pactBoon, player` |
 | `abilities` | `{str,dex,con,int,wis,cha}` | значения 1..30 |
 | `saves` | `{key: true}` | владение спасбросками |
@@ -62,6 +63,7 @@
 | `characters/{id}` | персонаж | все, если `visibility != private`; иначе владелец, редакторы, админ | владелец, редакторы, админ |
 | `characters/{id}/history/{h}` | `{at, reason, by, data}` снимок до правки | владелец, редакторы, админ | они же создают, удаляет владелец |
 | `characters/{id}/acl/main` | `{emails[], updatedAt}` редакторы | владелец, админ | владелец, админ |
+| `characters/{id}/board/main` | `{image, updatedAt}` доска персонажа, data URL до 950 000 знаков (сжимает `compressImage()`); в локальном режиме `localStorage` `dnd.board.<id>` | как сам лист (по ссылке, владелец, редакторы, админ) | владелец, редакторы, админ; удаляется вместе с листом |
 | `invites/{email}/chars/{id}` | `{name, ownerName, ownerUid, at}` приглашение | приглашённый, админ | владелец (вместе с ACL одной транзакцией) |
 | `users/{uid}` | `{name, email, photo, createdAt, lastSeen}` | сам, админ | сам |
 | `bans/{uid}` | запрет аккаунта | сам, админ | админ |

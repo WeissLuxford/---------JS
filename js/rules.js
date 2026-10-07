@@ -532,6 +532,7 @@ export function newCharacter(name = "Новый персонаж") {
     name,
     archived: false,
     portrait: "",
+    boardAt: 0,
     info: {
       race: "", subrace: "", cls: "", subclass: "", level: 1, background: "",
       alignment: "", age: "", xp: 0, setting: "", patron: "", pactBoon: "", player: ""
@@ -681,6 +682,7 @@ export function normalize(c) {
   }
   out.name = String(out.name ?? "").slice(0, 120);
   out.portrait = typeof out.portrait === "string" && out.portrait.startsWith("data:image/") ? out.portrait : "";
+  out.boardAt = Math.max(0, num(out.boardAt));
   for (const k of ABILITY_KEYS) out.abilities[k] = Math.max(1, Math.min(30, Math.round(num(out.abilities[k], 10))));
   out.info.level = clampLevel(out.info.level);
   out.info.xp = num(out.info.xp);
@@ -1097,6 +1099,7 @@ export function importCharacter(data) {
   delete c.ownerUid;
   delete c.ownerName;
   c.archived = false;
+  c.boardAt = 0;
   if (!raw.hp || raw.hp.current == null) c.hp.current = compute(c).hpMax;
   return c;
 }

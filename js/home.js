@@ -1,8 +1,8 @@
 import { normalize, newCharacter, compute, importCharacter } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
-import { esc, timeAgo, toast, openForm, openModal, pickFile, confirmDialog } from "./ui.js";
+import { esc, timeAgo, toast, openForm, openModal, pickFile, confirmDialog, openBoard } from "./ui.js";
 import { installBanner, installApp } from "./pwa.js";
-import { subscribeList, subscribeInvites, createChar, getMode, onStatus, getRecents, removeRecent, claimCharacter, deleteCharactersOf, listCharactersOf, newCharId, getCharOnce, getHiddenTemplates, setHiddenTemplates } from "./store.js";
+import { subscribeList, subscribeInvites, createChar, getMode, onStatus, getRecents, removeRecent, claimCharacter, deleteCharactersOf, listCharactersOf, newCharId, getCharOnce, getHiddenTemplates, setHiddenTemplates, getBoard } from "./store.js";
 import { loadTemplates, templateCopy } from "./templates.js";
 import { onAccess, signIn, signOut, IN_APP, getAccess, deleteAccountData } from "./access.js";
 import { subtitle } from "./tabs.js";
@@ -157,6 +157,7 @@ export function mountHome(root, navigate) {
         ${c.portrait ? `<img src="${esc(c.portrait)}" alt="" loading="lazy">` : `<span class="own-ph">${PORTRAIT_PLACEHOLDER}</span>`}
         <span class="tpl-name"><b>${esc(c.name)}</b><small>${esc(subtitle(c))}</small></span>
       </a>
+      ${c.boardAt ? `<button class="own-board" data-own-board="${esc(c.id)}">${icon("frame")}Доска</button>` : ""}
       <button class="own-share" data-share="${esc(c.id)}" title="${lock ? "Доступ по ссылке выключен" : "Поделиться"}" aria-label="Поделиться: ${esc(c.name)}">${icon(lock ? "shield" : "link")}</button>
       <a class="tpl-body own-body" href="${href}" tabindex="-1">
         <span class="own-stats"><span class="own-hp ${pct <= 25 ? "low" : ""}"><span class="own-bar"><i style="width:${pct}%"></i></span><span><b>${cur}</b>/${d.hpMax} ХП</span></span><span class="own-ac">${icon("shield")}<b>${d.ac}</b> КД</span></span>
@@ -246,10 +247,6 @@ export function mountHome(root, navigate) {
     const v = Math.abs(parseInt(n, 10)) % 100, d = v % 10;
     if (v > 10 && v < 20) return "лет";
     return d === 1 ? "год" : d > 1 && d < 5 ? "года" : "лет";
-  }
-
-  function showBoard(t) {
-    openModal({ cls: "tpl-board", wide: true, body: `<img src="${esc(t.board)}" alt="Доска персонажа: ${esc(t.c.name)}">` });
   }
 
   function tplSection(canCreate) {
@@ -477,10 +474,15 @@ export function mountHome(root, navigate) {
       }
       return;
     }
+    const ob = t.closest("[data-own-board]");
+    if (ob) {
+      const c = (mine || []).find(x => x.id === ob.dataset.ownBoard);
+      return openBoard(getBoard(ob.dataset.ownBoard).catch(() => ""), c ? c.name : "");
+    }
     const board = t.closest("[data-tpl-board]");
     if (board) {
       const tp = templates.find(x => x.key === board.dataset.tplBoard);
-      return tp && showBoard(tp);
+      return tp && openBoard(tp.board, tp.c.name);
     }
     const take = t.closest("[data-tpl-take]");
     if (take) {

@@ -67,6 +67,19 @@ service cloud.firestore {
         allow delete: if isAdmin() || isOwner(charDoc(id).data);
       }
 
+      match /board/{doc} {
+        allow get: if doc == 'main'
+          && (charDoc(id).data.get('visibility', 'link') == 'link'
+            || isOwner(charDoc(id).data) || isAdmin() || isEditor(id));
+        allow create, update: if doc == 'main'
+          && canEdit(id, charDoc(id).data)
+          && request.resource.data.keys().hasOnly(['image', 'updatedAt'])
+          && request.resource.data.image is string
+          && request.resource.data.image.size() <= 950000
+          && notFuture(request.resource.data.updatedAt);
+        allow delete: if canEdit(id, charDoc(id).data);
+      }
+
       match /acl/{doc} {
         allow read: if isAdmin() || isOwner(charDoc(id).data);
         allow create, update: if (isAdmin() || (notBanned() && isOwner(charDoc(id).data)))

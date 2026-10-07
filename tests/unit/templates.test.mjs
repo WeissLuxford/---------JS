@@ -44,3 +44,10 @@ test("each class shows its signature", () => {
   assert.equal(wizard.spells.filter(s => Number(s.level) > 0 && s.prepared !== false).length, 6);
   assert.ok(wizard.items.some(it => it.name === "Книга заклинаний"));
 });
+
+test("character boards are a flag, never copied", () => {
+  assert.equal(R.normalize({ name: "x" }).boardAt, 0);
+  assert.equal(R.normalize({ name: "x", boardAt: "abc" }).boardAt, 0);
+  assert.equal(R.normalize({ name: "x", boardAt: 123 }).boardAt, 123);
+  assert.equal(R.importCharacter({ name: "x", boardAt: 123 }).boardAt, 0);
+});

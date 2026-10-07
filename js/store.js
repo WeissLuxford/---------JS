@@ -381,6 +381,7 @@ export async function deleteCharacter(id) {
     writeLocal(map);
     try {
       localStorage.removeItem(LS_HIST + id);
+      localStorage.removeItem(LS_BOARD + id);
     } catch {}
     removeRecent(id);
     return;
@@ -400,7 +401,7 @@ export async function deleteCharacter(id) {
   });
   const hist = await fs.getDocsFromServer(fs.collection(db, "characters", id, "history"));
   const emails = acl && acl.exists() ? acl.data().emails || [] : [];
-  const refs = [...hist.docs.map(d => d.ref), ...emails.map(e => fs.doc(db, "invites", e, "chars", id)), fs.doc(db, "characters", id, "acl", "main")];
+  const refs = [...hist.docs.map(d => d.ref), ...emails.map(e => fs.doc(db, "invites", e, "chars", id)), fs.doc(db, "characters", id, "acl", "main"), fs.doc(db, "characters", id, "board", "main")];
   for (let i = 0; i < refs.length; i += 400) {
     const batch = fs.writeBatch(db);
     refs.slice(i, i + 400).forEach(r => batch.delete(r));
@@ -408,6 +409,45 @@ export async function deleteCharacter(id) {
   }
   await fs.deleteDoc(ref);
   removeRecent(id);
+}
+
+const LS_BOARD = "dnd.board.";
+export const BOARD_LIMIT = 950000;
+
+export async function getBoard(id) {
+  if (mode !== "cloud") {
+    try {
+      return localStorage.getItem(LS_BOARD + id) || "";
+    } catch {
+      return "";
+    }
+  }
+  const snap = await fs.getDoc(fs.doc(db, "characters", id, "board", "main"));
+  const v = snap.exists() ? snap.data().image : "";
+  return typeof v === "string" && v.startsWith("data:image/") ? v : "";
+}
+
+export async function saveBoard(id, image) {
+  if (typeof image !== "string" || !image.startsWith("data:image/") || image.length > BOARD_LIMIT) throw new Error("Картинка слишком большая");
+  if (mode !== "cloud") {
+    try {
+      localStorage.setItem(LS_BOARD + id, image);
+    } catch {
+      throw new Error("Не хватает памяти браузера для доски");
+    }
+    return;
+  }
+  await fs.setDoc(fs.doc(db, "characters", id, "board", "main"), { image, updatedAt: Date.now() });
+}
+
+export async function removeBoard(id) {
+  if (mode !== "cloud") {
+    try {
+      localStorage.removeItem(LS_BOARD + id);
+    } catch {}
+    return;
+  }
+  await fs.deleteDoc(fs.doc(db, "characters", id, "board", "main"));
 }
 
 const LS_TPL = "dnd.templates.hidden";

@@ -1279,6 +1279,125 @@ function loadImage(src) {
   });
 }
 
+export function openBoard(source, name = "") {
+  const m = openModal({ cls: "tpl-board", wide: true, body: `<div class="board-wait">${icon("d20")}<span>Открываю доску...</span></div>` });
+  const fail = () => {
+    m.close();
+    toast("Доску не удалось загрузить", { kind: "bad" });
+  };
+  Promise.resolve(source).then(src => {
+    if (!src) return fail();
+    m.body.innerHTML = `<div class="bz"><img src="${esc(src)}" alt="${esc(name ? "Доска персонажа: " + name : "Доска персонажа")}" draggable="false"></div><p class="bz-hint">Два пальца, двойное касание или колёсико: приблизить</p>`;
+    zoomable(m.body.querySelector(".bz"));
+  }, fail);
+  return m;
+}
+
+function zoomable(box) {
+  const img = box.querySelector("img");
+  const pts = new Map();
+  let s = 1, x = 0, y = 0, prevDist = 0, moved = 0, lastTap = 0;
+  const apply = () => {
+    img.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    box.classList.toggle("zoomed", s > 1.01);
+  };
+  const clamp = () => {
+    if (s <= 1.01) {
+      s = 1;
+      x = 0;
+      y = 0;
+      return;
+    }
+    const r = box.getBoundingClientRect();
+    const mx = Math.max(0, (img.offsetWidth * s - r.width) / 2);
+    const my = Math.max(0, (img.offsetHeight * s - r.height) / 2);
+    x = Math.max(-mx, Math.min(mx, x));
+    y = Math.max(-my, Math.min(my, y));
+  };
+  const zoomAt = (next, cx, cy) => {
+    const r = box.getBoundingClientRect();
+    const px = cx - r.left - r.width / 2;
+    const py = cy - r.top - r.height / 2;
+    const ns = Math.max(1, Math.min(5, next));
+    x = px - ((px - x) * ns) / s;
+    y = py - ((py - y) * ns) / s;
+    s = ns;
+    clamp();
+    apply();
+  };
+  const toggle = (cx, cy) => (s > 1.01 ? zoomAt(1, cx, cy) : zoomAt(2.5, cx, cy));
+  const pair = () => {
+    const [a, b] = [...pts.values()];
+    return { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+  };
+  box.addEventListener("pointerdown", e => {
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    box.setPointerCapture(e.pointerId);
+    moved = 0;
+    if (pts.size === 2) prevDist = pair().d;
+  });
+  box.addEventListener("pointermove", e => {
+    const p = pts.get(e.pointerId);
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX;
+    p.y = e.clientY;
+    moved += Math.abs(dx) + Math.abs(dy);
+    if (pts.size === 2) {
+      const q = pair();
+      if (prevDist) zoomAt(s * (q.d / prevDist), q.cx, q.cy);
+      prevDist = q.d;
+    } else if (pts.size === 1 && s > 1) {
+      x += dx;
+      y += dy;
+      clamp();
+      apply();
+    }
+  });
+  const up = e => {
+    if (!pts.has(e.pointerId)) return;
+    const single = pts.size === 1;
+    pts.delete(e.pointerId);
+    prevDist = 0;
+    if (!single || moved > 12 || e.pointerType === "mouse") return;
+    const now = Date.now();
+    if (now - lastTap < 320) {
+      lastTap = 0;
+      toggle(e.clientX, e.clientY);
+    } else lastTap = now;
+  };
+  box.addEventListener("pointerup", up);
+  box.addEventListener("pointercancel", up);
+  box.addEventListener("dblclick", e => toggle(e.clientX, e.clientY));
+  box.addEventListener("wheel", e => {
+    e.preventDefault();
+    zoomAt(s * (e.deltaY < 0 ? 1.2 : 1 / 1.2), e.clientX, e.clientY);
+  }, { passive: false });
+}
+
+export async function compressImage(file, { max = 1600, limit = 900000 } = {}) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await loadImage(url);
+    let scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    for (let i = 0; i < 6; i++) {
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      for (const q of [0.86, 0.78, 0.7, 0.6]) {
+        let data = canvas.toDataURL("image/webp", q);
+        if (!data.startsWith("data:image/webp")) data = canvas.toDataURL("image/jpeg", q);
+        if (data.length <= limit) return data;
+      }
+      scale *= 0.8;
+    }
+    return "";
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 function encodeCanvas(canvas, quality = 0.85) {
   let data = canvas.toDataURL("image/webp", quality);
   if (!data.startsWith("data:image/webp")) data = canvas.toDataURL("image/jpeg", quality);

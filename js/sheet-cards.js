@@ -1,9 +1,9 @@
 import { normalize, fmt, spellCast, usesInfo, addDice, swapType, effectDamage, weaponStats, asWeapon, uid } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
-import { esc, $, toast, openModal, openForm, getPath, setPath, cropImage, pickFile, playSound } from "./ui.js";
+import { esc, $, toast, openModal, openForm, getPath, setPath, cropImage, pickFile, playSound, openBoard, compressImage, confirmDialog } from "./ui.js";
 import { SECTION_NAME, linkTargets } from "./notes.js";
 import { itemIcon, cardFor, findEntity, openEditor, noteFields, infoFields, armorFields, LIST_KEY, EDITORS, itemSpellInfo, spellAtk, chargeWord } from "./entities.js";
-import { addHistory } from "./store.js";
+import { addHistory, getBoard, saveBoard, removeBoard } from "./store.js";
 import { PACKS, packItems, packWeight, COMPONENT_POUCH_NOTE } from "./packs.js";
 import { lastSnapshot, clone } from "./sheet-util.js";
 export function installCards(X) {
@@ -312,14 +312,59 @@ export function installCards(X) {
     });
   }
 
+  function boardSource() {
+    if (S.preview) return `assets/templates/${S.preview}-board.webp`;
+    return S.c.boardAt ? getBoard(X.id).catch(() => "") : "";
+  }
+
   function portraitDialog() {
+    const ro = X.readOnly();
+    const hasBoard = !!(S.preview || S.c.boardAt);
+    if (ro && !hasBoard) return toast(X.roText(), { kind: "bad" });
+    const boardBtns = hasBoard
+      ? `<button class="btn gold" data-board-open>${icon("frame")}Открыть доску</button>${ro ? "" : `<span class="spacer"></span><button class="btn ghost" data-board-up>${icon("upload")}Заменить</button><button class="btn ghost" data-board-rm aria-label="Удалить доску">${icon("trash")}</button>`}`
+      : `<button class="btn" data-board-up>${icon("upload")}Загрузить доску</button>`;
     const m = openModal({
       title: "Портрет",
       cls: "small",
       body: `<div class="portrait-big">${S.c.portrait ? `<img src="${esc(S.c.portrait)}" alt="">` : PORTRAIT_PLACEHOLDER}</div>
-        <div class="form-actions">${S.c.portrait ? `<button class="btn danger" data-rm>${icon("trash")}Убрать</button><span class="spacer"></span><button class="btn" data-crop>${icon("target")}Изменить кадр</button>` : `<span class="spacer"></span>`}<button class="btn gold" data-up>${icon("upload")}Загрузить картинку</button></div>
-        <p class="hint">После выбора картинки можно подвинуть и приблизить нужную часть. Портрет сохранится вместе с персонажем.</p>`
+        ${ro ? "" : `<div class="form-actions">${S.c.portrait ? `<button class="btn danger" data-rm>${icon("trash")}Убрать</button><span class="spacer"></span><button class="btn" data-crop>${icon("target")}Изменить кадр</button>` : `<span class="spacer"></span>`}<button class="btn gold" data-up>${icon("upload")}Загрузить картинку</button></div>
+        <p class="hint">После выбора картинки можно подвинуть и приблизить нужную часть. Портрет сохранится вместе с персонажем.</p>`}
+        <div class="pb-board"><h4>${icon("frame")}Доска персонажа</h4>${ro ? "" : `<p class="hint">Большая картинка с артом и описанием, как у готовых персонажей. Видна всем, кто может открыть лист, и открывается с карточки на главной.</p>`}<div class="form-actions">${boardBtns}</div></div>`
     });
+    const bOpen = m.body.querySelector("[data-board-open]");
+    if (bOpen) bOpen.onclick = () => openBoard(boardSource(), S.c.name);
+    const bUp = m.body.querySelector("[data-board-up]");
+    if (bUp) bUp.onclick = async () => {
+      const f = await pickFile("image/*");
+      if (!f || S.disposed) return;
+      bUp.disabled = true;
+      try {
+        const data = await compressImage(f);
+        if (!data) throw new Error("Картинка слишком большая даже после сжатия");
+        await saveBoard(X.id, data);
+        X.mutate(c => { c.boardAt = Date.now(); }, { render: false });
+        toast(`${icon("frame")} Доска сохранена`, { kind: "good" });
+        m.close();
+        X.renderAll(true);
+      } catch (err) {
+        bUp.disabled = false;
+        toast(esc((err && err.message && !/permission/i.test(err.message) ? err.message : "") || "Не получилось сохранить доску"), { kind: "bad", timeout: 6000 });
+      }
+    };
+    const bRm = m.body.querySelector("[data-board-rm]");
+    if (bRm) bRm.onclick = async () => {
+      if (!(await confirmDialog("Удалить доску персонажа?", { ok: "Удалить", danger: true }))) return;
+      try {
+        await removeBoard(X.id);
+        X.mutate(c => { c.boardAt = 0; }, { render: false });
+        m.close();
+        X.renderAll(true);
+      } catch {
+        toast("Не получилось удалить доску", { kind: "bad" });
+      }
+    };
+    if (ro) return;
     const apply = data => {
       if (!data || S.disposed) return;
       X.mutate(c => { c.portrait = data; }, { render: false });
