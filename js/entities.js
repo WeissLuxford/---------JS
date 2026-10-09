@@ -67,7 +67,7 @@ const ITEM_WORDS = [
 ].map(([w, ic]) => [W(w), ic]);
 
 const STRONG_SPELL_WORDS = [["агатис", "gi/delapouite/chest-armor"], ["обморож", "gi/lorc/brain-freeze"], ["хадар", "gi/lorc/spiky-eclipse"], 
-  ["огненные руки|горящие руки|ладон", "gi/lorc/magic-palm"], ["метеор|звездопад|звёздн|звездн", "gi/lorc/burning-meteor"], ["шторм|буря|бури|гроз", "gi/lorc/lightning-storm"], ["град(?![а-яё])|метел|вьюг|снегопад", "gi/lorc/snowing"], ["дожд|ливн", "gi/lorc/heavy-rain"],
+  ["огненные руки|горящие руки|ладон", "gi/delapouite/fire-spell-cast"], ["метеор|звездопад|звёздн|звездн", "gi/lorc/burning-meteor"], ["шторм|буря|бури|гроз", "gi/lorc/lightning-storm"], ["град(?![а-яё])|метел|вьюг|снегопад", "gi/lorc/snowing"], ["дожд|ливн", "gi/lorc/heavy-rain"],
   ["паут", "gi/lorc/spider-web"], ["щупальц", "gi/lorc/curled-tentacle"], ["шип|терн|колюч", "gi/lorc/thorny-vine"], ["насеком|жук|рой(?![а-яё])|саранч", "gi/lorc/bee"], ["радуг|призм", "gi/delapouite/prism"], ["паук|паучь", "gi/lorc/hanging-spider"], ["круг смерти|палец смерти|смертельн|увядан|жнец", "gi/lorc/reaper-scythe"],
   ["мертвец|нежит|зомби|скелет|упыр|восставш", "gi/skoll/raise-zombie"], ["зловон|смрад|дым", "gi/lorc/poison-gas"], ["туман|мгла", "gi/delapouite/fog"]
 ].map(([w, ic]) => [W(w), ic]);
