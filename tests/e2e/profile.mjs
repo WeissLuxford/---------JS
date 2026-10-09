@@ -15,7 +15,6 @@ await page.goto("http://localhost:8765/#/c/kirion-thorndike/story");
 await page.waitForSelector(".sheet");
 ok("old story link opens the hero tab", (await page.locator(".tab.on[data-tab=char]").count()) === 1);
 ok("six tabs at the bottom", (await page.locator(".tab").count()) === 6);
-ok("hint about the profile", (await page.locator(".hero-hint").count()) === 1);
 await page.evaluate(() => {
   const fire = (type, x) => document.dispatchEvent(new TouchEvent(type, { touches: [new Touch({ identifier: 1, target: document.body, clientX: x, clientY: 400 })], bubbles: true }));
   fire("touchstart", 5);

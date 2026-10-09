@@ -169,7 +169,6 @@ export function tabChar(ctx) {
           <span class="hero-sub">${esc([c.info.cls, c.info.subclass].filter(Boolean).join(", "))} · <span data-calc="level">${d.level}</span> уровень</span>
           <span class="hero-sub dim">${esc([c.info.background, c.info.alignment, c.info.age ? c.info.age + " лет" : ""].filter(Boolean).join(" · "))}</span>
         </button>
-        <p class="hint explain hero-hint">Нажми на портрет или имя: профиль, личность, другие персонажи</p>
       </section>
       <div class="scene-row">${sceneChip(c)}</div>
       ${xpRow(c)}
