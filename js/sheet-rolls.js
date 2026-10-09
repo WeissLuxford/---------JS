@@ -1,6 +1,6 @@
 import { SKILLS, DAMAGE, DAMAGE_TYPES, fmt, rollD20, rollDice, spellCast, maxDie, rollContext, resolveMode, rollReasons, applyDefenses, effectDamage, weaponStats, asWeapon, ammoFor } from "./rules.js";
 import { icon } from "./icons.js";
-import { esc, $, toast, promptNumber, showD20, showBeams, showDamage, landDice } from "./ui.js";
+import { esc, $, toast, promptNumber, showD20, showBeams, showDamage, landDice, playSound } from "./ui.js";
 import { turnBar } from "./tabs.js";
 import { findEntity, spellAtk } from "./entities.js";
 import { abName } from "./sheet-util.js";
@@ -236,6 +236,7 @@ export function installRolls(X) {
       showD20("Спасбросок от смерти", 0, r, st.mode, { why: [...bonusLines(parts), ...st.why], landed: !!preset });
       consumeOnce(st);
       let outcome = "";
+      const was = { deathSuccess: c.hp.deathSuccess, deathFail: c.hp.deathFail };
       X.mutate(ch => {
         const hp = ch.hp;
         if (r.nat20) {
@@ -252,9 +253,14 @@ export function installRolls(X) {
           outcome = "stable";
         }
       });
-      if (outcome === "stable") toast("Три успеха: персонаж стабилизирован", { kind: "good" });
-      if (outcome === "dead") toast("Три провала: персонаж погиб", { kind: "bad", timeout: 6000 });
-      if (outcome === "up") toast("Естественная 20: приходит в себя с 1 хитом!", { kind: "good" });
+      if (outcome) {
+        setTimeout(() => {
+          if (!S.disposed) X.deathScene(outcome);
+        }, 1100);
+        return;
+      }
+      for (const k of ["deathSuccess", "deathFail"]) X.markDeath(k, was[k], S.c.hp[k]);
+      playSound(S.c.hp.deathSuccess > was.deathSuccess ? "ignite" : "skull");
     }
   }
 
@@ -282,6 +288,7 @@ export function installRolls(X) {
     let concDc = 0;
     let concLost = "";
     let killed = "";
+    const failWas = Number(S.c.hp.deathFail) || 0;
     const ok = X.mutate(c => {
       const hp = c.hp;
       hp.current = X.curHp(c);
@@ -317,7 +324,12 @@ export function installRolls(X) {
       }
     });
     if (ok === false) return;
-    if (killed) toast(`${icon("skull")} <b>Мгновенная смерть:</b> ${esc(killed)}.`, { kind: "bad", timeout: 9000 });
+    const failNow = Number(S.c.hp.deathFail) || 0;
+    if (failNow >= 3 && failWas < 3) X.deathScene("dead", killed ? `Мгновенная смерть: ${killed}.` : "");
+    else if (failNow > failWas) {
+      X.markDeath("deathFail", failWas, failNow);
+      playSound("skull");
+    }
     if (action === "dmg" && X.curHp() <= 0 && !S.c.hp.stable && S.c.hp.deathFail < 3 && X.tipsOn()) toast(`${icon("skull")} <b>0 хитов: ты без сознания.</b> В начале каждого хода спасбросок от смерти. Лечение сразу поднимает.`, { kind: "bad", timeout: 8000 });
     if (note) toast(`${icon("shield")} ${esc(note)}`, { kind: "info" });
     if (concLost) toast(`${icon("spiral")} Концентрация на «${esc(concLost)}» прервана: персонаж без сознания`, { kind: "bad" });

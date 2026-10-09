@@ -19,6 +19,11 @@ const dmg = async (n, btn = "Урон") => {
   await sleep(200);
 };
 const toastHas = async t => (await page.locator("#toasts .toast", { hasText: t }).count()) > 0;
+const sceneHas = async t => (await page.locator(".modal-back.in .death-scene", { hasText: t }).count()) > 0;
+const closeScene = async () => {
+  await page.locator(".modal-back.in .death-scene [data-close]").last().click();
+  await sleep(250);
+};
 await dmg(43);
 ok("drop to 0 exactly", (await hp()) === 0 && (await fails()) === 0, `${await hp()} / ${await fails()}`);
 await page.locator("[data-act=long-rest]").first().click();
@@ -34,6 +39,8 @@ await dmg(3, "Крит. удар");
 ok("crit = two failures", (await fails()) === 2, String(await fails()));
 await dmg(1);
 ok("third failure", (await fails()) === 3);
+ok("death scene on third failure", await sceneHas("Персонаж погиб"));
+await closeScene();
 await page.locator("[data-act=hp][data-mode=heal]").first().click();
 await page.fill(".modal-back.in .num-big", "10");
 await page.locator(".modal-back.in .form-actions button", { hasText: "Лечение" }).click();
@@ -45,7 +52,8 @@ await page.locator(".modal-back.in .form-actions button", { hasText: "Задат
 await sleep(200);
 ok("set revives", (await hp()) === 20 && (await fails()) === 0);
 await dmg(20 + 43);
-ok("massive damage kills", (await hp()) === 0 && (await fails()) === 3 && (await toastHas("Мгновенная смерть")));
+ok("massive damage kills", (await hp()) === 0 && (await fails()) === 3 && (await sceneHas("Мгновенная смерть")));
+await closeScene();
 await page.locator("[data-act=hp]").first().click();
 await page.fill(".modal-back.in .num-big", "43");
 await page.locator(".modal-back.in .form-actions button", { hasText: "Задать" }).click();

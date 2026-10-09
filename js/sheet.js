@@ -18,6 +18,7 @@ import { installTurn } from "./sheet-turn.js";
 import { installCards } from "./sheet-cards.js";
 import { installDialogs } from "./sheet-dialogs.js";
 import { installLevelUp } from "./sheet-levelup.js";
+import { installScenes } from "./sheet-scenes.js";
 import { installNotes, loadRecent } from "./sheet-notes.js";
 import { keepAwake, setWake, wakeOn, wakeSupported } from "./wake.js";
 import { sheetIssues } from "./checks.js";
@@ -55,6 +56,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
   let lastStatus = null;
   const X = { S, root, id, navigate, status: () => lastStatus };
   Object.assign(X, { here, backupTick, downloadBackup, paintSync, loaderMessage, rights, checkEditor, readOnly, roText, roBar, inputFocused, rerenderKeepingModal, renderAll, renderTab, grow, calcValue, updateCalcs, snapshot, changed, flush, hasUnsaved, mutate, curHp, clampHp, setHp, filterSpells, rollModeLabel, takeMode, runAction, runActionInner });
+  installScenes(X);
   installRolls(X);
   installUndo(X);
   installMagic(X);
@@ -992,6 +994,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         const k = el.dataset.k;
         const i = Number(el.dataset.i);
         let stabilized = false;
+        const up = S.c.hp[k] <= i;
         mutate(ch => {
           ch.hp[k] = ch.hp[k] > i ? i : i + 1;
           if (ch.hp.deathSuccess >= 3) {
@@ -1001,7 +1004,11 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
             stabilized = true;
           } else if (k === "deathSuccess") ch.hp.stable = false;
         });
-        if (stabilized) toast("Три успеха: персонаж стабилизирован", { kind: "good" });
+        if (stabilized) return void X.deathScene("stable");
+        if (!up) return;
+        if (k === "deathFail" && S.c.hp.deathFail >= 3) return void X.deathScene("dead");
+        X.markDeath(k, i, i + 1);
+        if (fxSettings().sound) playSound(k === "deathSuccess" ? "ignite" : "skull");
         return;
       }
       case "toggle-save": return mutate(ch => { ch.saves[el.dataset.k] = !ch.saves[el.dataset.k]; });

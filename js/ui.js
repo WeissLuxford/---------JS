@@ -295,6 +295,28 @@ export function playSound(kind, { dice = 1 } = {}) {
     [523.3, 659.3, 784, 1046.5].forEach((f, i) => tone(a, { type: "triangle", from: f, at: i * 0.11, dur: 0.5, vol: 0.06 }));
     [1046.5, 1318.5, 1568].forEach(f => tone(a, { type: "sine", from: f, at: 0.5, dur: 1.4, vol: 0.035 }));
     noise(a, { at: 0.48, dur: 0.9, vol: 0.02, freq: 8000, q: 0.6 });
+  } else if (kind === "campfire" || kind === "dawn") {
+    for (let i = 0; i < 8; i++) noise(a, { at: i * 0.28, dur: 0.34, vol: 0.035, freq: 260, q: 0.6, type: "lowpass" });
+    for (let i = 0; i < 26; i++) noise(a, { at: Math.random() * 2.3, dur: 0.012 + Math.random() * 0.03, vol: 0.03 + Math.random() * 0.07, freq: 1400 + Math.random() * 4200, q: 1.4 });
+    if (kind === "dawn") [392, 523.3, 659.3, 784].forEach((f, i) => tone(a, { type: "sine", from: f, at: 1.5 + i * 0.22, dur: 1.6, vol: 0.03 }));
+  } else if (kind === "ignite") {
+    noise(a, { dur: 0.35, vol: 0.06, freq: 900, q: 0.7 });
+    tone(a, { type: "sine", from: 660, at: 0.08, dur: 0.9, vol: 0.04 });
+  } else if (kind === "skull") {
+    tone(a, { type: "sine", from: 96, to: 42, dur: 0.5, vol: 0.18 });
+    noise(a, { dur: 0.22, vol: 0.1, freq: 200, q: 0.8, type: "lowpass" });
+  } else if (kind === "candle") {
+    [440, 554.4, 659.3].forEach((f, i) => tone(a, { type: "sine", from: f, at: i * 0.35, dur: 1.4, vol: 0.04 }));
+    [0, 0.35, 0.7].forEach(at => noise(a, { at, dur: 0.3, vol: 0.04, freq: 900, q: 0.7 }));
+  } else if (kind === "revive") {
+    [392, 523.3, 659.3, 784, 1046.5].forEach((f, i) => tone(a, { type: "triangle", from: f, at: i * 0.08, dur: 1.2, vol: 0.05 }));
+    noise(a, { at: 0.3, dur: 0.8, vol: 0.02, freq: 7000, q: 0.6 });
+  } else if (kind === "toll") {
+    [0, 1.6].forEach(at => {
+      tone(a, { type: "sine", from: 110, at, dur: 2.6, vol: 0.16 });
+      tone(a, { type: "sine", from: 264, at, dur: 1.8, vol: 0.05 });
+      tone(a, { type: "sine", from: 367, at, dur: 1.2, vol: 0.03 });
+    });
   } else if (kind === "heartbeat") {
     tone(a, { type: "sine", from: 75, to: 48, dur: 0.16, vol: 0.2 });
     tone(a, { type: "sine", from: 68, to: 44, at: 0.24, dur: 0.2, vol: 0.15 });

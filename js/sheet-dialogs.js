@@ -172,30 +172,7 @@ export function installDialogs(X) {
   }
 
   function restSummary(title, ic, before) {
-    const after = S.c;
-    const db = compute(before);
-    const lines = [];
-    const hp0 = Math.min(db.hpMax, Number(before.hp.current) || 0);
-    const hp1 = X.curHp();
-    if (hp1 > hp0) lines.push(`Хиты: ${hp0} → ${hp1}`);
-    const hd = (Number(before.hp.hitDiceUsed) || 0) - (Number(after.hp.hitDiceUsed) || 0);
-    if (hd > 0) lines.push(`Кости хитов: +${hd}`);
-    if ((Number(before.pactUsed) || 0) > (Number(after.pactUsed) || 0)) lines.push(`Ячейки договора: +${(Number(before.pactUsed) || 0) - (Number(after.pactUsed) || 0)}`);
-    const slots = Object.values(before.slotsUsed || {}).reduce((a, b) => a + (Number(b) || 0), 0) - Object.values(after.slotsUsed || {}).reduce((a, b) => a + (Number(b) || 0), 0);
-    if (slots > 0) lines.push(`Ячейки заклинаний: +${slots}`);
-    const names = [];
-    for (const key of ["features", "items", "spells"]) {
-      for (const e of after[key]) {
-        const was = (before[key].find(x => x.id === e.id) || {}).used;
-        if ((Number(was) || 0) > (Number(e.used) || 0)) names.push(e.name);
-      }
-    }
-    if (names.length) lines.push(`Восстановлено: ${names.join(", ")}`);
-    if (before.exhaustion > after.exhaustion) lines.push(`Истощение: ${before.exhaustion} → ${after.exhaustion}`);
-    const gone = (before.effects || []).filter(e => !(after.effects || []).some(x => x.id === e.id)).map(e => e.name);
-    if (gone.length) lines.push(`Закончилось: ${gone.join(", ")}`);
-    if (before.concentration && !after.concentration) lines.push(`Концентрация на «${before.concentration}» снята`);
-    toast(`${icon(ic)} <b>${esc(title)} завершён</b>${lines.length ? `<ul class="rest-sum">${lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : "<br>Восстанавливать было нечего"}`, { kind: "good", timeout: 9000 });
+    X.restScene(title, ic === "moon", before);
     X.showUndo(title, before);
   }
 

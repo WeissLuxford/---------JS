@@ -1,4 +1,4 @@
-const VERSION = "v37";
+const VERSION = "v38";
 const SHELL = "dnd-shell-" + VERSION;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -50,6 +50,7 @@ const PRECACHE = [
   "js/sheet-magic.js",
   "js/sheet-notes.js",
   "js/sheet-rolls.js",
+  "js/sheet-scenes.js",
   "js/sheet-turn.js",
   "js/sheet-undo.js",
   "js/sheet-util.js",

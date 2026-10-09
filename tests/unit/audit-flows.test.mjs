@@ -58,6 +58,7 @@ const { installRolls } = await import(P + "sheet-rolls.js");
 const { installDialogs } = await import(P + "sheet-dialogs.js");
 const { installLevelUp } = await import(P + "sheet-levelup.js");
 const { installMagic } = await import(P + "sheet-magic.js");
+const { installScenes } = await import(P + "sheet-scenes.js");
 
 const PHB_XP = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000];
 
@@ -91,6 +92,7 @@ function makeX(src) {
       c.hp.stable = false;
     }
   };
+  installScenes(X);
   installMagic(X);
   installRolls(X);
   installDialogs(X);

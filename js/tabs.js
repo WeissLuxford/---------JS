@@ -58,8 +58,8 @@ export function hpPanel(ctx) {
       ? `<span class="death-state ok">${icon("sleep")} Стабилизирован, без сознания</span>`
       : `<button class="btn sm" data-roll="death">${icon("d20")} Спасбросок от смерти</button>`;
   const death = dying ? `<div class="death">
-      <div class="death-row"><span>Успехи</span>${[0, 1, 2].map(i => `<button class="ds ok ${i < c.hp.deathSuccess ? "on" : ""}" data-act="death" data-k="deathSuccess" data-i="${i}" aria-label="Успех ${i + 1}"></button>`).join("")}</div>
-      <div class="death-row"><span>Провалы</span>${[0, 1, 2].map(i => `<button class="ds bad ${i < c.hp.deathFail ? "on" : ""}" data-act="death" data-k="deathFail" data-i="${i}" aria-label="Провал ${i + 1}"></button>`).join("")}</div>
+      <div class="death-row"><span>Успехи</span>${[0, 1, 2].map(i => `<button class="ds ok ${i < c.hp.deathSuccess ? "on" : ""}" data-act="death" data-k="deathSuccess" data-i="${i}" aria-label="Успех ${i + 1}"><i class="sc-flame"></i></button>`).join("")}</div>
+      <div class="death-row"><span>Провалы</span>${[0, 1, 2].map(i => `<button class="ds bad ${i < c.hp.deathFail ? "on" : ""}" data-act="death" data-k="deathFail" data-i="${i}" aria-label="Провал ${i + 1}">${icon("skull")}</button>`).join("")}</div>
       ${deathBtn}
     </div>` : "";
   return panel("Хиты", `
