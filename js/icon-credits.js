@@ -1,6 +1,6 @@
 export const ICON_CREDITS = [
   { title: "Intrinsical's D&D 5e Icon Set", url: "https://github.com/intrinsical/tw-dnd/tree/main/icons", author: "David Kor Kian Wei", license: "CC BY-SA 4.0", note: "Иконок на сайте: 61.", authorUrl: "https://github.com/intrinsical" },
-  { title: "game-icons.net", url: "https://game-icons.net", author: "Lorc", license: "CC BY 3.0", note: "Иконок на сайте: 402.", authorUrl: "http://lorcblog.blogspot.com" },
+  { title: "game-icons.net", url: "https://game-icons.net", author: "Lorc", license: "CC BY 3.0", note: "Иконок на сайте: 404.", authorUrl: "http://lorcblog.blogspot.com" },
   { title: "game-icons.net", url: "https://game-icons.net", author: "Delapouite", license: "CC BY 3.0", note: "Иконок на сайте: 249.", authorUrl: "https://delapouite.com" },
   { title: "game-icons.net", url: "https://game-icons.net", author: "Skoll", license: "CC BY 3.0", note: "Иконок на сайте: 19." },
   { title: "game-icons.net", url: "https://game-icons.net", author: "Sbed", license: "CC BY 3.0", note: "Иконок на сайте: 12.", authorUrl: "http://opengameart.org/content/95-game-icons" },
