@@ -34,7 +34,8 @@ ok("preview shows the spells", (await page.locator(".tile", { hasText: "Лече
 await page.reload();
 await page.waitForSelector(".sheet");
 ok("preview survives reload", (await page.locator(".tab.on[data-tab=spells]").count()) === 1 && (await page.locator(".sheet.viewer").count()) === 1);
-await page.click("[data-act=menu]");
+await page.click(".tb-id[data-act=profile]");
+await page.waitForSelector(".modal.profile [data-m=export]");
 ok("no share for a preview", (await page.locator("[data-m=share]").count()) === 0);
 await page.keyboard.press("Escape");
 await page.goto("http://localhost:8765/#/");

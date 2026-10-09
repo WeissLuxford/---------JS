@@ -11,13 +11,11 @@ const errors = [];
 page.on("pageerror", e => errors.push(e.message));
 await page.goto("http://localhost:8765/#/c/kirion-thorndike/char");
 await page.waitForSelector(".sheet");
-await page.locator(".tb-id[data-act=edit-info]").click();
+await page.locator(".tb-id[data-act=profile]").click();
 await sleep(300);
-await page.selectOption(".modal-back.in select[data-k='accent'], .modal-back.in select[name='accent']", "ice").catch(async () => {
-  const sel = page.locator(".modal-back.in select").filter({ has: page.locator("option[value=ice]") });
-  await sel.selectOption("ice");
-});
-await page.locator(".modal-back.in .btn.gold").last().click();
+await page.click(".modal.profile [data-pf-go=accent]");
+await page.click(".modal.profile [data-accent=ice]");
+await page.keyboard.press("Escape");
 await sleep(400);
 const rootGold = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--gold-2").trim());
 ok("root accent is ice", rootGold === "#86cbea", rootGold);

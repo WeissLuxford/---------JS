@@ -54,7 +54,7 @@ await sleep(800);
 ok("no crit on skill check", (await page.locator("#toasts .toast.crit-fx").count()) === critsBefore);
 await page.reload();
 await page.waitForSelector(".sheet");
-await page.click("[data-act=menu]");
+await page.click(".tb-id[data-act=profile]");
 await page.click("[data-m=print]");
 await page.click(".modal-back.in [data-go]");
 await sleep(500);

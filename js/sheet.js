@@ -18,6 +18,7 @@ import { installMagic } from "./sheet-magic.js";
 import { installTurn } from "./sheet-turn.js";
 import { installCards } from "./sheet-cards.js";
 import { installDialogs } from "./sheet-dialogs.js";
+import { installProfile } from "./sheet-profile.js";
 import { installLevelUp } from "./sheet-levelup.js";
 import { installScenes } from "./sheet-scenes.js";
 import { installChronicle } from "./sheet-chronicle.js";
@@ -68,6 +69,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
   installTurn(X);
   installCards(X);
   installDialogs(X);
+  installProfile(X);
   installLevelUp(X);
   installNotes(X);
   let lastError = "";
@@ -314,8 +316,8 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         <header class="topbar">
           <a class="icon-btn" href="#/" title="Все персонажи">${icon("back")}</a>
           <button class="st-btn sync" data-sync></button>
-          <button class="tb-portrait" data-act="portrait" title="Портрет">${c.portrait ? `<img src="${esc(c.portrait)}" alt="">` : PORTRAIT_PLACEHOLDER}</button>
-          <button class="tb-id" data-act="edit-info"><span class="tb-name" data-calc="name">${esc(c.name)}</span><span class="tb-sub" data-calc="sub">${esc(subtitle(c))}</span></button>
+          <button class="tb-portrait" data-act="profile" title="Профиль персонажа">${c.portrait ? `<img src="${esc(c.portrait)}" alt="">` : PORTRAIT_PLACEHOLDER}</button>
+          <button class="tb-id" data-act="profile"><span class="tb-name" data-calc="name">${esc(c.name)}</span><span class="tb-sub" data-calc="sub">${esc(subtitle(c))}</span></button>
           <button class="hp-mini" data-act="hp" title="Хиты"><span class="hp-mini-bar"><i data-hpbar></i></span><span><b data-calc="hp"></b>/<span data-calc="hpmax"></span></span></button>
           <button class="roll-mode" data-act="roll-mode" title="Режим следующего броска d20: обычный, с преимуществом, с помехой">${rollModeLabel()}</button>
           <button class="icon-btn tb-quick" data-act="quick-note" title="Быстрая заметка" aria-label="Быстрая заметка">${icon("quill")}</button>
@@ -524,9 +526,9 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     });
     hpFeel();
     const issues = readOnly() ? [] : sheetIssues(S.c, S.d);
-    $$("[data-act=menu]", root).forEach(b => {
+    $$(".tb-portrait", root).forEach(b => {
       b.classList.toggle("has-issues", issues.length > 0);
-      b.title = issues.length ? `Меню. Проверка листа: ${issues.length}` : "Меню";
+      b.title = issues.length ? `Профиль персонажа. Проверка листа: ${issues.length}` : "Профиль персонажа";
     });
   }
 
@@ -809,7 +811,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     return m;
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-info", "edit-armor", "edit-abilities", "edit-prof", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "note-create-link", "feature-library", "box-stored", "spell-ability"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-armor", "edit-abilities", "edit-prof", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "note-create-link", "feature-library", "box-stored", "spell-ability"]);
 
   const UNDO = {
     "hp-quick": el => (Number(el.dataset.n) < 0 ? `Урон ${-Number(el.dataset.n)}` : `Лечение ${el.dataset.n}`),
@@ -1036,7 +1038,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         mutate(ch => { ch.info.xp = Math.max(0, (Number(ch.info.xp) || 0) + n); }, { render: false });
         renderAll(true);
         const now = xpInfo(S.c);
-        return toast(now.canLevel && !was.canLevel ? `${icon("star")} <b>Опыта хватает на ${now.levelByXp} уровень!</b> Повысь уровень в «Основном».` : `${icon("star")} Опыт: ${now.xp}`, { kind: "good", timeout: now.canLevel ? 7000 : 2500 });
+        return toast(now.canLevel && !was.canLevel ? `${icon("star")} <b>Опыта хватает на ${now.levelByXp} уровень!</b> Повысь уровень: меню, «Повысить уровень».` : `${icon("star")} Опыт: ${now.xp}`, { kind: "good", timeout: now.canLevel ? 7000 : 2500 });
       }
       case "turn-open": return el.dataset.k === "move" ? X.movementMenu() : X.actionMenu(el.dataset.k);
       case "turn-toggle":
@@ -1158,7 +1160,9 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       }
       case "toggle-save": return mutate(ch => { ch.saves[el.dataset.k] = !ch.saves[el.dataset.k]; });
       case "cycle-skill": return mutate(ch => { ch.skills[el.dataset.k] = ((Number(ch.skills[el.dataset.k]) || 0) + 1) % 3; });
-      case "edit-info": return X.editInfo();
+      case "edit-info": return X.profile("who");
+      case "edit-mech": return X.profile("mech");
+      case "profile": return X.profile(el && el.dataset.page || "");
       case "scene": return X.sceneDialog();
       case "edit-armor": return X.editArmor();
       case "edit-abilities": return X.editAbilities();
@@ -1167,7 +1171,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         const t = root.querySelector(`.tab[data-tab="${CSS.escape(el.dataset.to)}"]`);
         return t && t.click();
       }
-      case "portrait": return X.portraitDialog();
+      case "portrait": return X.profile("portrait");
       case "add-attack": return X.editEntity("attack", null);
       case "add-spell": return X.editEntity("spell", null);
       case "spell-library": return X.openLibrary(null, "spells");
@@ -1413,6 +1417,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     offHover();
     offLong();
     offOrder();
+    X.offProfile();
     X.hideUndo();
     root.removeEventListener("toggle", onToggle, true);
     root.removeEventListener("input", onInput);

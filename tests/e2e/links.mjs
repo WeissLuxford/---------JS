@@ -53,11 +53,15 @@ const row = page.locator(".p-attacks .atk-row", { hasText: "Длинный ме�
 ok("worn hand-made sword appears in attacks", (await row.count()) === 1);
 ok("sword row has a damage chip", /1d8/.test(await row.innerText()), await row.innerText());
 
-ok("martial sword without proficiency marks the menu", (await page.locator("[data-act=menu].has-issues").count()) === 1);
+ok("martial sword without proficiency marks the portrait", (await page.locator(".tb-portrait.has-issues").count()) === 1);
 await page.click("[data-act=menu]");
 await page.waitForSelector(".menu-group");
-ok("menu has the sheet check with a count", /Проверка листа: 1/.test(await page.locator("[data-m=sheet-check]").innerText()));
 ok("menu has the screen switch", (await page.locator("[data-sw=wake-toggle].on").count()) === 1);
+await page.keyboard.press("Escape");
+await sleep(300);
+await page.click(".tb-id[data-act=profile]");
+await page.waitForSelector(".modal.profile [data-m=sheet-check]");
+ok("profile has the sheet check with a count", /Проверка листа: 1/.test(await page.locator("[data-m=sheet-check]").innerText()));
 await page.click("[data-m=sheet-check]");
 await page.waitForSelector(".modal-back.in .check-row");
 ok("check explains the missing proficiency", /воинского оружия/.test(await page.locator(".modal-back.in .check-row").innerText()));

@@ -8,7 +8,7 @@ const UPDATE = process.env.VISUAL_UPDATE === "1";
 const SITE = process.env.SITE || "http://localhost:8765";
 const PIXEL = 48;
 const LIMIT = 0.005;
-const TABS = ["char", "combat", "spells", "features", "inventory", "notes", "story"];
+const TABS = ["char", "combat", "spells", "features", "inventory", "notes"];
 const SIZES = { phone: { width: 390, height: 844, isMobile: true, hasTouch: true }, desktop: { width: 1280, height: 900 } };
 const FREEZE = `*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }
   #toasts, #ach-toast, .st-pop, .ambient, .fab-quick { visibility: hidden !important; }`;
@@ -97,6 +97,11 @@ for (const [size, vp] of Object.entries(SIZES)) {
     await sleep(300);
     await shot(`${size}-${tab}`, page);
   }
+  await page.goto(`${SITE}/#/c/kirion-thorndike/char`);
+  await page.waitForSelector(".sheet");
+  await page.click(".tb-id[data-act=profile]");
+  await sleep(400);
+  await shot(`${size}-profile`, page);
   ok(`${size}: без ошибок`, errors.length === 0, errors.join("|"));
   await ctx.close();
 }

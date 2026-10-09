@@ -10,8 +10,7 @@ export const TABS = [
   { key: "spells", name: "Магия", icon: "tabSpells" },
   { key: "features", name: "Умения", icon: "tabFeatures" },
   { key: "inventory", name: "Снаряжение", short: "Вещи", icon: "tabInventory" },
-  { key: "notes", name: "Заметки", icon: "tabNotes" },
-  { key: "story", name: "Личность", icon: "tabStory" }
+  { key: "notes", name: "Заметки", icon: "tabNotes" }
 ];
 
 const abShort = k => (ABILITIES.find(a => a.key === k) || {}).short || "";
@@ -86,7 +85,7 @@ export function hpPanel(ctx) {
 function xpRow(c) {
   const x = xpInfo(c);
   if (!x.next) return "";
-  return `<div class="xp-row ${x.canLevel ? "ready" : ""}"><div class="xp-bar"><i style="width:${x.pct}%"></i></div><span class="xp-t">${x.canLevel ? `Опыта хватает на ${x.levelByXp} уровень!` : `Опыт ${x.xp} / ${x.next} до ${x.level + 1} уровня`}</span>${x.canLevel ? `<button class="btn gold sm" data-act="level-up">${icon("star")}Повысить уровень</button>` : ""}<button class="btn ghost sm" data-act="add-xp">${icon("plus")}Опыт</button></div>`;
+  return `<div class="xp-row ${x.canLevel ? "ready" : ""}"><div class="xp-bar"><i style="width:${x.pct}%"></i></div><span class="xp-t">${x.canLevel ? `Опыта хватает на ${x.levelByXp} уровень!` : `Опыт ${x.xp} / ${x.next} до ${x.level + 1} уровня`}</span><span class="xp-acts">${x.canLevel ? `<button class="btn gold sm" data-act="level-up">${icon("star")}Повысить уровень</button>` : ""}<button class="btn ghost sm" data-act="add-xp">${icon("plus")}Опыт</button></span></div>`;
 }
 
 function inspirationBtn(c, compact = false) {
@@ -163,20 +162,21 @@ export function tabChar(ctx) {
     </div>
     <div class="col col-center">
       <section class="hero">
-        <button class="hero-portrait" data-act="portrait" title="Портрет">${portraitHtml(c)}<span class="hero-cam">${icon("camera")}</span></button>
-        <button class="hero-id" data-act="edit-info">
+        <button class="hero-portrait" data-act="profile" title="Профиль персонажа">${portraitHtml(c)}<span class="hero-cam">${icon("camera")}</span></button>
+        <button class="hero-id" data-act="profile">
           <span class="hero-name" data-calc="name">${esc(c.name)}</span>
           <span class="hero-sub">${esc([c.info.race, c.info.subrace].filter(Boolean).join(", "))}</span>
           <span class="hero-sub">${esc([c.info.cls, c.info.subclass].filter(Boolean).join(", "))} · <span data-calc="level">${d.level}</span> уровень</span>
           <span class="hero-sub dim">${esc([c.info.background, c.info.alignment, c.info.age ? c.info.age + " лет" : ""].filter(Boolean).join(" · "))}</span>
         </button>
+        <p class="hint explain hero-hint">Нажми на портрет или имя: профиль, личность, другие персонажи</p>
       </section>
       <div class="scene-row">${sceneChip(c)}</div>
       ${xpRow(c)}
       <div class="medals">
         ${statMedal("КД", d.ac, { calc: "ac", act: "edit-armor", ic: acIcon(d.ac), card: "stat:ac" })}
         ${statMedal("Инициатива", fmt(d.init), { calc: "init", roll: "init", ic: "tw/combat/initiative", card: "stat:init" })}
-        ${statMedal("Скорость", d.speed + " фт", { calc: "speed", act: "edit-info", ic: "gi/lorc/wingfoot", card: "stat:speed", slow: d.speed < d.baseSpeed })}
+        ${statMedal("Скорость", d.speed + " фт", { calc: "speed", act: "edit-mech", ic: "gi/lorc/wingfoot", card: "stat:speed", slow: d.speed < d.baseSpeed })}
         ${statMedal("Мастерство", fmt(d.pb), { calc: "pb", ic: "gi/delapouite/star-medal", card: "stat:pb" })}
       </div>
       ${spellLine}
@@ -698,14 +698,4 @@ export function tabNotes(ctx) {
   return pinnedStrip(c) + search + nav + filters + `<div class="journal-slot" ${searching ? "hidden" : ""}>${journal}</div><div class="notes-head" ${searching ? "hidden" : ""}><button class="btn sm board-btn" data-act="board">${icon("web")}Доска связей</button>${fold}<span class="spacer"></span>${orderBtn(ctx)}${s === "sessions" ? "" : addBtn("add-note", sec.add, `data-sec="${s}"`)}</div><div class="notes ${s === "misc" || s === "sessions" ? "single" : ""}" data-notes-list data-reorder="notes.${s}">${notesList(ctx)}</div>`;
 }
 
-export function tabStory(ctx) {
-  const { c } = ctx;
-  const idFields = [["info.race", "Раса"], ["info.subrace", "Подраса"], ["info.cls", "Класс"], ["info.subclass", "Подкласс"], ["info.background", "Предыстория"], ["info.alignment", "Мировоззрение"], ["info.age", "Возраст"], ["info.patron", "Покровитель"], ["info.setting", "Сеттинг"], ["info.player", "Игрок"]];
-  const val = p => p.split(".").reduce((o, k) => (o ? o[k] : ""), c);
-  const ids = idFields.map(([p, l]) => `<label class="fld compact"><span>${l}</span><input type="text" data-path="${p}" value="${esc(val(p) ?? "")}"></label>`).join("");
-  const blocks = [["appearance", "Внешность", "gi/lorc/mirror-mirror"], ["traits", "Черты характера", "gi/lorc/drama-masks"], ["ideals", "Идеалы", "gi/delapouite/polar-star"], ["bonds", "Привязанности", "gi/lorc/chained-heart"], ["flaws", "Слабости", "gi/delapouite/achilles-heel"], ["backstory", "Предыстория", "gi/lorc/quill-ink"], ["allies", "Союзники и организации", "gi/delapouite/shaking-hands"]];
-  return panel("Кто это", `<div class="id-grid">${ids}</div>`, { ic: "gi/lorc/hood" }) +
-    `<div class="story-grid">${blocks.map(([k, l, ic]) => panel(l, `<textarea class="autogrow parchment" rows="3" data-path="personality.${k}" placeholder="${l}">${esc(c.personality[k])}</textarea>`, { ic, cls: k === "backstory" ? "wide" : "" })).join("")}</div>`;
-}
-
-export const RENDER = { char: tabChar, combat: tabCombat, spells: tabSpells, features: tabFeatures, inventory: tabInventory, notes: tabNotes, story: tabStory };
+export const RENDER = { char: tabChar, combat: tabCombat, spells: tabSpells, features: tabFeatures, inventory: tabInventory, notes: tabNotes };

@@ -36,8 +36,8 @@ ok("stored marks section", (await page.locator(".box-sec.stored").count()) === 1
 const after = await page.locator("[data-calc=weight]").innerText();
 ok("stored weight excluded", Number(after.replace(",", ".")) < Number(before.replace(",", ".")) + 5, `${before} -> ${after}`);
 await page.screenshot({ path: OUT + "inv-boxes.png", fullPage: true });
-await page.click("[data-act=menu]");
-await sleep(200);
+await page.click(".tb-id[data-act=profile]");
+await sleep(300);
 await page.click("[data-m=backups]");
 await sleep(300);
 ok("backup dialog", (await page.locator(`${M} [data-bk-now]`).count()) === 1);

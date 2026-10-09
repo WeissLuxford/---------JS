@@ -150,12 +150,14 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await page.screenshot({ path: OUT + "d-notes.png" });
 
   await page.click(".tab[data-tab=char]");
-  await page.click("[data-act=edit-info]");
+  await page.click(".tb-id[data-act=profile]");
+  await page.click(".modal.profile [data-pf-go=mech]");
   await page.waitForSelector("[data-types]");
   const fireChecked = await page.$eval("[data-types][data-k='defenses.resist'] input[value=fire]", i => i.checked);
   ok("legacy resistance shown as fire chip", fireChecked);
   await page.click("[data-types][data-k='defenses.resist'] label:has(input[value=cold])");
-  await page.click(".modal-back.in button[type=submit]");
+  await sleep(300);
+  await page.keyboard.press("Escape");
   await sleep(300);
   const defs = await page.locator(".def-row").innerText();
   ok("defenses saved", defs.includes("Холод") && defs.includes("Огонь"), defs.replace(/\n/g, " "));
@@ -207,11 +209,12 @@ try {
   await page.screenshot({ path: OUT + "m-spell.png" });
   await page.goBack();
   await sleep(300);
-  await page.click("[data-act=edit-info]");
+  await page.click(".tb-id[data-act=profile]");
   await sleep(400);
-  await page.screenshot({ path: OUT + "m-form.png" });
-  const sticky = await page.$eval(".modal-back.in .form-actions", el => { const r = el.getBoundingClientRect(); return r.bottom <= window.innerHeight + 1 && r.top < window.innerHeight; });
-  ok("form actions visible without scrolling", sticky);
+  await page.screenshot({ path: OUT + "m-profile.png" });
+  const fits = await page.$eval(".modal.profile", el => { const r = el.getBoundingClientRect(); return r.left >= -1 && r.right <= window.innerWidth + 1 && r.right < window.innerWidth && Math.round(r.height) >= window.innerHeight - 1; });
+  ok("profile drawer slides in from the left on phone", fits);
+  await page.keyboard.press("Escape");
   ok("no page errors mobile", errors.length === 0, errors.join(" || "));
   await ctx.close();
 } catch (e) {

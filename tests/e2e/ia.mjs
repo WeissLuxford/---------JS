@@ -17,7 +17,7 @@ async function open(viewport, path) {
 
 {
   const { ctx, page, errors } = await open({ width: 1280, height: 900 }, "combat");
-  ok("story tab renamed", (await page.locator(".tab[data-tab=story]").innerText()).includes("Личность"));
+  ok("six tabs without story", (await page.locator(".tab").count()) === 6 && (await page.locator(".tab[data-tab=story]").count()) === 0);
   ok("inspiration in turn bar", await page.locator(".turn-bar .insp.compact").count() === 1);
   ok("inspiration keeps its label", /вдохновени/i.test(await page.locator(".turn-bar .insp").innerText()));
   ok("no inspiration in combat column", await page.locator(".combat-grid > .insp, .combat-grid .col > .insp").count() === 0);
@@ -27,7 +27,7 @@ async function open(viewport, path) {
   await page.click("[data-act=menu]");
   await page.waitForSelector(".menu-group");
   const heads = await page.locator(".menu-group h4").allInnerTexts();
-  ok("menu grouped", ["Игра", "Найти", "Лист и файлы", "Настройки"].every(h => heads.some(x => x.toLowerCase() === h.toLowerCase())), heads.join(","));
+  ok("menu grouped", ["Игра", "Найти", "Настройки"].every(h => heads.some(x => x.toLowerCase() === h.toLowerCase())) && !heads.some(x => /лист и файлы/i.test(x)), heads.join(","));
   ok("settings are switches", await page.locator(".menu-switch").count() === 8);
   const explainVisible = () => page.locator(".atk-hint").first().isVisible();
   ok("explanations shown by default", await explainVisible());

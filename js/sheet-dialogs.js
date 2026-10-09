@@ -266,12 +266,30 @@ export function installDialogs(X) {
     };
   }
 
-  function menu() {
+  function fileItems() {
     const r = X.rights();
     const a = S.access;
     const cloud = getMode() === "cloud";
     const manage = r.role === "owner" || r.role === "admin" || r.role === "open";
     const issues = sheetIssues(S.c, S.d);
+    return [
+      ["sheet-check", "check", "Проверка листа" + (issues.length ? `: ${issues.length}` : "")],
+      ...(r.canEdit ? [["history", "history", "История изменений"]] : []),
+      ["backups", "history", "Резервные копии"],
+      ...(S.preview ? [] : [["share", "link", manage && cloud && a.enforced ? "Поделиться и доступ" : "Поделиться"]]),
+      ["print", "scroll", "Печать и PDF"],
+      ["export", "download", "Скачать файл персонажа"],
+      ...(r.canEdit ? [["import", "upload", "Заменить из файла"]] : []),
+      ...(!cloud || a.canCreate ? [["duplicate", "copy", r.canEdit ? "Сделать копию" : "Копия себе"]] : []),
+      ...(manage ? [S.c.archived ? ["unarchive", "archive", "Вернуть из архива"] : ["archive", "archive", "Убрать в архив"]] : []),
+      ...(cloud && a.enforced && manage ? [["delete", "trash", "Удалить навсегда"]] : [])
+    ];
+  }
+
+  function menu() {
+    const r = X.rights();
+    const a = S.access;
+    const cloud = getMode() === "cloud";
     const groups = [
       ["Игра", [
         ["short-rest", "campfire", "Короткий отдых"],
@@ -286,20 +304,7 @@ export function installDialogs(X) {
         ["search-all", "search", "Поиск по листу"],
         ["roll-log", "scroll", "Журнал бросков"],
         ["rules-ref", "book", "Шпаргалка правил"],
-        ["switch-char", "people", "Другой персонаж"],
         ...(canInstall() ? [["install", "phone", "Установить как приложение"]] : [])
-      ]],
-      ["Лист и файлы", [
-        ["sheet-check", "check", "Проверка листа" + (issues.length ? `: ${issues.length}` : "")],
-        ...(r.canEdit ? [["history", "history", "История изменений"]] : []),
-        ["backups", "history", "Резервные копии"],
-        ...(S.preview ? [] : [["share", "link", manage && cloud && a.enforced ? "Поделиться и доступ" : "Поделиться"]]),
-        ["print", "scroll", "Печать и PDF"],
-        ["export", "download", "Скачать файл персонажа"],
-        ...(r.canEdit ? [["import", "upload", "Заменить из файла"]] : []),
-        ...(!cloud || a.canCreate ? [["duplicate", "copy", r.canEdit ? "Сделать копию" : "Копия себе"]] : []),
-        ...(manage ? [S.c.archived ? ["unarchive", "archive", "Вернуть из архива"] : ["archive", "archive", "Убрать в архив"]] : []),
-        ...(cloud && a.enforced && manage ? [["delete", "trash", "Удалить навсегда"]] : [])
       ]],
       ["Аккаунт", [
         ...(a.isAdmin ? [["accounts", "people", "Аккаунты и запреты"]] : []),
@@ -439,5 +444,5 @@ export function installDialogs(X) {
     });
   }
 
-  Object.assign(X, { backupDialog, sceneDialog, coinDialog, searchAll, switchChar, shortRest, longRest, restSummary, historyDialog, rollLogDialog, importDialog, menu, spellAbilityDialog, sheetCheckDialog });
+  Object.assign(X, { backupDialog, sceneDialog, coinDialog, searchAll, switchChar, shortRest, longRest, restSummary, historyDialog, rollLogDialog, importDialog, menu, fileItems, spellAbilityDialog, sheetCheckDialog });
 }

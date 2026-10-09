@@ -1195,7 +1195,7 @@ function optionList(options) {
   return Object.entries(options).map(([k, v]) => [k, typeof v === "string" ? v : v.name]);
 }
 
-function fieldHtml(f, v) {
+export function fieldHtml(f, v) {
   const id = "f_" + f.key.replace(/\W/g, "_");
   const span = f.span ? ` style="grid-column: span ${f.span}"` : "";
   const hint = f.hint ? `<small>${esc(f.hint)}</small>` : "";
@@ -1411,6 +1411,37 @@ async function searchIcons(box, q) {
   grid.innerHTML = iconOpts(box.dataset.name, cur, keys) + (words.length && !keys.length ? `<p class="hint small icon-none">Ничего не нашлось</p>` : "");
 }
 
+export function readField(root, f) {
+  if (f.type === "icon") {
+    const ch = root.querySelector(`[data-icons][data-k="${CSS.escape(f.key)}"] input:checked`);
+    return ch ? ch.value : "";
+  }
+  if (f.type === "flags") {
+    const box = root.querySelector(`[data-flags][data-k="${CSS.escape(f.key)}"]`);
+    return Array.from(box.querySelectorAll("input:checked")).map(i => i.value);
+  }
+  if (f.type === "types") {
+    const box = root.querySelector(`[data-types][data-k="${CSS.escape(f.key)}"]`);
+    return Array.from(box.querySelectorAll("input:checked")).map(i => i.value);
+  }
+  if (f.type === "dicelist") {
+    const box = root.querySelector(`[data-dl][data-k="${CSS.escape(f.key)}"]`);
+    const list = Array.from(box.querySelectorAll(".dl-row")).map(r => ({
+      dice: r.querySelector("[data-dl-dice]").value.trim(),
+      type: r.querySelector("[data-dl-type]").value,
+      addMod: r.querySelector("[data-dl-mod]").checked
+    })).filter(x => x.dice);
+    return list;
+  }
+  const el = root.querySelector(`[data-k="${CSS.escape(f.key)}"]`);
+  if (!el) return undefined;
+  let v;
+  if (f.type === "checkbox") v = el.checked;
+  else if (f.type === "number") v = el.value === "" ? (f.nullable ? null : 0) : Number(el.value);
+  else v = el.value;
+  return v;
+}
+
 export function openForm({ title, fields, value = {}, onSave, onDelete, saveLabel = "Сохранить", extra = "" }) {
   const form = document.createElement("form");
   form.className = "form-grid";
@@ -1467,38 +1498,8 @@ export function openForm({ title, fields, value = {}, onSave, onDelete, saveLabe
     const out = JSON.parse(JSON.stringify(value));
     for (const f of fields) {
       if (f.type === "heading") continue;
-      if (f.type === "icon") {
-        const ch = form.querySelector(`[data-icons][data-k="${CSS.escape(f.key)}"] input:checked`);
-        setPath(out, f.key, ch ? ch.value : "");
-        continue;
-      }
-      if (f.type === "flags") {
-        const box = form.querySelector(`[data-flags][data-k="${CSS.escape(f.key)}"]`);
-        setPath(out, f.key, Array.from(box.querySelectorAll("input:checked")).map(i => i.value));
-        continue;
-      }
-      if (f.type === "types") {
-        const box = form.querySelector(`[data-types][data-k="${CSS.escape(f.key)}"]`);
-        setPath(out, f.key, Array.from(box.querySelectorAll("input:checked")).map(i => i.value));
-        continue;
-      }
-      if (f.type === "dicelist") {
-        const box = form.querySelector(`[data-dl][data-k="${CSS.escape(f.key)}"]`);
-        const list = Array.from(box.querySelectorAll(".dl-row")).map(r => ({
-          dice: r.querySelector("[data-dl-dice]").value.trim(),
-          type: r.querySelector("[data-dl-type]").value,
-          addMod: r.querySelector("[data-dl-mod]").checked
-        })).filter(x => x.dice);
-        setPath(out, f.key, list);
-        continue;
-      }
-      const el = form.querySelector(`[data-k="${CSS.escape(f.key)}"]`);
-      if (!el) continue;
-      let v;
-      if (f.type === "checkbox") v = el.checked;
-      else if (f.type === "number") v = el.value === "" ? (f.nullable ? null : 0) : Number(el.value);
-      else v = el.value;
-      setPath(out, f.key, v);
+      const v = readField(form, f);
+      if (v !== undefined) setPath(out, f.key, v);
     }
     const res = onSave(out);
     if (res !== false) {
