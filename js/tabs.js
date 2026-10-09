@@ -1,6 +1,7 @@
 import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, containerTree, fmt, usesInfo, spellCast, effectSummary, spellInCombat, itemInCombat, featureInCombat, xpInfo, ammoFor, sceneInfo } from "./rules.js";
 import { icon, actionMark, acIcon, hpIcon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, pips, rich, artFx } from "./ui.js";
+import { CLASSES } from "./classes.js";
 import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum, PROF_KINDS } from "./entities.js";
 import { NOTE_SECTIONS, SECTION_NAME, NOTE_STATUS, NOTE_ATTITUDE, CLUE_STATE, noteTagsOf, searchNotes, queryStems, highlight, snippetHtml, plainText, richLinks, backlinks, currentSession, pinnedNotes, linkTargets } from "./notes.js";
 
@@ -26,6 +27,14 @@ export function orderBtn(ctx) {
 
 function addBtn(act, label, extra = "") {
   return `<button class="btn ghost sm" data-act="${act}" ${extra}>${icon("plus")}${esc(label)}</button>`;
+}
+
+const CLASS_COLORS = { barbarian: "#ff6a3d", bard: "#e38ae6", cleric: "#f4d66d", druid: "#78cf6a", fighter: "#e5533d", monk: "#6fd6ff", paladin: "#ffe08a", ranger: "#4fa776", rogue: "#a9b4c2", sorcerer: "#ff7a4a", warlock: "#b46bff", wizard: "#4fa3ff" };
+
+export function classOf(c) {
+  const cls = String((c && c.info && c.info.cls) || "").toLowerCase();
+  const k = Object.keys(CLASSES).find(x => CLASSES[x].match.test(cls));
+  return k ? { name: CLASSES[k].name, icon: "cls" + k[0].toUpperCase() + k.slice(1), color: CLASS_COLORS[k] } : null;
 }
 
 export function subtitle(c) {
@@ -162,7 +171,7 @@ export function tabChar(ctx) {
     </div>
     <div class="col col-center">
       <section class="hero">
-        <button class="hero-portrait" data-act="profile" title="Профиль персонажа">${portraitHtml(c)}<span class="hero-cam">${icon("camera")}</span></button>
+        ${(k => `<button class="hero-portrait" data-act="profile" title="Профиль персонажа"${k ? ` style="--k:${k.color}"` : ""}><span class="hero-pic">${portraitHtml(c)}</span>${k ? `<span class="hero-cls" title="${esc(k.name)}">${icon(k.icon)}</span>` : ""}</button>`)(classOf(c))}
         <button class="hero-id" data-act="profile">
           <span class="hero-name" data-calc="name">${esc(c.name)}</span>
           <span class="hero-sub">${esc([c.info.race, c.info.subrace].filter(Boolean).join(", "))}</span>

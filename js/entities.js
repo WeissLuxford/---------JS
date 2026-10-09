@@ -262,7 +262,8 @@ export function itemModel(c, d, it) {
   const hint = w && !it.equipped ? "Надень, чтобы оружие появилось на вкладке «Бой»." : (Number(it.acBase) > 0 || Number(it.acBonus)) && !it.equipped ? "Надень, чтобы предмет считался в КД." : "";
   return {
     title: it.name,
-    subtitle: `${t.name} · ${r.name}`,
+    subtitle: t.name,
+    subAccent: { text: r.name, color: r.color },
     art: { icon: itemIcon(it), color: r.color, fx: r.fx },
     rarityColor: r.color,
     badges: [it.equipped ? { text: "Экипировано", color: "#e9c77a" } : null, it.requiresAttunement ? { text: it.attuned ? "Настроено" : "Требует настройки", color: it.attuned ? "#b46bff" : "#8d8577" } : null],

@@ -935,6 +935,12 @@ export function featureInCombat(f) {
   return ["action", "bonus", "reaction"].includes(f.action) && (f.damage || []).some(x => x && x.dice && x.type !== "healing" && x.type !== "temp");
 }
 
+const isEldritchBlast = x => /^eldritch blast$/i.test(String(x.nameEn || "").trim()) || /^мистический заряд$/i.test(String(x.name || "").trim());
+
+export function hasAgonizing(c) {
+  return (c.features || []).some(f => /^мучительный заряд$/i.test(String(f.name || "").trim()) || /^agonizing blast$/i.test(String(f.nameEn || "").trim()));
+}
+
 export function attackStats(c, d, at) {
   const abMod = at.ability === "spell" ? d.spell.mod : at.ability === "none" ? 0 : d.mods[at.ability] ?? 0;
   const prof = at.ability === "spell" ? d.pb : at.proficient ? d.pb : 0;
@@ -944,6 +950,7 @@ export function attackStats(c, d, at) {
   let dmg = scaleDice(at.damage || "", times, { scaleFlat: false });
   if (at.addMod) dmg = addDice(dmg, abMod);
   if (Number(at.dmgBonus)) dmg = addDice(dmg, Number(at.dmgBonus));
+  if (!at.addMod && isEldritchBlast(at) && hasAgonizing(c)) dmg = addDice(dmg, d.spell.mod);
   const type = swapType(c, at.damageType);
   if (at.kind === "save") {
     const dc = at.ability === "spell" ? d.spell.dc : 8 + d.pb + abMod + bonus;
@@ -980,7 +987,7 @@ export function spellCast(c, d, sp, slotLevel, extra = 0) {
     if (base === 0 && sp.scaling === "cantrip-dice") dice = scaleDice(dice, d.tier, { scaleFlat: false });
     if (i === 0 && base > 0 && sp.upcast && level > base) dice = addDice(dice, scaleDice(sp.upcast, level - base));
     if (i === 0 && sp.cost === "item" && sp.upcast && extra > 0) dice = addDice(dice, scaleDice(sp.upcast, extra));
-    if (x.addMod) dice = addDice(dice, d.spell.mod);
+    if (x.addMod || (i === 0 && base === 0 && isEldritchBlast(sp) && hasAgonizing(c))) dice = addDice(dice, d.spell.mod);
     return { dice, type: swapType(c, x.type), swapped: swapType(c, x.type) !== x.type, origType: x.type };
   });
   const beams = base === 0 && sp.scaling === "cantrip-beams" ? d.tier : 1;

@@ -57,3 +57,20 @@ test("importCharacter rejects non-sheets and accepts minimal files", () => {
   assert.ok(R.importCharacter({ name: "x" }));
   assert.ok(R.importCharacter({ format: "dnd-sheet", version: 1, character: kirion() }));
 });
+
+test("agonizing blast adds the spell modifier to every eldritch blast beam", () => {
+  const c = R.normalize(kirion());
+  const d0 = R.compute(c);
+  const eb = c.spells.find(s => s.name === "Мистический заряд");
+  const at = c.attacks.find(a => a.name === "Мистический заряд");
+  assert.equal(R.spellCast(c, d0, eb).lines[0].dice, "1d10");
+  assert.equal(R.spellCast(c, d0, eb).beams, 2);
+  assert.equal(R.hasAgonizing(c), false);
+  c.features.push({ id: "f-ag", name: "Мучительный заряд", category: "invocation" });
+  const d = R.compute(c);
+  assert.equal(R.spellCast(c, d, eb).lines[0].dice, "1d10+4");
+  assert.equal(R.spellCast(c, d, eb).beams, 2);
+  assert.equal(R.attackStats(c, d, at).dmg, "1d10+4");
+  const fb = c.spells.find(s => s.name === "Огненный шар");
+  assert.ok(!/\+4$/.test(R.spellCast(c, d, fb).lines[0].dice));
+});

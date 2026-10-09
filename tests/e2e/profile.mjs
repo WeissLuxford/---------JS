@@ -44,7 +44,7 @@ await sleep(300);
 ok("mechanics change recalculates the sheet", (await page.locator("[data-calc=speed]").first().innerText()).includes("35"));
 await page.screenshot({ path: OUT + "profile-mech.png" });
 await page.keyboard.press("Escape");
-await sleep(400);
+await sleep(800);
 ok("drawer closed", (await page.locator(`${P}`).count()) === 0);
 ok("hero shows new race", (await page.locator(".hero-id").innerText()).includes("Тифлинг-северянин"));
 ok("top bar shows new name", (await page.locator(".tb-name").innerText()) === "Кирион Торн");

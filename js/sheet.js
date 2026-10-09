@@ -1,7 +1,7 @@
 import { compute, normalize, fmt, usesInfo, addDice, swapType, NOTE_KEYS, reorderSubset, presetEffect, xpInfo, ACCENTS } from "./rules.js";
 import { icon, acIcon, hpIcon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, warmSounds, reducedMotion, getPath, setPath, download, timeAgo, rollCardOn, setRollCard, closeRollCard, spendDamageButtons } from "./ui.js";
-import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources } from "./tabs.js";
+import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources, classOf } from "./tabs.js";
 import { cardFor, findEntity } from "./entities.js";
 import { describeChanges } from "./changes.js";
 import { subscribeChar, saveChanges, addHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError, watchProposals, watchMyProposal, saveProposal, deleteProposal } from "./store.js";
@@ -316,7 +316,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         <header class="topbar">
           <a class="icon-btn" href="#/" title="Все персонажи">${icon("back")}</a>
           <button class="st-btn sync" data-sync></button>
-          <button class="tb-portrait" data-act="profile" title="Профиль персонажа">${c.portrait ? `<img src="${esc(c.portrait)}" alt="">` : PORTRAIT_PLACEHOLDER}</button>
+          <button class="tb-portrait" data-act="profile" title="Профиль персонажа"${(k => (k ? ` style="--k:${k.color}"` : ""))(classOf(c))}>${c.portrait ? `<img src="${esc(c.portrait)}" alt="">` : PORTRAIT_PLACEHOLDER}</button>
           <button class="tb-id" data-act="profile"><span class="tb-name" data-calc="name">${esc(c.name)}</span><span class="tb-sub" data-calc="sub">${esc(subtitle(c))}</span></button>
           <button class="hp-mini" data-act="hp" title="Хиты"><span class="hp-mini-bar"><i data-hpbar></i></span><span><b data-calc="hp"></b>/<span data-calc="hpmax"></span></span></button>
           <button class="roll-mode" data-act="roll-mode" title="Режим следующего броска d20: обычный, с преимуществом, с помехой">${rollModeLabel()}</button>
@@ -526,8 +526,11 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     });
     hpFeel();
     const issues = readOnly() ? [] : sheetIssues(S.c, S.d);
+    const low = curHp() <= S.d.hpMax / 4;
     $$(".tb-portrait", root).forEach(b => {
       b.classList.toggle("has-issues", issues.length > 0);
+      b.classList.toggle("conc", !!S.c.concentration);
+      b.classList.toggle("low", low);
       b.title = issues.length ? `Профиль персонажа. Проверка листа: ${issues.length}` : "Профиль персонажа";
     });
   }

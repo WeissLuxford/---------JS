@@ -1,7 +1,7 @@
 import { ACCENTS, normalize } from "./rules.js";
 import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, toast, openModal, getPath, setPath, fieldHtml, readField, cropImage, pickFile, openBoard, compressImage, confirmDialog } from "./ui.js";
-import { subtitle } from "./tabs.js";
+import { subtitle, classOf } from "./tabs.js";
 import { infoFields } from "./entities.js";
 import { subscribeList, getMode, getBoard, saveBoard, removeBoard, createChar, newCharId } from "./store.js";
 
@@ -35,6 +35,11 @@ function pageFields(page) {
 }
 
 const avatar = src => (src ? `<img src="${esc(src)}" alt="">` : PORTRAIT_PLACEHOLDER);
+const clsIcon = c => {
+  const k = classOf(c);
+  return k ? `<i class="pf-cls" title="${esc(k.name)}" style="--k:${k.color}">${icon(k.icon)}</i>` : "";
+};
+const avatarBox = (src, c) => `<span class="pf-avw"><span class="pf-av">${avatar(src)}</span>${clsIcon(c)}</span>`;
 
 export function installProfile(X) {
   const { S, navigate } = X;
@@ -65,8 +70,8 @@ export function installProfile(X) {
       const rows = [];
       const self = mine.find(x => x.id === X.id);
       const others = mine.filter(x => x.id !== X.id);
-      rows.push(`<div class="pf-char on"><span class="pf-av">${avatar(S.c.portrait || (self && self.portrait))}</span><span><b>${esc(S.c.name)}</b><small>${esc(subtitle(S.c))}</small></span>${icon("check")}</div>`);
-      others.forEach(x => rows.push(`<button class="pf-char" data-go="${esc(x.id)}"><span class="pf-av">${avatar(x.portrait)}</span><span><b>${esc(x.name || "Без имени")}</b><small>${esc(subtitle(normalize(x)))}</small></span></button>`));
+      rows.push(`<div class="pf-char on">${avatarBox(S.c.portrait || (self && self.portrait), S.c)}<span><b>${esc(S.c.name)}</b><small>${esc(subtitle(S.c))}</small></span>${icon("check")}</div>`);
+      others.forEach(x => rows.push(`<button class="pf-char" data-go="${esc(x.id)}">${avatarBox(x.portrait, normalize(x))}<span><b>${esc(x.name || "Без имени")}</b><small>${esc(subtitle(normalize(x)))}</small></span></button>`));
       if (getMode() !== "cloud" || S.access.canCreate) rows.push(`<button class="pf-char pf-new" data-new><span class="pf-av">${icon("plus")}</span><span><b>Новый персонаж</b></span></button>`);
       rows.push(`<a class="pf-char pf-all" href="#/"><span class="pf-av">${icon("people")}</span><span><b>Все персонажи</b></span></a>`);
       return rows.join("");
@@ -81,7 +86,7 @@ export function installProfile(X) {
       const sections = Object.entries(PAGES).map(([k, p]) => `<button class="menu-item" data-pf-go="${k}">${icon(p.ic)}<span>${esc(p.title)}${p.sub ? `<small>${esc(p.sub)}</small>` : ""}</span></button>`).join("");
       const files = X.fileItems().map(([act, ic, l]) => `<button class="menu-item" data-m="${act}">${icon(ic)}<span>${esc(l)}</span></button>`).join("");
       return `<header class="pf-head">
-          <button class="pf-portrait" data-pf-go="portrait" aria-label="Портрет">${avatar(S.c.portrait)}</button>
+          <span class="pf-pw"${(k => (k ? ` style="--k:${k.color}"` : ""))(classOf(S.c))}><button class="pf-portrait" data-pf-go="portrait" aria-label="Портрет">${avatar(S.c.portrait)}</button>${clsIcon(S.c)}</span>
           <button class="pf-id" data-pf-go="who"><b>${esc(S.c.name)}</b><small>${esc(subtitle(S.c))}</small></button>
         </header>
         <button class="pf-switch ${listOpen ? "on" : ""}" data-pf-toggle aria-expanded="${listOpen}"><span>Мои персонажи</span>${icon("down")}</button>

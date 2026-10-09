@@ -16,7 +16,7 @@ await sleep(300);
 await page.click(".modal.profile [data-pf-go=accent]");
 await page.click(".modal.profile [data-accent=ice]");
 await page.keyboard.press("Escape");
-await sleep(400);
+await sleep(800);
 const rootGold = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--gold-2").trim());
 ok("root accent is ice", rootGold === "#86cbea", rootGold);
 await page.locator("[data-card='stat:pb']").first().hover().catch(() => {});

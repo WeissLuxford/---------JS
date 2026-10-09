@@ -814,7 +814,7 @@ export function openModal({ title = "", body = "", wide = false, cls = "", onClo
       document.body.classList.remove("no-scroll");
       disarmSoon();
     }
-    setTimeout(() => back.remove(), 200);
+    setTimeout(() => back.remove(), cls.includes("profile") ? 520 : 200);
     if (box.contains(document.activeElement)) {
       const fine = window.matchMedia("(pointer: fine)").matches;
       if (fine && opener && opener.isConnected && typeof opener.focus === "function") opener.focus({ preventScroll: true });
@@ -959,7 +959,7 @@ export function card(m) {
   const uses = m.uses ? `<div class="card-uses">${pips(m.uses.max, m.uses.left, m.usesColor)}<span>${m.uses.left} / ${m.uses.max}</span></div>` : "";
   return `<article class="bg-card" style="--rar:${m.rarityColor || "transparent"}">
     ${art}
-    <header class="card-head"><h3>${esc(m.title)}</h3>${m.subtitle ? `<div class="card-sub">${esc(m.subtitle)}</div>` : ""}${badges ? `<div class="card-badges">${badges}</div>` : ""}</header>
+    <header class="card-head"><h3>${esc(m.title)}</h3>${m.subtitle ? `<div class="card-sub">${esc(m.subtitle)}${m.subAccent ? ` · <span class="sub-acc" style="--c:${esc(m.subAccent.color)}">${esc(m.subAccent.text)}</span>` : ""}</div>` : ""}${badges ? `<div class="card-badges">${badges}</div>` : ""}</header>
     ${m.dice && m.dice.length ? diceStack(m.dice) : ""}
     ${m.stats ? `<div class="card-stats">${m.stats}</div>` : ""}
     ${m.body ? `<div class="card-desc">${m.body}</div>` : ""}
