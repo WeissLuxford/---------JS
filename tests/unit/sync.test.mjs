@@ -65,3 +65,59 @@ test("server-side: two in-flight writes to different items of one list (last wri
   server = serverApply(server, diffPaths(base, A));
   console.log(`  server keeps B's rename: ${server.spells[1].name === "Renamed"}; A's use: ${server.spells[0].used === 1}`);
 });
+
+function cloudModel(advanceBaseOnSend) {
+  const start = normalize(kirion());
+  let server = clone(start);
+  const pending = [];
+  const queue = [];
+  const view = () => pending.reduce((d, ch) => serverApply(d, ch), clone(server));
+  const raise = () => queue.push(clone(view()));
+  const client = { base: clone(start), c: clone(start) };
+  client.onData = incoming => {
+    const local = diffPaths(client.base, client.c);
+    client.base = clone(incoming);
+    client.c = applyPaths(clone(incoming), local);
+  };
+  client.flush = () => {
+    const ch = diffPaths(client.base, client.c);
+    if (!ch.length) return;
+    if (advanceBaseOnSend) client.base = clone(client.c);
+    pending.push(ch);
+    raise();
+  };
+  const ack = () => {
+    if (!pending.length) return;
+    server = serverApply(server, pending.shift());
+    raise();
+  };
+  const deliver = () => queue.length && client.onData(queue.shift());
+  return { client, ack, deliver };
+}
+
+function threeTaps(advanceBaseOnSend) {
+  const { client, ack, deliver } = cloudModel(advanceBaseOnSend);
+  const tap = () => (client.c.skills.athletics = ((Number(client.c.skills.athletics) || 0) + 1) % 3);
+  client.c.skills.athletics = 0;
+  client.base.skills.athletics = 0;
+  tap();
+  client.flush();
+  deliver();
+  ack();
+  tap();
+  client.flush();
+  deliver();
+  tap();
+  deliver();
+  client.flush();
+  ack();
+  deliver();
+  ack();
+  deliver();
+  return client.c.skills.athletics;
+}
+
+test("cloud: a snapshot raised before a send but delivered after it does not undo the tap", () => {
+  assert.notEqual(threeTaps(true), 0, "old flush: the third tap lands on a rolled back diamond");
+  assert.equal(threeTaps(false), 0, "base moves only with snapshots: three taps end at none");
+});

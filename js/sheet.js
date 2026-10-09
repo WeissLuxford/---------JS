@@ -496,17 +496,13 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     if (!S.c || !S.base) return;
     const changes = diffPaths(S.base, S.c);
     if (!changes.length) return;
-    const prevBase = S.base;
-    const sent = clone(S.c);
-    S.base = clone(S.c);
     try {
-      await saveChanges(id, changes, sent);
+      await saveChanges(id, changes, clone(S.c));
       S.retry = 0;
       S.saveFailed = false;
     } catch (err) {
       if (String(err && err.code).includes("permission-denied")) {
-        S.base = prevBase;
-        S.c = normalize(clone(prevBase));
+        S.c = normalize(clone(S.base));
         S.c.id = id;
         S.d = compute(S.c);
         S.aclFor = "";
@@ -518,7 +514,6 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         return;
       }
       S.saveFailed = true;
-      S.base = applyPaths(clone(S.base), diffPaths(sent, prevBase));
       S.retry = Math.min((S.retry || 1000) * 2, 30000);
       if (!S.disposed || getMode() === "local") S.saveTimer = setTimeout(flush, S.retry);
     }
