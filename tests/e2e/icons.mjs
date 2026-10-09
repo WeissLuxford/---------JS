@@ -18,7 +18,7 @@ await page.fill(".modal-back.in [data-q]", "паутина");
 await sleep(300);
 const webIc = await page.evaluate(async () => {
   const d = document.createElement("div");
-  d.innerHTML = (await import("/js/icons.js")).icon("web");
+  d.innerHTML = (await import("/js/icons.js")).icon((await import("/js/icon-map.js")).SPELL_ICONS.Web);
   return d.innerHTML;
 });
 const first = await page.locator(".modal-back.in .lib-row").first();

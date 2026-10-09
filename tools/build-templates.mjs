@@ -45,7 +45,7 @@ const TEMPLATES = [];
   c.notes.quests = [note("Серый брод", "Узнать, кто выжил из отряда «Каменные щиты». Говорят, двоих видели в [[Портовом квартале]].", { status: "active" })];
   c.notes.places = [note("Портовый квартал", "Шумно, тесно, много наёмников. Таверна «Пьяный якорь».", { aliases: "Портовом квартале" })];
   c.accent = "steel";
-  TEMPLATES.push({ key: "fighter", icon: "swords", blurb: "Простой в игре: крепкий доспех, меч и щит, Второе дыхание и Всплеск действий.", c: ids(c, "garven") });
+  TEMPLATES.push({ key: "fighter", icon: "clsFighter", blurb: "Простой в игре: крепкий доспех, меч и щит, Второе дыхание и Всплеск действий.", c: ids(c, "garven") });
 }
 
 {
@@ -71,7 +71,7 @@ const TEMPLATES = [];
   c.notes.people = [note("Настоятель Борин", "Наставник. Остался в Дунхольме, пишет раз в месяц.", { attitude: "ally" })];
   c.notes.quests = [note("Храм Дунхольма", "Собрать 500 зм на восстановление храма. Собрано: 40 зм.", { status: "active" })];
   c.accent = "copper";
-  TEMPLATES.push({ key: "cleric", icon: "sun", blurb: "Лечит, поддерживает отряд, держит удар в кольчуге.", c: ids(c, "beldra") });
+  TEMPLATES.push({ key: "cleric", icon: "clsCleric", blurb: "Лечит, поддерживает отряд, держит удар в кольчуге.", c: ids(c, "beldra") });
 }
 
 {
@@ -94,7 +94,7 @@ const TEMPLATES = [];
   c.notes.clues = [note("Пропавшая страница", "Страница вырвана аккуратно, ножом. На полях знак, похожий на перевёрнутую звезду.", { state: "lead" })];
   c.notes.quests = [note("Учитель Аэрхен", "Найти, куда исчез учитель. Начать с [[Пропавшая страница|пропавшей страницы]].", { status: "active" })];
   c.accent = "ice";
-  TEMPLATES.push({ key: "wizard", icon: "staff", blurb: "Огненный снаряд, Щит, Волшебная стрела и толстая книга заклинаний.", c: ids(c, "kaelen") });
+  TEMPLATES.push({ key: "wizard", icon: "clsWizard", blurb: "Огненный снаряд, Щит, Волшебная стрела и толстая книга заклинаний.", c: ids(c, "kaelen") });
 }
 
 const out = TEMPLATES.map(t => {

@@ -1,5 +1,5 @@
 import { compute, normalize, fmt, usesInfo, addDice, swapType, NOTE_KEYS, reorderSubset, presetEffect, xpInfo, ACCENTS } from "./rules.js";
-import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
+import { icon, acIcon, hpIcon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, warmSounds, reducedMotion, getPath, setPath, download, timeAgo, rollCardOn, setRollCard, closeRollCard, spendDamageButtons } from "./ui.js";
 import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources } from "./tabs.js";
 import { cardFor, findEntity } from "./entities.js";
@@ -505,6 +505,15 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       el.parentElement.classList.toggle("low", pct <= 25);
     });
     $$(".hp-mini, [data-hpstate]", root).forEach(el => (el.dataset.hpstate = state));
+    const liveIcon = (sel, name) => $$(sel, root).forEach(el => {
+      if (el.dataset.ic === name) return;
+      const w = document.createElement("span");
+      w.innerHTML = icon(name);
+      w.firstElementChild.dataset.ic = name;
+      el.replaceWith(w.firstElementChild);
+    });
+    liveIcon(".hp-panel > .panel-h > .ic", hpIcon(curHp(), S.d.hpMax));
+    liveIcon('.medal[data-card="stat:ac"] > .ic', acIcon(S.d.ac));
     $$(".medal.slow, [data-calc=speed]", root).forEach(el => {
       const m = el.closest(".medal");
       if (m) m.classList.toggle("slow", S.d.speed < S.d.baseSpeed);

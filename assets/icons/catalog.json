@@ -36,6 +36,9 @@
 {"key":"offstyle","ru":"Не фэнтези"}
 ],
 "icons": [
+{"id":"own/acLow","pack":"own","file":"js/icons.js","name":"ac low armor shield","ru":"класс доспеха, кд, низкий, доспех, броня, щит","themes":["armor"],"flags":[]},
+{"id":"own/acHalf","pack":"own","file":"js/icons.js","name":"ac half armor shield","ru":"класс доспеха, кд, половина, пол, доспех, броня, щит","themes":["armor"],"flags":[]},
+{"id":"own/acFull","pack":"own","file":"js/icons.js","name":"ac full armor shield","ru":"класс доспеха, кд, полный, доспех, броня, щит","themes":["armor"],"flags":[]},
 {"id":"own/user","pack":"own","file":"js/icons.js","name":"user person character","ru":"пользователь, человек, персона, персонаж","themes":["people"],"flags":["face"]},
 {"id":"own/swords","pack":"own","file":"js/icons.js","name":"swords swords combat","ru":"мечи, бой, сражение","themes":["weapon"],"flags":[]},
 {"id":"own/book","pack":"own","file":"js/icons.js","name":"book","ru":"книга","themes":["book"],"flags":[]},

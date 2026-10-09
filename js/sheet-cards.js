@@ -357,7 +357,7 @@ export function installCards(X) {
       body: `<div class="portrait-big">${S.c.portrait ? `<img src="${esc(S.c.portrait)}" alt="">` : PORTRAIT_PLACEHOLDER}</div>
         ${ro ? "" : `<div class="form-actions">${S.c.portrait ? `<button class="btn danger" data-rm>${icon("trash")}Убрать</button><span class="spacer"></span><button class="btn" data-crop>${icon("target")}Изменить кадр</button>` : `<span class="spacer"></span>`}<button class="btn gold" data-up>${icon("upload")}Загрузить картинку</button></div>
         <p class="hint">После выбора картинки можно подвинуть и приблизить нужную часть. Портрет сохранится вместе с персонажем.</p>`}
-        <div class="pb-board"><h4>${icon("frame")}Доска персонажа</h4>${ro ? "" : `<p class="hint">Большая картинка с артом и описанием, как у готовых персонажей. Видна всем, кто может открыть лист, и открывается с карточки на главной.</p>`}<div class="form-actions">${boardBtns}</div></div>`
+        <div class="pb-board"><h4>${icon("gi/delapouite/wood-frame")}Доска персонажа</h4>${ro ? "" : `<p class="hint">Большая картинка с артом и описанием, как у готовых персонажей. Видна всем, кто может открыть лист, и открывается с карточки на главной.</p>`}<div class="form-actions">${boardBtns}</div></div>`
     });
     const bOpen = m.body.querySelector("[data-board-open]");
     if (bOpen) bOpen.onclick = () => openBoard(boardSource(), S.c.name);

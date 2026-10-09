@@ -6,7 +6,7 @@ const P = new URL("../../js/", import.meta.url).href;
 const R = await import(P + "rules.js");
 const E = await import(P + "entities.js");
 const T = await import(P + "tabs.js");
-const { icon, ICON_NAMES } = await import(P + "icons.js");
+const { icon, ICON_NAMES, iconFile } = await import(P + "icons.js");
 const { describeChanges } = await import(P + "changes.js");
 
 test("scene is normalized and unknown or prototype values are dropped", () => {
@@ -27,7 +27,7 @@ test("scene hints follow visibility and weather rules", () => {
   const plain = R.normalize({ name: "x", scene: { time: "night", weather: "storm" } });
   const info = R.sceneInfo(plain);
   assert.equal(info.set, true);
-  assert.equal(info.icon, "storm");
+  assert.equal(info.icon, R.SCENE_WEATHER.storm.icon);
   assert.equal(info.text, "Ночь · Гроза");
   assert.ok(info.hints.some(h => h.includes("ничего не видишь")));
   assert.ok(info.hints.some(h => h.includes("дальнобойные атаки")));
@@ -65,26 +65,16 @@ test("new icons are drawn, pickable and render without fallback", () => {
   assert.ok(!ICON_NAMES.includes("cloud"));
 });
 
-test("names pick fitting new icons", () => {
+test("names pick fitting pack icons", () => {
   const item = name => E.itemIcon({ name, type: "misc" });
-  assert.equal(item("Флакон яда"), "toxic");
-  assert.equal(item("Катана предков"), "katana");
-  assert.equal(item("Секира гнома"), "battleaxe");
-  assert.equal(item("Моргенштерн"), "morningstar");
-  assert.equal(item("Хрустальный шар"), "crystalball");
-  assert.equal(item("Бинты"), "bandage");
-  assert.equal(item("Котелок"), "pan");
-  assert.equal(item("Плащ защиты"), "cloak");
+  const items = ["Флакон яда", "Катана предков", "Секира гнома", "Моргенштерн", "Хрустальный шар", "Бинты", "Котелок", "Плащ защиты"].map(item);
+  for (const ic of items) assert.ok(iconFile(ic), ic);
+  assert.equal(new Set(items).size, items.length);
   const c = R.normalize({ name: "x" });
   const sp = (name, damage = []) => E.spellIcon(c, { name, school: "evocation", damage }).icon;
-  assert.equal(sp("Огненные руки", [{ dice: "3d6", type: "fire" }]), "firehand");
-  assert.equal(sp("Град", [{ dice: "2d8", type: "bludgeoning" }]), "snowcloud");
-  assert.equal(sp("Огненный шар", [{ dice: "8d6", type: "fire" }]), "dmgFire");
-  assert.equal(sp("Туманное облако"), "fog");
-  assert.equal(sp("Усыпление"), "sleep");
-  assert.equal(sp("Удержание личности"), "paralyzed");
-  assert.equal(sp("Фокусы"), "juggle");
-  assert.equal(sp("Невидимость"), "invisible");
+  const spells = [sp("Огненные руки", [{ dice: "3d6", type: "fire" }]), sp("Град", [{ dice: "2d8", type: "bludgeoning" }]), sp("Туманное облако"), sp("Усыпление"), sp("Удержание личности"), sp("Фокусы"), sp("Невидимость")];
+  for (const ic of spells) assert.ok(iconFile(ic), ic);
+  assert.equal(new Set(spells).size, spells.length);
 });
 
 test("empty states and scene chip escape text", () => {

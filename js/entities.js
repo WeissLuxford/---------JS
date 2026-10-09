@@ -2,7 +2,7 @@ import {
   ABILITIES, SKILLS, DAMAGE, SCHOOLS, ACTIONS, RECHARGE, RARITY, ITEM_TYPES, FEATURE_CATS, FEATURE_SOURCES,
   CONDITIONS, CASTER_TYPES, HIT_DICE, ALIGNMENTS, ACCENTS, fmt, spellCast, usesInfo, swapType, uid, addDice, effectSummary, weaponStats, asWeapon
 } from "./rules.js";
-import { icon, slotMark, actionMark } from "./icons.js";
+import { icon, slotMark, actionMark, acIcon, hpIcon } from "./icons.js";
 import { card, rich, esc, actionFoot, openForm } from "./ui.js";
 import { spellIconByName, featureIconByName } from "./icon-map.js";
 
@@ -43,61 +43,61 @@ export function spellLevelText(sp) {
 const W = s => new RegExp("(^|[^а-яё])(" + s + ")", "i");
 
 const ITEM_WORDS = [
-  ["гроб|саркофаг", "coffin"], ["коса(?![а-яё])|серп", "scythe"], ["кость|кости|костян", "bone"], ["катан|вакидзаси|ятаган", "katana"],
-  ["секир|бердыш|боевой топор", "battleaxe"], ["моргенштерн", "morningstar"], ["коктейл|горюч|алхимическ[а-яё]* огонь", "molotov"],
-  ["яд(?![а-яё])|яда(?![а-яё])|ядовит|отрав|токсин", "toxic"], ["хрустальн[а-яё]* шар|гадальн", "crystalball"], ["шахмат|ладья", "rook"],
-  ["обручальн|помолвочн|кольцо с камн", "ringgem"], ["бинт|повязк|пластыр", "bandage"], ["таблет|пилюл|капсул", "pill"],
-  ["сковород|котел|котелок|кастрюл|кухон|повар", "pan"], ["паук|паучь", "spider"], ["мумия|мумии|бальзамир", "mummy"], ["кед(?![а-яё])|кроссовк|скороход", "dash"],
-  ["мантия|роба|балахон", "clArchmage"], ["ряса|облачени|кимоно|хламид", "clMonk"], ["платье|наряд|сарафан", "clPrincess"], ["мундир|сюртук|китель|капитан", "clCaptain"], ["ливре|форм[аеуы] страж|гамбезон|стёган|стеган", "clGuard"], ["бригантин|кольчужн[а-яё]* рубах", "clWarrior"], ["одежд|костюм|рубах|туник|камзол|дублет", "clRoyal"],
-  ["кольц|перстен", "ring"], ["амулет|кулон|ожерель|медальон|талисман", "amulet"], ["плащ|накидк", "cloak"],
-  ["перчат|рукавиц|наруч", "glove"], ["шлем", "helmet"], ["шляп|капюшон|берет|цилиндр", "hat"], ["корон|диадем|тиар", "crown"], ["арбалет", "crossbow"], ["лук(?![а-яё])", "bow"],
-  ["колчан", "quiver"], ["стрел|болт|духов[а-яё]* трубк", "arrow"], ["копь|пика|трезуб|алебард|глеф", "spear"], ["булав|моргенштерн|палиц", "mace"], ["цеп(?![а-яё])|кистен", "flail"], ["кнут|плеть|хлыст", "whip"], ["праща", "sling"],
-  ["сапог|ботин|обувь|туфл", "boots"], ["пояс|ремен", "belt"], ["отмычк|воровск", "lockpick"], ["трав|корень|цветок|лепест", "herb"], ["гриб", "mushroom"], ["мяс|колбас|окорок", "meat"], ["рыб", "fish"], ["зеркал", "mirror"], ["карты|игральн|колод", "cards"], ["весы", "scales"], ["ручк|чернил", "quill"],
-  ["посох", "staff"], ["жезл|палочк", "wand"], ["сундук|ларец|шкатул", "chest"], ["замок|замк", "lock"], ["дротик", "arrow"], ["хрустальн|сфер|шар(?![а-яё])", "orb"], ["ключ|отмычк", "key"], ["карта|карты|атлас", "map"],
-  ["письм|конверт|записк|приглашен|документ|паспорт|лицензи", "letter"], ["факел|свеч", "torch"], ["бутыл|фляг|флакон", "bottle"],
-  ["колокол", "bell"], ["палатк|шатёр|шатер", "tent"], ["кирк|лопат", "pickaxe"], ["лютн|флейт|барабан|скрипк|арф|рожок", "lute"],
-  ["кристал", "crystal"], ["бомб|гранат|взрывчат|порох", "bomb"], ["пистол|мушкет|револьвер|ружь|винтовк", "pistol"],
-  ["очки|гогл|линз", "goggles"], ["часы|хронометр", "clock"], ["якор", "anchor"], ["монокл", "monocle"], ["компас", "compass"],
-  ["конденсатор|батаре|аккумулятор", "battery"], ["перо", "feather"], ["кружк|чаш|кубок", "mug"], ["верёвк|веревк|цеп", "rope"],
-  ["фонар", "lantern"], ["рацион|хлеб|еда|сухар", "bread"], ["блокнот|дневник|журнал", "notebook"], ["целител|аптечк|бинт", "medkit"],
-  ["книг|том(?![а-яё])|гримуар", "book"], ["свиток", "scroll"], ["щит", "shield"], ["доспех|кольчуг|латы|кираса|кожа", "armor"],
-  ["меч|сабл|рапир|клинок|шпаг", "sword"], ["топор|секир", "axe"], ["молот|булав|дубин", "hammer"], ["кинжал|нож", "dagger"],
-  ["зель|эликсир|масло|яд(?![а-яё])", "potion"], ["камен|самоцвет|рубин|изумруд|сапфир|алмаз|жемчуг", "gem"],
-  ["шестер|механизм|инструмент|ключ гаечн", "gear"], ["рюкзак|ранец|котомк", "backpack"], ["мешоч|кисет|подсумок|компонент", "pouch"], ["сумк|мешок", "bag"], ["кошел|монет", "coin"]
+  ["гроб|саркофаг", "gi/lorc/coffin"], ["коса(?![а-яё])|серп", "gi/lorc/scythe"], ["кость|кости|костян", "gi/lorc/crossed-bones"], ["катан|вакидзаси|ятаган", "gi/delapouite/katana"],
+  ["секир|бердыш|боевой топор", "gi/lorc/battle-axe"], ["моргенштерн", "tw/weapon/morningstar"], ["коктейл|горюч|алхимическ[а-яё]* огонь", "gi/lorc/molotov"],
+  ["яд(?![а-яё])|яда(?![а-яё])|ядовит|отрав|токсин", "gi/lorc/poison-bottle"], ["хрустальн[а-яё]* шар|гадальн", "gi/lorc/crystal-ball"], ["шахмат|ладья", "gi/skoll/chess-rook"],
+  ["обручальн|помолвочн|кольцо с камн", "gi/lorc/engagement-ring"], ["бинт|повязк|пластыр", "gi/lorc/bandage-roll"], ["таблет|пилюл|капсул", "gi/lorc/pill"],
+  ["сковород|котел|котелок|кастрюл|кухон|повар", "gi/darkzaitzev/cauldron"], ["паук|паучь", "gi/lorc/hanging-spider"], ["мумия|мумии|бальзамир", "gi/delapouite/sarcophagus"], ["кед(?![а-яё])|кроссовк|скороход", "gi/lorc/wingfoot"],
+  ["мантия|роба|балахон", "gi/lorc/robe"], ["ряса|облачени|кимоно|хламид", "gi/delapouite/cape"], ["платье|наряд|сарафан", "gi/skoll/dress"], ["мундир|сюртук|китель|капитан", "gi/delapouite/pirate-coat"], ["ливре|форм[аеуы] страж|гамбезон|стёган|стеган", "gi/lorc/leather-vest"], ["бригантин|кольчужн[а-яё]* рубах", "gi/lorc/mail-shirt"], ["одежд|костюм|рубах|туник|камзол|дублет", "gi/lucasms/shirt"],
+  ["кольц|перстен", "gi/delapouite/ring"], ["амулет|кулон|ожерель|медальон|талисман", "gi/lorc/gem-pendant"], ["плащ|накидк", "gi/lucasms/cloak"],
+  ["перчат|рукавиц|наруч", "gi/delapouite/gloves"], ["шлем", "gi/lorc/crested-helmet"], ["шляп|капюшон|берет|цилиндр", "gi/delapouite/robin-hood-hat"], ["корон|диадем|тиар", "gi/lorc/crown"], ["арбалет", "gi/carl-olsen/crossbow"], ["лук(?![а-яё])", "gi/lorc/pocket-bow"],
+  ["колчан", "gi/delapouite/quiver"], ["стрел|болт|духов[а-яё]* трубк", "gi/lorc/arrow-cluster"], ["копь|пика|трезуб|алебард|глеф", "gi/lorc/barbed-spear"], ["булав|моргенштерн|палиц", "gi/delapouite/flanged-mace"], ["цеп(?![а-яё])|кистен", "gi/delapouite/flail"], ["кнут|плеть|хлыст", "gi/lorc/whip"], ["праща", "gi/delapouite/sling"],
+  ["сапог|ботин|обувь|туфл", "gi/lorc/leather-boot"], ["пояс|ремен", "gi/lucasms/belt"], ["отмычк|воровск", "gi/delapouite/lockpicks"], ["трав|корень|цветок|лепест", "gi/delapouite/herbs-bundle"], ["гриб", "gi/lorc/mushroom"], ["мяс|колбас|окорок", "gi/lorc/meat"], ["рыб", "gi/darkzaitzev/fried-fish"], ["зеркал", "gi/lorc/mirror-mirror"], ["карты|игральн|колод", "gi/lorc/poker-hand"], ["весы", "gi/lorc/scales"], ["ручк|чернил", "gi/lorc/quill-ink"],
+  ["посох", "gi/lorc/wizard-staff"], ["жезл|палочк", "gi/lorc/crystal-wand"], ["сундук|ларец|шкатул", "gi/delapouite/chest"], ["замок|замк", "gi/lorc/padlock"], ["дротик", "gi/delapouite/dart"], ["хрустальн|сфер|шар(?![а-яё])", "gi/delapouite/glass-ball"], ["ключ|отмычк", "gi/lorc/skeleton-key"], ["карта|карты|атлас", "gi/lorc/treasure-map"],
+  ["письм|конверт|записк|приглашен|документ|паспорт|лицензи", "gi/lorc/envelope"], ["факел|свеч", "gi/delapouite/torch"], ["бутыл|фляг|флакон", "gi/delapouite/water-flask"],
+  ["колокол", "gi/lorc/ringing-bell"], ["палатк|шатёр|шатер", "gi/delapouite/camping-tent"], ["кирк|лопат", "gi/lorc/mining"], ["лютн|флейт|барабан|скрипк|арф|рожок", "gi/lorc/lyre"],
+  ["кристал", "gi/lorc/crystal-cluster"], ["бомб|гранат|взрывчат|порох", "gi/lorc/unlit-bomb"], ["пистол|мушкет|револьвер|ружь|винтовк", "gi/lorc/blunderbuss"],
+  ["очки|гогл|линз", "gi/delapouite/steampunk-goggles"], ["часы|хронометр", "gi/skoll/pocket-watch"], ["якор", "gi/lorc/anchor"], ["монокл", "gi/lorc/spectacle-lenses"], ["компас", "gi/lorc/compass"],
+  ["конденсатор|батаре|аккумулятор", "gi/lorc/bottled-bolt"], ["перо", "gi/lorc/feather"], ["кружк|чаш|кубок", "gi/lorc/beer-stein"], ["верёвк|веревк|цеп", "gi/delapouite/rope-coil"],
+  ["фонар", "gi/lorc/lantern"], ["рацион|хлеб|еда|сухар", "gi/delapouite/bread"], ["блокнот|дневник|журнал", "gi/delapouite/notebook"], ["целител|аптечк|бинт", "gi/delapouite/first-aid-kit"],
+  ["книг|том(?![а-яё])|гримуар", "gi/lorc/book-cover"], ["свиток", "gi/lorc/scroll-unfurled"], ["щит", "gi/lorc/checked-shield"], ["доспех|кольчуг|латы|кираса|кожа", "gi/lorc/breastplate"],
+  ["меч|сабл|рапир|клинок|шпаг", "gi/lorc/broadsword"], ["топор|секир", "gi/delapouite/war-axe"], ["молот|булав|дубин", "gi/delapouite/warhammer"], ["кинжал|нож", "gi/lorc/plain-dagger"],
+  ["зель|эликсир|масло|яд(?![а-яё])", "gi/lorc/standing-potion"], ["камен|самоцвет|рубин|изумруд|сапфир|алмаз|жемчуг", "gi/lorc/gems"],
+  ["шестер|механизм|инструмент|ключ гаечн", "gi/lorc/gears"], ["рюкзак|ранец|котомк", "gi/delapouite/backpack"], ["мешоч|кисет|подсумок|компонент", "gi/seregacthtuf/pouch-with-beads"], ["сумк|мешок", "gi/lorc/knapsack"], ["кошел|монет", "gi/lorc/shiny-purse"]
 ].map(([w, ic]) => [W(w), ic]);
 
-const STRONG_SPELL_WORDS = [
-  ["огненные руки|горящие руки|ладон", "firehand"], ["метеор|звездопад|звёздн|звездн", "constellation"], ["шторм|буря|бури|гроз", "storm"], ["град(?![а-яё])|метел|вьюг|снегопад", "snowcloud"], ["дожд|ливн", "rain"],
-  ["паут", "web"], ["щупальц", "tentacle"], ["шип|терн|колюч", "thorns"], ["насеком|жук|рой(?![а-яё])|саранч", "bug"], ["радуг|призм", "prism"], ["паук|паучь", "spider"], ["круг смерти|палец смерти|смертельн|увядан|жнец", "reaper"],
-  ["мертвец|нежит|зомби|скелет|упыр|восставш", "zombiehand"], ["зловон|смрад|дым", "smoke"], ["туман|мгла", "fog"]
+const STRONG_SPELL_WORDS = [["агатис", "gi/delapouite/chest-armor"], ["обморож", "gi/lorc/brain-freeze"], ["хадар", "gi/lorc/spiky-eclipse"], 
+  ["огненные руки|горящие руки|ладон", "gi/lorc/magic-palm"], ["метеор|звездопад|звёздн|звездн", "gi/lorc/comet-spark"], ["шторм|буря|бури|гроз", "gi/lorc/lightning-storm"], ["град(?![а-яё])|метел|вьюг|снегопад", "gi/lorc/snowing"], ["дожд|ливн", "gi/lorc/heavy-rain"],
+  ["паут", "gi/lorc/spider-web"], ["щупальц", "gi/lorc/curled-tentacle"], ["шип|терн|колюч", "gi/lorc/thorny-vine"], ["насеком|жук|рой(?![а-яё])|саранч", "gi/lorc/bee"], ["радуг|призм", "gi/delapouite/prism"], ["паук|паучь", "gi/lorc/hanging-spider"], ["круг смерти|палец смерти|смертельн|увядан|жнец", "gi/lorc/reaper-scythe"],
+  ["мертвец|нежит|зомби|скелет|упыр|восставш", "gi/skoll/raise-zombie"], ["зловон|смрад|дым", "gi/lorc/poison-gas"], ["туман|мгла", "gi/delapouite/fog"]
 ].map(([w, ic]) => [W(w), ic]);
 
 const SPELL_WORDS = [
-  ["гадан|предсказ|прорица|ясновид", "crystalball"], ["контрзаклин|антимаги|рассеивани", "antimagic"], ["замок|запира|запер", "lock"], ["сундук|ларец", "chest"],
-  ["лабиринт", "maze"], ["насмеш|уста(?![а-яё])|губ|красноречи", "lips"], ["образ|иллюзи", "frame"], ["след(?![а-яё])|следы|бесследн", "footprints"], ["зеркал|отражени", "mirror"], ["сердцебиен|пульс|псевдожизн", "heartbeat"], ["слепот|ослеп", "blind"], ["глухот|оглуш", "deaf"], ["невидим", "invisible"],
-  ["очаров|подчин", "charmed"], ["страх|ужас", "scared"], ["удержание|паралич|обездвиж", "paralyzed"], ["усыпл|сон(?![а-яё])|дрем", "sleep"],
-  ["фокус|престидиж|трюк|жонгл", "juggle"], ["рассвет|заря|зари", "sunrise"], ["скороход|рывок|бег(?![а-яё])", "dash"], ["созвезд", "constellation"],
-  ["щит|доспех|защит|ограж|броня|оберег", "shield"], ["лечен|исцел|восстанов|воскреш|жизн|оживл", "heart"], ["свет|сиян|солн|рассвет", "sun"],
-  ["тьм|темнот|ночь|тени|тень", "moon"], ["невидим|иллюз|образ|маск|облик|личин|мираж", "mask"], ["телепорт|шаг|портал|врата|перенос|план", "portal"],
-  ["полёт|полет|левитац|падени|прыж|крыл", "wings"], ["паут", "web"], ["ветер|ветр|вихр|порыв|смерч|туман|облак", "wind"],
-  ["камен|земл|стен|скал", "rock"], ["раст|лоз|шип|ягод|дуб|кор", "leaf"], ["звер|живот|скакун|фамильяр", "paw"], ["дракон", "dragon"], ["призрак|дух(?![а-яё])|эфир|бестелес", "ghost"], ["смерч", "tornado"], ["щупальц", "tentacle"], ["дерев|лес", "tree"],
-  ["землетряс|гора", "mountain"], ["клетк", "cage"], ["двер|запор|стук", "door"], ["пузыр", "bubble"], ["цепн|разряд|шок", "lightning2"], ["руна|глиф", "rune"], ["астрал", "planet"],
-  ["обнаруж|зрени|видени|поиск|прорица|ясновид|знани|опознан", "eye"], ["внуш|очаров|подчин|дружб|убежд|приказ|разум|мысл", "brain"],
-  ["страх|ужас|проклят", "skull"], ["слов|язык|послан|телепат|голос|связ", "letter"], ["призыв|вызов|знак|символ|глиф|рун", "sigil"],
-  ["время|ускор|замедл|спешк", "clock"], ["тишин|звук|гром|крик", "bell"], ["удерж|оков|опута|цеп|клетк|тюрьм", "chain"],
-  ["сфер|шар(?![а-яё])", "orb"], ["музык|песн|танец|пляск", "music"], ["рук(?![а-яё])|рука", "hand"], ["огн|пламен", "flame"], ["молни", "bolt"]
+  ["гадан|предсказ|прорица|ясновид", "gi/lorc/crystal-ball"], ["контрзаклин|антимаги|рассеивани", "gi/lorc/interdiction"], ["замок|запира|запер", "gi/lorc/padlock"], ["сундук|ларец", "gi/delapouite/chest"],
+  ["лабиринт", "gi/lorc/maze"], ["насмеш|уста(?![а-яё])|губ|красноречи", "gi/lorc/lips"], ["образ|иллюзи", "gi/delapouite/wood-frame"], ["след(?![а-яё])|следы|бесследн", "gi/lorc/footprint"], ["зеркал|отражени", "gi/lorc/mirror-mirror"], ["сердцебиен|пульс|псевдожизн", "gi/delapouite/heart-beats"], ["слепот|ослеп", "gi/delapouite/blindfold"], ["глухот|оглуш", "gi/skoll/hearing-disabled"], ["невидим", "gi/delapouite/invisible"],
+  ["очаров|подчин", "gi/lorc/charm"], ["страх|ужас", "gi/lorc/terror"], ["удержание|паралич|обездвиж", "gi/lorc/shadow-grasp"], ["усыпл|сон(?![а-яё])|дрем", "gi/lorc/sleepy"],
+  ["фокус|престидиж|трюк|жонгл", "gi/delapouite/magic-hat"], ["рассвет|заря|зари", "gi/delapouite/sunrise"], ["скороход|рывок|бег(?![а-яё])", "gi/lorc/sprint"], ["созвезд", "gi/delapouite/star-formation"],
+  ["щит|доспех|защит|ограж|броня|оберег", "gi/lorc/magic-shield"], ["лечен|исцел|восстанов|воскреш|жизн|оживл", "gi/lorc/heart-drop"], ["свет|сиян|солн|рассвет", "gi/lorc/sunbeams"],
+  ["тьм|темнот|ночь|тени|тень", "gi/delapouite/bottled-shadow"], ["невидим|иллюз|образ|маск|облик|личин|мираж", "gi/lorc/drama-masks"], ["телепорт|шаг|портал|врата|перенос|план", "gi/lorc/magic-portal"],
+  ["полёт|полет|левитац|падени|прыж|крыл", "gi/lorc/feathered-wing"], ["паут", "gi/lorc/spider-web"], ["ветер|ветр|вихр|порыв|смерч|туман|облак", "gi/lorc/wind-slap"],
+  ["камен|земл|стен|скал", "gi/delapouite/stone-wall"], ["раст|лоз|шип|ягод|дуб|кор", "gi/lorc/sprout"], ["звер|живот|скакун|фамильяр", "gi/lorc/paw-print"], ["дракон", "gi/lorc/wyvern"], ["призрак|дух(?![а-яё])|эфир|бестелес", "gi/lorc/ghost"], ["смерч", "gi/lorc/tornado"], ["щупальц", "gi/lorc/curled-tentacle"], ["дерев|лес", "gi/lorc/pine-tree"],
+  ["землетряс|гора", "gi/lorc/earth-crack"], ["клетк", "gi/delapouite/cage"], ["двер|запор|стук", "gi/lorc/wooden-door"], ["пузыр", "tw/util/bubble"], ["цепн|разряд|шок", "gi/willdabeast/chain-lightning"], ["руна|глиф", "gi/lorc/rune-stone"], ["астрал", "gi/delapouite/falling-star"],
+  ["обнаруж|зрени|видени|поиск|прорица|ясновид|знани|опознан", "gi/delapouite/all-seeing-eye"], ["внуш|очаров|подчин|дружб|убежд|приказ|разум|мысл", "gi/lorc/brain"],
+  ["страх|ужас|проклят", "gi/lorc/cursed-star"], ["слов|язык|послан|телепат|голос|связ", "gi/skoll/talk"], ["призыв|вызов|знак|символ|глиф|рун", "gi/skoll/pentacle"],
+  ["время|ускор|замедл|спешк", "gi/lorc/sands-of-time"], ["тишин|звук|гром|крик", "gi/skoll/sound-waves"], ["удерж|оков|опута|цеп|клетк|тюрьм", "gi/lorc/crossed-chains"],
+  ["сфер|шар(?![а-яё])", "gi/lorc/unstable-orb"], ["музык|песн|танец|пляск", "gi/delapouite/musical-notes"], ["рук(?![а-яё])|рука", "gi/skoll/open-palm"], ["огн|пламен", "gi/carl-olsen/flame"], ["молни", "gi/lorc/lightning-branches"]
 ].map(([w, ic]) => [W(w), ic]);
 
 const FEATURE_WORDS = [
-  ["рывок|проворн|быстр|скорост", "dash"], ["увеличение характеристик|компетентн|мастерств", "upgrade"], ["ки(?![а-яё])|монастыр|медитац", "yinyang"], ["критическ", "d20"], ["нежит|смерт", "reaper"], ["алхими|зель", "toxic"], ["звёзд|звезд|созвезд", "constellation"],
-  ["зрени|глаз|взор", "eye"], ["маск|облик|личин", "mask"], ["живуч|жизн|здоров|крепк", "heart"], ["крыл|полёт|полет", "wings"],
-  ["рог|наследи|тифлинг|дьявол|адск", "horns"], ["гримуар|книг|архив|знани|учён|учен", "book"], ["сопротивл|защит|стойк", "shield"],
-  ["механ|инжене|изобрет", "gear"], ["договор|контракт|пакт", "pact"], ["голос|речь|язык", "letter"], ["скрыт|тень|тен(?![а-яё])", "moon"],
-  ["ярост|сил(?![а-яё])", "swords"], ["звер|живот", "paw"], ["удач|везен", "star"], ["огн|пламен", "flame"], ["холод|лёд|лед(?![а-яё])|мороз", "snow"],
-  ["удар(?![а-яё])|кулак|безоруж", "fist"], ["заклинани|чародей|магия|магии", "wand"], ["вдохновени|песн|бард", "lute"], ["божеств|свят|благослов", "sun"], ["клятв", "scroll"], ["аур", "sparkle"], ["уклонени|увёртлив|увертлив", "dash"]
+  ["рывок|проворн|быстр|скорост", "gi/lorc/sprint"], ["увеличение характеристик|компетентн|мастерств", "gi/delapouite/upgrade"], ["ки(?![а-яё])|монастыр|медитац", "gi/delapouite/yin-yang"], ["критическ", "gi/delapouite/dice-twenty-faces-twenty"], ["нежит|смерт", "gi/lorc/reaper-scythe"], ["алхими|зель", "gi/lorc/fizzing-flask"], ["звёзд|звезд|созвезд", "gi/delapouite/polar-star"],
+  ["зрени|глаз|взор", "gi/lorc/eyeball"], ["маск|облик|личин", "gi/lorc/drama-masks"], ["живуч|жизн|здоров|крепк", "gi/zeromancer/heart-plus"], ["крыл|полёт|полет", "gi/lorc/feathered-wing"],
+  ["рог|наследи|тифлинг|дьявол|адск", "gi/lorc/bull-horns"], ["гримуар|книг|архив|знани|учён|учен", "gi/delapouite/spell-book"], ["сопротивл|защит|стойк", "gi/lorc/checked-shield"],
+  ["механ|инжене|изобрет", "tw/util/cog"], ["договор|контракт|пакт", "gi/delapouite/scroll-quill"], ["голос|речь|язык", "gi/skoll/talk"], ["скрыт|тень|тен(?![а-яё])", "gi/lorc/hood"],
+  ["ярост|сил(?![а-яё])", "gi/lorc/axe-swing"], ["звер|живот", "gi/lorc/paw"], ["удач|везен", "gi/lorc/clover"], ["огн|пламен", "gi/carl-olsen/flame"], ["холод|лёд|лед(?![а-яё])|мороз", "gi/lorc/snowflake-2"],
+  ["удар(?![а-яё])|кулак|безоруж", "gi/lorc/fist"], ["заклинани|чародей|магия|магии", "gi/lorc/magic-swirl"], ["вдохновени|песн|бард", "gi/delapouite/harp"], ["божеств|свят|благослов", "gi/lorc/holy-symbol"], ["клятв", "gi/delapouite/sword-altar"], ["аур", "gi/lorc/sun-radiations"], ["уклонени|увёртлив|увертлив", "gi/lorc/dodging"]
 ].map(([w, ic]) => [W(w), ic]);
 
-export const ATTACK_WORDS = [["кулак|безоруж|рукопаш", "fist"], ["укус|клык", "fang"], ["коготь|когти|царап", "claw"], ["хвост|щупальц", "tentacle"]].map(([w, ic]) => [W(w), ic]);
+export const ATTACK_WORDS = [["кулак|безоруж|рукопаш", "gi/lorc/fist"], ["укус|клык", "gi/skoll/fangs"], ["коготь|когти|царап", "gi/lorc/claw-slashes"], ["хвост|щупальц", "gi/lorc/spiked-tail"]].map(([w, ic]) => [W(w), ic]);
 
 export function attackIcon(name) {
   return guessIcon(name, ATTACK_WORDS) || guessIcon(name, ITEM_WORDS);
@@ -113,6 +113,11 @@ export function featureIcon(f) {
   return f.icon || featureIconByName(f) || guessIcon(f.name, FEATURE_WORDS) || (FEATURE_CATS[f.category] || FEATURE_CATS.other).icon;
 }
 
+const META_ICONS = { range: "tw/attribute/range", self: "tw/target/self", touch: "tw/target/touch", duration: "gi/lorc/hourglass", save: "tw/attribute/saving-throw", attack: "tw/combat/target", concentration: "tw/game/concentration", ritual: "gi/delapouite/candles", components: "gi/lorc/powder" };
+const AREA_ICONS = [[/конус/, "tw/target/cone"], [/куб/, "tw/target/cube"], [/лини/, "tw/target/line"], [/цилиндр/, "tw/target/cylinder"], [/стен/, "tw/target/wall"], [/квадрат/, "tw/target/square"], [/круг/, "tw/target/circle"]];
+const rangeIcon = t => (/^на себя|^себя/i.test(String(t || "")) ? META_ICONS.self : /касани/i.test(String(t || "")) ? META_ICONS.touch : META_ICONS.range);
+const areaIcon = t => (AREA_ICONS.find(([re]) => re.test(String(t || "").toLowerCase())) || [0, "tw/target/sphere"])[1];
+
 export function spellIcon(c, sp) {
   if (sp.icon) {
     const first = (sp.damage || [])[0];
@@ -127,13 +132,13 @@ export function spellIcon(c, sp) {
   }
   if (first && DAMAGE[swapType(c, first.type)]) {
     const t = DAMAGE[swapType(c, first.type)];
-    return { icon: guessIcon(sp.name, STRONG_SPELL_WORDS) || t.icon, color: t.color };
+    return { icon: guessIcon(sp.name, STRONG_SPELL_WORDS) || guessIcon(sp.name, SPELL_WORDS) || (sp.attack ? "gi/lorc/energy-arrow" : sp.save ? "gi/lorc/explosion-rays" : "gi/lorc/beam-wake"), color: t.color };
   }
   const sc = SCHOOLS[sp.school] || { color: "#e9c77a" };
   const guess = guessIcon(sp.name, STRONG_SPELL_WORDS) || guessIcon(sp.name, SPELL_WORDS);
   if (guess) return { icon: guess, color: sc.color };
-  const map = { abjuration: "shield", conjuration: "sparkle", divination: "eye", enchantment: "brain", evocation: "force", illusion: "mask", necromancy: "skull", transmutation: "gear" };
-  return { icon: map[sp.school] || "sparkle", color: sc.color };
+  const map = { abjuration: "gi/lorc/magic-shield", conjuration: "gi/lorc/star-swirl", divination: "gi/delapouite/eye-of-horus", enchantment: "gi/lorc/divided-spiral", evocation: "gi/lorc/sunbeams", illusion: "gi/lorc/spark-spirit", necromancy: "gi/lorc/skull-crossed-bones", transmutation: "gi/lorc/crystal-wand" };
+  return { icon: map[sp.school] || "gi/delapouite/sparkles", color: sc.color };
 }
 
 export function itemSpellInfo(c, d, sp) {
@@ -180,14 +185,14 @@ export function spellModel(c, d, sp, slotLevel, extra = 0) {
   const cast = spellCast(c, d, sp, slotLevel, extra);
   const lines = cast.lines.map((l, i) => ({ ...l, prefix: cast.beams > 1 && i === 0 ? cast.beams + " × " : "" }));
   const meta = [
-    { icon: "range", text: sp.range },
-    { icon: "area", text: sp.area },
-    { icon: "timer", text: sp.duration },
-    sp.save ? { icon: "drop", text: `Спасбросок ${abShort(sp.save)} · СЛ ${spellDc(d, sp)}` } : null,
-    sp.attack ? { icon: "target", text: `Атака ${fmt(spellAtk(d, sp))}` } : null,
-    sp.concentration ? { icon: "spiral", text: "Концентрация" } : null,
-    sp.ritual ? { icon: "candle", text: "Ритуал" } : null,
-    sp.components ? { icon: "hand", text: sp.components } : null
+    { icon: rangeIcon(sp.range), text: sp.range },
+    { icon: areaIcon(sp.area), text: sp.area },
+    { icon: META_ICONS.duration, text: sp.duration },
+    sp.save ? { icon: META_ICONS.save, text: `Спасбросок ${abShort(sp.save)} · СЛ ${spellDc(d, sp)}` } : null,
+    sp.attack ? { icon: META_ICONS.attack, text: `Атака ${fmt(spellAtk(d, sp))}` } : null,
+    sp.concentration ? { icon: META_ICONS.concentration, text: "Концентрация" } : null,
+    sp.ritual ? { icon: META_ICONS.ritual, text: "Ритуал" } : null,
+    sp.components ? { icon: META_ICONS.components, text: sp.components } : null
   ];
   const body = rich(sp.description) + (sp.higher ? `<p class="higher"><b>На больших кругах:</b> ${esc(sp.higher)}</p>` : "") +
     (cast.lines.some(l => l.swapped) && c.damageSwap.label ? `<p class="swap-p">${icon("snow")} ${esc(c.damageSwap.label)}: ${esc(DAMAGE[c.damageSwap.from].name.toLowerCase())} → ${esc(DAMAGE[c.damageSwap.to].name.toLowerCase())}</p>` : "");
@@ -229,7 +234,7 @@ export function featureModel(c, d, f) {
     effect: f.effect,
     uses: u,
     usesColor: "#e9a54a",
-    meta: [{ icon: "range", text: f.range }, { icon: "timer", text: f.duration }, f.save ? { icon: "drop", text: `Спасбросок ${abShort(f.save)} · СЛ ${d.spell.dc}` } : null],
+    meta: [{ icon: rangeIcon(f.range), text: f.range }, { icon: META_ICONS.duration, text: f.duration }, f.save ? { icon: META_ICONS.save, text: `Спасбросок ${abShort(f.save)} · СЛ ${d.spell.dc}` } : null],
     footer
   };
 }
@@ -264,7 +269,7 @@ export function itemModel(c, d, it) {
     stats,
     body: rich(it.description) + (linked.length ? `<p class="item-spells"><b>Заклинания:</b> ${linked.map(sp => esc(sp.name)).join(", ")}</p>` : "") + (breakNote ? `<p class="higher">${esc(breakNote)}</p>` : "") + (hint ? `<p class="higher">${esc(hint)}</p>` : ""),
     effect: it.effect,
-    meta: w && w.range ? [{ icon: "range", text: w.range }] : [],
+    meta: w && w.range ? [{ icon: rangeIcon(w.range), text: w.range }] : [],
     uses: u,
     usesColor: "#e9a54a",
     footer
@@ -283,7 +288,7 @@ export function attackModel(c, d, at) {
     badges: [{ text: head, color: "#e9c77a" }],
     dice: lines,
     body: rich(at.notes),
-    meta: [{ icon: "range", text: at.range }],
+    meta: [{ icon: rangeIcon(at.range), text: at.range }],
     footer: [actionFoot(at.action || "action")]
   };
 }
@@ -294,7 +299,7 @@ export function skillModel(c, d, key) {
   return {
     title: s.name,
     subtitle: `Навык · ${abName(s.ab)}`,
-    art: { icon: "d20", color: "var(--gold-2)" },
+    art: { icon: s.icon, color: "var(--gold-2)" },
     badges: [{ text: p === 2 ? "Компетентность" : p === 1 ? "Владение" : "Без владения", color: p ? "var(--gold-2)" : "#8d8577" }],
     stats: `<span class="big-num">${fmt(d.skills[key])}</span><span>${abShort(s.ab)} ${fmt(d.mods[s.ab])}${p ? ` · мастерство ${fmt(p === 2 ? d.pb * 2 : d.pb)}` : ""}</span>`,
     body: rich(s.desc + (key === "perception" ? `\n\nПассивная Внимательность: ${d.passive.perception}.` : "")),
@@ -307,7 +312,7 @@ export function abilityModel(c, d, key) {
   return {
     title: a.name,
     subtitle: "Характеристика",
-    art: { icon: "star", color: "var(--gold-2)" },
+    art: { icon: a.icon, color: "var(--gold-2)" },
     stats: `<span class="big-num">${esc(c.abilities[key])}</span><span>Модификатор ${fmt(d.mods[key])} · Спасбросок ${fmt(d.saves[key])}${c.saves[key] ? " (владение)" : ""}</span>`,
     body: rich(a.desc)
   };
@@ -331,7 +336,7 @@ export function effectModel(c, id) {
   return {
     title: e.name,
     subtitle: "Эффект",
-    art: { icon: "sparkle", color: "#c07cff" },
+    art: { icon: "gi/delapouite/sparkles", color: "#c07cff" },
     badges: [e.mine ? { text: "Твоя концентрация", color: "#c07cff" } : null, e.once ? { text: "Один раз", color: "#e9c77a" } : null],
     body: rich([sum ? `**Действует:** ${sum}` : "", e.note && e.note !== sum ? e.note : "", left].filter(Boolean).join("\n\n")),
     footer: [{ mark: actionMark("ring", "#c07cff"), text: "Учитывается в бросках сам" }]
@@ -353,10 +358,10 @@ export function statModel(c, d, key) {
     if (a.shield && !d.shieldItem) parts.push("Щит +2");
     if (Number(a.bonus)) parts.push(line("Прочее", Number(a.bonus)));
     (c.effects || []).filter(e => e.ac).forEach(e => parts.push(`${esc(e.name)} ${e.ac > 0 ? "+" : "−"}${Math.abs(e.ac)}`));
-    return { title: "Класс доспеха", subtitle: "Насколько сложно попасть", art: { icon: "shield", color: "var(--gold-2)" }, stats: `<span class="big-num">${d.ac}</span><span>${parts.join(" · ")}</span>`, body: rich("Атака попадает, если результат броска не меньше КД. Нажми на медаль, чтобы поменять доспех вручную, или надень доспех с указанным КД в снаряжении: тогда он считается сам.") };
+    return { title: "Класс доспеха", subtitle: "Насколько сложно попасть", art: { icon: acIcon(d.ac), color: "var(--gold-2)" }, stats: `<span class="big-num">${d.ac}</span><span>${parts.join(" · ")}</span>`, body: rich("Атака попадает, если результат броска не меньше КД. Нажми на медаль, чтобы поменять доспех вручную, или надень доспех с указанным КД в снаряжении: тогда он считается сам.") };
   }
   if (key === "init") {
-    return { title: "Инициатива", subtitle: "Порядок ходов в бою", art: { icon: "bolt", color: "var(--gold-2)" }, stats: `<span class="big-num">${fmt(d.init)}</span><span>${line("Ловкость", d.mods.dex)}${Number(c.initBonus) ? " · " + line("бонус", Number(c.initBonus)) : ""}</span>`, body: rich("Бросок d20 в начале боя. Истощение и состояния, дающие помеху на проверки, учитываются сами.") };
+    return { title: "Инициатива", subtitle: "Порядок ходов в бою", art: { icon: "tw/combat/initiative", color: "var(--gold-2)" }, stats: `<span class="big-num">${fmt(d.init)}</span><span>${line("Ловкость", d.mods.dex)}${Number(c.initBonus) ? " · " + line("бонус", Number(c.initBonus)) : ""}</span>`, body: rich("Бросок d20 в начале боя. Истощение и состояния, дающие помеху на проверки, учитываются сами.") };
   }
   if (key === "speed") {
     const why = [];
@@ -364,10 +369,10 @@ export function statModel(c, d, key) {
     if (ex >= 5) why.push(`Истощение ${ex}: скорость 0`);
     else if (ex >= 2) why.push(`Истощение ${ex}: вдвое меньше`);
     CONDITIONS.filter(k => c.conditions[k.key] && ["grappled", "restrained", "paralyzed", "stunned", "unconscious", "petrified"].includes(k.key)).forEach(k => why.push(`${k.name}: скорость 0`));
-    return { title: "Скорость", subtitle: "Сколько футов за ход", art: { icon: "boot", color: "var(--gold-2)" }, stats: `<span class="big-num">${d.speed} фт</span><span>Обычная ${d.baseSpeed} фт</span>`, body: rich(why.length ? why.map(w => "- " + w).join("\n") : "Ничто не замедляет.") };
+    return { title: "Скорость", subtitle: "Сколько футов за ход", art: { icon: "gi/lorc/wingfoot", color: "var(--gold-2)" }, stats: `<span class="big-num">${d.speed} фт</span><span>Обычная ${d.baseSpeed} фт</span>`, body: rich(why.length ? why.map(w => "- " + w).join("\n") : "Ничто не замедляет.") };
   }
   if (key === "pb") {
-    return { title: "Бонус мастерства", subtitle: `${d.level} уровень`, art: { icon: "star", color: "var(--gold-2)" }, stats: `<span class="big-num">${fmt(d.pb)}</span><span>+2 на 1-4, +3 на 5-8, +4 на 9-12, +5 на 13-16, +6 на 17-20</span>`, body: rich("Прибавляется к атакам и навыкам, которыми персонаж владеет, к спасброскам с владением и к СЛ заклинаний.") };
+    return { title: "Бонус мастерства", subtitle: `${d.level} уровень`, art: { icon: "gi/delapouite/star-medal", color: "var(--gold-2)" }, stats: `<span class="big-num">${fmt(d.pb)}</span><span>+2 на 1-4, +3 на 5-8, +4 на 9-12, +5 на 13-16, +6 на 17-20</span>`, body: rich("Прибавляется к атакам и навыкам, которыми персонаж владеет, к спасброскам с владением и к СЛ заклинаний.") };
   }
   if (key === "hp") {
     const die = Number(String(c.hitDie).replace(/\D/g, "")) || 8;
@@ -375,14 +380,14 @@ export function statModel(c, d, key) {
     const con = d.mods.con;
     const manual = c.hp.maxOverride != null && c.hp.maxOverride !== "";
     const calc = manual ? "Задано вручную" : `1 уровень: ${die} ${fmt(con)}${d.level > 1 ? `, дальше ${per} ${fmt(con)} за уровень × ${d.level - 1}` : ""}${Number(c.hp.bonusPerLevel) ? `, ещё ${Number(c.hp.bonusPerLevel)} × ${d.level}` : ""}`;
-    return { title: "Хиты", subtitle: `Кость хитов ${esc(c.hitDie)}`, art: { icon: "heart", color: "#e5533d" }, stats: `<span class="big-num">${d.hpMax}</span><span>${esc(calc)}${d.hpMax !== d.fullMax ? ` · Истощение 4+: максимум вдвое меньше (${d.fullMax})` : ""}</span>`, body: rich(d.defenses.resist.length || d.defenses.vuln.length || d.defenses.immune.length ? [d.defenses.resist.length ? `**Сопротивление:** ${defNames(d.defenses.resist)}` : "", d.defenses.vuln.length ? `**Уязвимость:** ${defNames(d.defenses.vuln)}` : "", d.defenses.immune.length ? `**Иммунитет:** ${defNames(d.defenses.immune)}` : ""].filter(Boolean).join("\n") : "Сопротивлений нет.") };
+    return { title: "Хиты", subtitle: `Кость хитов ${esc(c.hitDie)}`, art: { icon: hpIcon(c.hp.current, d.hpMax), color: "#e5533d" }, stats: `<span class="big-num">${d.hpMax}</span><span>${esc(calc)}${d.hpMax !== d.fullMax ? ` · Истощение 4+: максимум вдвое меньше (${d.fullMax})` : ""}</span>`, body: rich(d.defenses.resist.length || d.defenses.vuln.length || d.defenses.immune.length ? [d.defenses.resist.length ? `**Сопротивление:** ${defNames(d.defenses.resist)}` : "", d.defenses.vuln.length ? `**Уязвимость:** ${defNames(d.defenses.vuln)}` : "", d.defenses.immune.length ? `**Иммунитет:** ${defNames(d.defenses.immune)}` : ""].filter(Boolean).join("\n") : "Сопротивлений нет.") };
   }
   if (key === "inspiration") {
-    return { title: "Вдохновение", subtitle: c.inspiration ? "Есть" : "Нет", art: { icon: "sun", color: "#f4d66d" }, body: rich("Мастер даёт вдохновение за хорошую игру. Его можно потратить, чтобы получить преимущество на один бросок d20.\n\nНажми, когда оно есть: следующий бросок пойдёт с преимуществом. Нажми, когда его нет: отметить, что Мастер дал вдохновение.") };
+    return { title: "Вдохновение", subtitle: c.inspiration ? "Есть" : "Нет", art: { icon: "gi/lorc/sunbeams", color: "#f4d66d" }, body: rich("Мастер даёт вдохновение за хорошую игру. Его можно потратить, чтобы получить преимущество на один бросок d20.\n\nНажми, когда оно есть: следующий бросок пойдёт с преимуществом. Нажми, когда его нет: отметить, что Мастер дал вдохновение.") };
   }
   if (key === "exhaustion") {
     const ex = Number(c.exhaustion) || 0;
-    return { title: "Истощение", subtitle: `Уровень ${ex}`, art: { icon: "skull", color: "#e5533d" }, body: rich(EXHAUSTION.slice(1).map((t, i) => `- ${i + 1 <= ex ? "**" : ""}${i + 1}: ${t}${i + 1 <= ex ? "**" : ""}`).join("\n") + "\n\nЭффекты складываются. Длинный отдых снимает 1 уровень."), footer: [{ mark: actionMark("ring", "#e5533d"), text: "Влияет на броски, скорость и хиты сам" }] };
+    return { title: "Истощение", subtitle: `Уровень ${ex}`, art: { icon: "gi/delapouite/tired-eye", color: "#e5533d" }, body: rich(EXHAUSTION.slice(1).map((t, i) => `- ${i + 1 <= ex ? "**" : ""}${i + 1}: ${t}${i + 1 <= ex ? "**" : ""}`).join("\n") + "\n\nЭффекты складываются. Длинный отдых снимает 1 уровень."), footer: [{ mark: actionMark("ring", "#e5533d"), text: "Влияет на броски, скорость и хиты сам" }] };
   }
   return null;
 }

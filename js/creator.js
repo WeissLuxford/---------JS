@@ -110,14 +110,14 @@ export async function openCreator({ onCreate, onBlank }) {
   const pickedIn = key => [...st.spells].filter(k => spellPool(key).some(s => s.key === k));
   const isCaster = () => spellNeeds().length > 0;
   const steps = [
-    { id: "race", title: "Раса", ic: "user", done: () => !!race() && (!race().subraces || !!sub()) && (!race().dragon || !!st.dragon) && (!race().plusTwo || st.plusTwo.length === 2) && (!(sub() && sub().cantrip) || !!st.raceCantrip) },
-    { id: "class", title: "Класс", ic: "swords", done: () => !!table() && (!needsSub() || !!String(st.subclass).trim()) },
-    { id: "bg", title: "Предыстория", ic: "scroll", done: () => !!bg() && (!bg().anySkills || st.bgSkills.length === bg().anySkills) },
-    { id: "abil", title: "Характеристики", ic: "star", done: () => ABILITY_KEYS.every(k => Number.isFinite(baseScores(st)[k])) && (st.method !== "point" || pointsSpent(st.points) <= POINT_BUDGET) },
-    { id: "skills", title: "Навыки", ic: "d20", done: () => st.skills.length === counts().skills && st.raceSkills.length === ((race() && race().anySkills) || 0) && st.expertise.length === counts().expertise },
-    { id: "spells", title: "Заклинания", ic: "book", show: isCaster, done: () => spellNeeds().every(([k, , n]) => pickedIn(k).length === n) },
-    { id: "feats", title: "Умения", ic: "sigil", done: () => choiceGroups().every(g => (st.options[g.key] || new Set()).size === g.max) && st.inv.size === counts().invocations },
-    { id: "final", title: "Итог", ic: "check", done: () => true }
+    { id: "race", title: "Раса", ic: "gi/delapouite/elf-ear", done: () => !!race() && (!race().subraces || !!sub()) && (!race().dragon || !!st.dragon) && (!race().plusTwo || st.plusTwo.length === 2) && (!(sub() && sub().cantrip) || !!st.raceCantrip) },
+    { id: "class", title: "Класс", ic: "gi/delapouite/sword-altar", done: () => !!table() && (!needsSub() || !!String(st.subclass).trim()) },
+    { id: "bg", title: "Предыстория", ic: "gi/lorc/scroll-unfurled", done: () => !!bg() && (!bg().anySkills || st.bgSkills.length === bg().anySkills) },
+    { id: "abil", title: "Характеристики", ic: "gi/delapouite/stars-stack", done: () => ABILITY_KEYS.every(k => Number.isFinite(baseScores(st)[k])) && (st.method !== "point" || pointsSpent(st.points) <= POINT_BUDGET) },
+    { id: "skills", title: "Навыки", ic: "tw/attribute/skillcheck", done: () => st.skills.length === counts().skills && st.raceSkills.length === ((race() && race().anySkills) || 0) && st.expertise.length === counts().expertise },
+    { id: "spells", title: "Заклинания", ic: "gi/delapouite/spell-book", show: isCaster, done: () => spellNeeds().every(([k, , n]) => pickedIn(k).length === n) },
+    { id: "feats", title: "Умения", ic: "gi/lorc/book-aura", done: () => choiceGroups().every(g => (st.options[g.key] || new Set()).size === g.max) && st.inv.size === counts().invocations },
+    { id: "final", title: "Итог", ic: "gi/delapouite/checklist", done: () => true }
   ];
   const visible = () => steps.filter(s => !s.show || s.show());
   const cur = () => visible()[Math.min(st.step, visible().length - 1)];

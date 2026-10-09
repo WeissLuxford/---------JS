@@ -1,6 +1,9 @@
-import { ART } from "./icon-art.js";
+import { ART, USED } from "./icon-art.js";
 
 const P = {
+  acLow: '<path d="M12 2.6l7.4 2.7v6.1c0 4.5-3.1 8.2-7.4 9.9-4.3-1.7-7.4-5.4-7.4-9.9V5.3z"/>',
+  acHalf: '<path d="M12 2.6l7.4 2.7v6.1c0 4.5-3.1 8.2-7.4 9.9-4.3-1.7-7.4-5.4-7.4-9.9V5.3z"/><path d="M4.7 12.4h14.6c-.5 4-3.4 7.2-7.3 8.8-3.9-1.6-6.8-4.8-7.3-8.8z" fill="currentColor" stroke="none"/>',
+  acFull: '<path d="M12 2.6l7.4 2.7v6.1c0 4.5-3.1 8.2-7.4 9.9-4.3-1.7-7.4-5.4-7.4-9.9V5.3z" fill="currentColor"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.5-7 8-7s7 2.5 8 7"/>',
   swords: '<path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/><path d="M14.5 6.5L18 3h3v3l-3.5 3.5"/><path d="M5 14l4 4"/><path d="M7 17l-3 3"/><path d="M3 19l2 2"/>',
   book: '<path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/>',
@@ -212,9 +215,17 @@ const P = {
   upgrade: '<path d="M6 12.5l6-6 6 6"/><path d="M6 19l6-6 6 6"/><path d="M5 3.5h14"/>'
 };
 
-export const ICON_NAMES = Object.keys(P).filter(k => !/^(back|next|down|dots|plus|minus|close|edit|trash|check|history|download|upload|archive|copy|link|camera|cloud|cloudOff|menu|search|phone|tablet|monitor|signature|info|range|area|timer|\d+)$/.test(k)).concat(Object.keys(ART).filter(k => !k.startsWith("tab")));
+export const ICON_NAMES = Object.keys(P).filter(k => !/^(back|next|down|dots|plus|minus|close|edit|trash|check|history|download|upload|archive|copy|link|camera|cloud|cloudOff|menu|search|phone|tablet|monitor|signature|info|range|area|timer|\d+)$/.test(k)).concat(Object.keys(ART).filter(k => !k.startsWith("tab")), USED);
+
+const PACK_DIR = { gi: "game-icons", tw: "tw-dnd", np: "noun-project" };
+
+export function iconFile(id) {
+  return typeof id === "string" && /^(gi|tw|np)\/[a-z0-9-]+\/[a-z0-9-]+$/.test(id) ? `assets/icons/${PACK_DIR[id.slice(0, 2)]}/${id.slice(3)}.svg` : "";
+}
 
 export function icon(name, cls = "") {
+  const file = iconFile(name);
+  if (file) return `<span class="ic gx ${cls}" aria-hidden="true"><i style="-webkit-mask-image:url('${file}');mask-image:url('${file}')"></i></span>`;
   const art = ART[name];
   if (art) return `<svg class="ic art ${cls}" viewBox="0 0 ${art[0]} ${art[0]}" fill="currentColor" aria-hidden="true"><path d="${art[1]}"/></svg>`;
   const body = P[name] || P.sparkle;
@@ -250,3 +261,21 @@ export function slotMark(color = "#8fd6ff") {
 }
 
 export const PORTRAIT_PLACEHOLDER = `<svg class="ph" viewBox="0 0 100 120" aria-hidden="true"><defs><radialGradient id="phg" cx=".5" cy=".35" r=".7"><stop offset="0" stop-color="#3a2d22"/><stop offset="1" stop-color="#140f0b"/></radialGradient></defs><rect width="100" height="120" fill="url(#phg)"/><path d="M30 26c-6 8-5 18 6 22M70 26c6 8 5 18-6 22" fill="none" stroke="#7a6243" stroke-width="3" stroke-linecap="round"/><circle cx="50" cy="52" r="17" fill="#2a2018" stroke="#7a6243" stroke-width="2"/><path d="M18 118c3-24 16-36 32-36s29 12 32 36" fill="#2a2018" stroke="#7a6243" stroke-width="2"/></svg>`;
+
+export function svgIcon(name, color, x, y, size) {
+  const file = iconFile(name);
+  if (file) {
+    const id = "im-" + name.replace(/[^a-z0-9]/g, "-");
+    return `<mask id="${id}" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="${x}" y="${y}" width="${size}" height="${size}"><image href="${file}" x="${x}" y="${y}" width="${size}" height="${size}"/></mask><rect class="bd-ic" x="${x}" y="${y}" width="${size}" height="${size}" fill="${color}" mask="url(#${id})"/>`;
+  }
+  return `<svg class="bd-ic" x="${x}" y="${y}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${icon(name).replace(/^<svg[^>]*>|<\/svg>$/g, "")}</svg>`;
+}
+
+export function acIcon(ac) {
+  return ac >= 18 ? "acFull" : ac >= 13 ? "acHalf" : "acLow";
+}
+
+export function hpIcon(cur, max) {
+  const r = max > 0 ? cur / max : 1;
+  return r >= 0.67 ? "tw/hp/full" : r >= 0.34 ? "tw/hp/half" : "tw/hp/empty";
+}

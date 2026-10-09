@@ -172,6 +172,15 @@ function artOf(i) {
   return [vb, short];
 }
 
+function codeIcons() {
+  const dir = path.join(ROOT, "js");
+  const ids = new Set();
+  for (const f of fs.readdirSync(dir).filter(f => f.endsWith(".js") && f !== "icon-art.js")) {
+    for (const m of fs.readFileSync(path.join(dir, f), "utf8").matchAll(/"((?:gi|tw|np)\/[a-z0-9-]+\/[a-z0-9-]+)"/g)) ids.add(m[1]);
+  }
+  return [...ids].sort();
+}
+
 function site(c) {
   const reg = read(path.join(ICONS, "site.json"));
   const own = new Set(ownIcons().map(o => o.key));
@@ -187,9 +196,49 @@ function site(c) {
       used.push(id);
     }
   }
-  fs.writeFileSync(path.join(ROOT, "js/icon-art.js"), `export const ART = {\n${lines.join(",\n")}\n};\n`);
-  console.log(`js/icon-art.js: ${lines.length} иконок, ${Math.round(fs.statSync(path.join(ROOT, "js/icon-art.js")).size / 1024)} КБ`);
-  credits(c, [...new Set(used)]);
+  const ids = codeIcons();
+  for (const id of ids) {
+    const i = c.icons.find(x => x.id === id);
+    if (!i || !["tw", "gi", "np"].includes(i.pack)) throw new Error(`в коде нет такой иконки: ${id}`);
+    if (i.flags.includes("face")) console.log(`внимание, лицо: ${id}`);
+  }
+  fs.writeFileSync(path.join(ROOT, "js/icon-art.js"), `export const ART = {\n${lines.join(",\n")}\n};\n\nexport const USED = ${JSON.stringify(ids)};\n`);
+  fs.writeFileSync(path.join(ICONS, "used.json"), JSON.stringify(ids.map(id => c.icons.find(x => x.id === id).file)) + "\n");
+  console.log(`js/icon-art.js: ${lines.length} встроенных, ${ids.length} файлами, ${Math.round(fs.statSync(path.join(ROOT, "js/icon-art.js")).size / 1024)} КБ`);
+  credits(c, [...new Set([...used, ...ids])]);
+  iconCredits(c, [...new Set([...used, ...ids])]);
+  pickerIndex(c, reg, ids);
+}
+
+function pickerIndex(c, reg, ids) {
+  const byId = new Map(c.icons.map(i => [i.id, i]));
+  const text = i => [i.ru, i.name].filter(Boolean).join(" ").toLowerCase();
+  const out = [];
+  for (const i of c.icons) if (i.pack === "own" && i.group !== "ui") out.push([i.id.slice(4), text(i)]);
+  for (const [theme, items] of Object.entries(reg)) if (theme !== "tab") for (const [key, id] of Object.entries(items)) out.push([key, text(byId.get(id))]);
+  for (const id of ids) out.push([id, text(byId.get(id))]);
+  fs.writeFileSync(path.join(ICONS, "picker.json"), JSON.stringify(out) + "\n");
+}
+
+function iconCredits(c, ids) {
+  const src = read(path.join(ICONS, "sources.json")).packs;
+  const count = {};
+  for (const id of ids) {
+    const i = c.icons.find(x => x.id === id);
+    const key = i.author ? `${i.pack}/${i.author}` : i.pack;
+    count[key] = (count[key] || 0) + 1;
+  }
+  const order = k => ["tw", "gi", "np"].indexOf(k.split("/")[0]);
+  const items = Object.entries(count).sort((a, b) => order(a[0]) - order(b[0]) || b[1] - a[1]).map(([k, n]) => {
+    const [p, a] = k.split("/");
+    const pack = src[p];
+    const who = a ? pack.authors[a] : pack;
+    const it = { title: pack.title, url: p === "tw" ? "https://github.com/intrinsical/tw-dnd/tree/main/icons" : pack.url, author: who.name || pack.author, license: who.license || pack.license.split(" (")[0], note: `Иконок на сайте: ${n}.` };
+    const authorUrl = a ? who.url : pack.authorUrl;
+    if (authorUrl) it.authorUrl = authorUrl;
+    return it;
+  });
+  fs.writeFileSync(path.join(ROOT, "js/icon-credits.js"), `export const ICON_CREDITS = [\n${items.map(x => "  " + JSON.stringify(x).replace(/":/g, "\": ").replace(/","/g, "\", \"").replace(/^\{/, "{ ").replace(/\}$/, " }").replace(/"([a-zA-Z]+)": /g, "$1: ")).join(",\n")}\n];\n`);
 }
 
 const [cmd = "help", ...rest] = process.argv.slice(2);

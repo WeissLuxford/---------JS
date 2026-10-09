@@ -33,7 +33,7 @@ await page.click("[data-act=toggle-cond][data-k=poisoned]").catch(() => {});
 await sleep(200);
 const condOpen = await page.locator("details.cond-panel").getAttribute("open");
 if (condOpen === null) { await page.click("details.cond-panel summary"); await sleep(150); await page.click("[data-act=toggle-cond][data-k=poisoned]"); await sleep(200); }
-ok("condition chip has icon", (await page.locator(".cond-sum .chip svg").count()) >= 1);
+ok("condition chip has icon", (await page.locator(".cond-sum .chip .ic").count()) >= 1);
 await page.click(".scene-chip >> nth=0");
 await sleep(300);
 await page.click(".modal-back.in [data-g=weather][data-k=storm]");

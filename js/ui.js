@@ -899,7 +899,7 @@ export function promptNumber(title, { label = "", value = "", buttons, select = 
 }
 
 export function damageLine(line, { showDie = true } = {}) {
-  const dt = DAMAGE[line.type] || { name: line.type || "", color: "#cbbfa8", icon: "sparkle" };
+  const dt = DAMAGE[line.type] || { name: line.type || "", color: "#cbbfa8", icon: "gi/lorc/magic-swirl" };
   return `<div class="dmg-line" style="--c:${dt.color}">${showDie ? `<span class="dmg-die">${die(maxFace(line.dice), dt.color, maxFace(line.dice))}</span>` : ""}<span class="dmg-text">${esc(line.prefix || "")}${esc(line.dice)} ${icon(dt.icon)} ${esc(dt.name)}${line.swapped ? ' <span class="swap-note">(было: ' + esc((DAMAGE[line.origType] || {}).name || "") + ")</span>" : ""}</span></div>`;
 }
 
@@ -1182,8 +1182,7 @@ function fieldHtml(f, v) {
   }
   if (f.type === "icon") {
     const cur = String(v || "");
-    const opt = (k, inner, t) => `<label class="icon-opt" title="${esc(t)}"><input type="radio" name="${id}" value="${esc(k)}" ${cur === k ? "checked" : ""} aria-label="${esc(t)}">${inner}</label>`;
-    return `<fieldset class="fld icons"${span} data-k="${esc(f.key)}" data-icons><legend>${esc(f.label)}</legend><div class="icon-grid">${opt("", "<span>Авто</span>", "Подобрать по названию")}${ICON_NAMES.map(k => opt(k, icon(k), k)).join("")}</div></fieldset>`;
+    return `<fieldset class="fld icons"${span} data-k="${esc(f.key)}" data-icons data-name="${esc(id)}"><legend>${esc(f.label)}</legend><label class="search-box icon-q">${icon("search")}<input type="search" data-icon-q placeholder="Найти: меч, огонь, щит, книга" aria-label="Найти иконку"></label><div class="icon-grid">${iconOpts(id, cur, ICON_NAMES.slice(0, 60))}</div></fieldset>`;
   }
   if (f.type === "richtext") {
     return `<div class="fld rt-field"${span}><label for="${id}">${esc(f.label)}</label><div class="rt-bar" role="toolbar" aria-label="Форматирование">${RT_TOOLS.map(([k, html, t]) => `<button type="button" class="rt-btn" data-rt="${k}" title="${esc(t)}" aria-label="${esc(t)}">${html}</button>`).join("")}<span class="spacer"></span><button type="button" class="rt-btn rt-prev" data-rt-preview aria-pressed="false">Просмотр</button></div><textarea id="${id}" data-k="${esc(f.key)}" rows="${f.rows || 10}" placeholder="${esc(f.placeholder || "")}">${esc(v ?? "")}</textarea><div class="rt-preview note-text" hidden></div>${hint}</div>`;
@@ -1346,6 +1345,34 @@ export function attachLinkSuggest(ta, getTargets) {
   });
 }
 
+function iconOpts(name, cur, keys) {
+  const opt = (k, inner, t) => `<label class="icon-opt" title="${esc(t)}"><input type="radio" name="${esc(name)}" value="${esc(k)}" ${cur === k ? "checked" : ""} aria-label="${esc(t)}">${inner}</label>`;
+  const list = [...new Set([...(cur ? [cur] : []), ...keys])];
+  return opt("", "<span>Авто</span>", "Подобрать по названию") + list.map(k => opt(k, icon(k), k)).join("");
+}
+
+let pickerIndex = null;
+function loadPicker() {
+  pickerIndex ??= fetch("assets/icons/picker.json").then(r => r.json()).catch(() => {
+    pickerIndex = null;
+    return [];
+  });
+  return pickerIndex;
+}
+
+async function searchIcons(box, q) {
+  const words = q.toLowerCase().replace(/ё/g, "е").split(/\s+/).filter(Boolean);
+  const grid = box.querySelector(".icon-grid");
+  const ch = box.querySelector("input:checked");
+  const cur = ch ? ch.value : "";
+  let keys = ICON_NAMES.slice(0, 60);
+  if (words.length) {
+    const idx = await loadPicker();
+    keys = idx.filter(([k, t]) => words.every(w => (t + " " + k).replace(/ё/g, "е").includes(w))).map(x => x[0]).slice(0, 80);
+  }
+  grid.innerHTML = iconOpts(box.dataset.name, cur, keys) + (words.length && !keys.length ? `<p class="hint small icon-none">Ничего не нашлось</p>` : "");
+}
+
 export function openForm({ title, fields, value = {}, onSave, onDelete, saveLabel = "Сохранить", extra = "" }) {
   const form = document.createElement("form");
   form.className = "form-grid";
@@ -1355,6 +1382,16 @@ export function openForm({ title, fields, value = {}, onSave, onDelete, saveLabe
   fields.filter(f => f.type === "richtext" && f.links).forEach(f => attachLinkSuggest(form.querySelector(`[data-k="${CSS.escape(f.key)}"]`), f.links));
   form.addEventListener("pointerdown", e => {
     if (e.target.closest("[data-rt]")) e.preventDefault();
+  });
+  let iconTimer = 0;
+  form.addEventListener("input", e => {
+    const q = e.target.closest("[data-icon-q]");
+    if (!q) return;
+    clearTimeout(iconTimer);
+    iconTimer = setTimeout(() => searchIcons(q.closest("[data-icons]"), q.value), 150);
+  });
+  form.addEventListener("keydown", e => {
+    if (e.key === "Enter" && e.target.closest("[data-icon-q]")) e.preventDefault();
   });
   form.addEventListener("click", e => {
     const rt = e.target.closest("[data-rt]");

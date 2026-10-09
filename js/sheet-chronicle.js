@@ -261,7 +261,7 @@ export function installChronicle(X) {
     let cur = tab;
     const paint = () => {
       const tab = (k, ic, l) => `<button class="subtab ${cur === k ? "on" : ""}" data-t="${k}" role="tab" aria-selected="${cur === k}">${icon(ic)}${l}</button>`;
-      body.innerHTML = `<div class="subtabs lib-tabs" role="tablist">${tab("trophies", "crown", "Достижения")}${tab("chronicle", "scroll", "Летопись удачи")}</div>
+      body.innerHTML = `<div class="subtabs lib-tabs" role="tablist">${tab("trophies", "gi/lorc/laurel-crown", "Достижения")}${tab("chronicle", "gi/delapouite/rolling-dices", "Летопись удачи")}</div>
         <div class="chr-body">${cur === "trophies" ? trophiesHtml() : chronicleHtml()}</div>`;
     };
     paint();

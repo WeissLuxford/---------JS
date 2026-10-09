@@ -7,12 +7,13 @@ const P = new URL("../../js/", import.meta.url).href;
 const E = await import(P + "entities.js");
 const R = await import(P + "rules.js");
 const M = await import(P + "icon-map.js");
+const I = await import(P + "icons.js");
 const C = await import(P + "classes.js");
 const G = await import(P + "gear.js");
 const read = f => fs.readFileSync(new URL("../../" + f, import.meta.url), "utf8");
 const src = read("js/icons.js");
-const { ART } = await import(P + "icon-art.js");
-const ALL = new Set([...src.slice(0, src.indexOf("export const ICON_NAMES")).matchAll(/^  ([a-zA-Z0-9]+):/gm)].map(m => m[1]).concat(Object.keys(ART)));
+const { ART, USED } = await import(P + "icon-art.js");
+const ALL = new Set([...src.slice(0, src.indexOf("export const ICON_NAMES")).matchAll(/^  ([a-zA-Z0-9]+):/gm)].map(m => m[1]).concat(Object.keys(ART), USED));
 const spells = JSON.parse(read("data/spells-srd.json"));
 const feats = JSON.parse(read("data/features-srd.json"));
 const c = R.normalize({ name: "x" });
@@ -32,49 +33,40 @@ test("every mapped icon exists", () => {
   for (const k of Object.keys(M.INVOCATION_ICONS)) assert.ok(inv.has(k), k);
 });
 
-test("library spells are spread over many icons", () => {
+test("library spells get their own pack icons", () => {
   const icons = spells.map(s => E.spellIcon(c, s).icon);
-  for (const ic of icons) assert.ok(ALL.has(ic), ic);
-  assert.ok(new Set(icons).size >= 100, String(new Set(icons).size));
-  assert.ok(share(icons) < 0.04, String(share(icons)));
-  const by = en => E.spellIcon(c, spells.find(s => s.nameEn === en)).icon;
-  assert.equal(by("Web"), "web");
-  assert.equal(by("Black Tentacles"), "tentacle");
-  assert.equal(by("Meteor Swarm"), "constellation");
-  assert.equal(by("Moonbeam"), "moon");
-  assert.equal(by("Secret Chest"), "chest");
+  for (const ic of icons) assert.ok(ALL.has(ic) && I.iconFile(ic), ic);
+  assert.ok(new Set(icons).size >= 250, String(new Set(icons).size));
+  assert.ok(share(icons) < 0.01, String(share(icons)));
+  for (const s of spells) assert.equal(E.spellIcon(c, s).icon, M.SPELL_ICONS[s.nameEn], s.nameEn);
   const mb = spells.find(s => s.nameEn === "Moonbeam");
   assert.equal(E.spellIcon(c, mb).color, R.DAMAGE.radiant.color);
 });
 
-test("library features and invocations get their own icons", () => {
+test("library features and invocations get their own pack icons", () => {
   const cat = f => (f.group === "race" ? "race" : f.group === "background" ? "background" : "class");
   const icons = feats.map(f => E.featureIcon({ ...f, category: cat(f) }));
-  assert.ok(!icons.includes("sigil"));
-  assert.ok(new Set(icons).size >= 70, String(new Set(icons).size));
-  assert.ok(share(icons) < 0.06, String(share(icons)));
+  for (const ic of icons) assert.ok(I.iconFile(ic), ic);
+  assert.ok(new Set(icons).size >= 200, String(new Set(icons).size));
   const inv = C.INVOCATIONS.map(x => E.featureIcon({ name: x.name, category: "invocation" }));
-  assert.ok(new Set(inv).size >= 25, String(new Set(inv).size));
-  assert.equal(E.featureIcon({ name: "Ярость", nameEn: "Rage", category: "class" }), "fist");
-  assert.equal(E.featureIcon({ name: "Канал божественности: Что-то новое", nameEn: "Channel Divinity: Something", category: "class" }), "sun");
+  for (const ic of inv) assert.ok(I.iconFile(ic), ic);
+  assert.equal(new Set(inv).size, inv.length);
+  assert.equal(E.featureIcon({ name: "Ярость", nameEn: "Rage", category: "class" }), M.FEATURE_ICONS.Rage);
 });
 
-test("own entries are still guessed by words, explicit icon wins", () => {
-  assert.equal(E.featureIcon({ name: "Магия договора", category: "class" }), "pact");
-  assert.equal(E.featureIcon({ name: "Увеличение характеристик", category: "feat" }), "upgrade");
+test("own entries are guessed by words with pack icons, explicit icon wins", () => {
+  assert.ok(I.iconFile(E.featureIcon({ name: "Магия договора", category: "class" })));
+  assert.ok(I.iconFile(E.featureIcon({ name: "Что-то своё", category: "feat" })));
   assert.equal(E.featureIcon({ name: "Ярость", nameEn: "Rage", icon: "flame", category: "class" }), "flame");
-  assert.equal(E.spellIcon(c, { name: "Паутина тьмы", school: "conjuration", damage: [] }).icon, "web");
-  assert.equal(E.spellIcon(c, { name: "Рой саранчи", school: "conjuration", damage: [{ dice: "2d6", type: "piercing" }] }).icon, "bug");
-  assert.equal(E.itemIcon({ name: "Боевой посох", type: "weapon" }), "staff");
-  assert.equal(E.itemIcon({ name: "Духовая трубка", type: "weapon" }), "arrow");
-  assert.equal(E.itemIcon({ name: "Окованный сундук", type: "gear" }), "chest");
-  assert.equal(E.itemIcon({ name: "Рюкзак", type: "gear" }), "backpack");
-  assert.equal(E.itemIcon({ name: "Мешочек с компонентами", type: "gear" }), "pouch");
-  assert.equal(E.itemIcon({ name: "Мешок", type: "gear" }), "bag");
+  assert.equal(E.spellIcon(c, { name: "Своё", icon: "gi/lorc/ice-bolt", school: "evocation", damage: [] }).icon, "gi/lorc/ice-bolt");
+  const custom = [E.spellIcon(c, { name: "Паутина тьмы", school: "conjuration", damage: [] }).icon, E.spellIcon(c, { name: "Рой саранчи", school: "conjuration", damage: [{ dice: "2d6", type: "piercing" }] }).icon];
+  for (const ic of custom) assert.ok(I.iconFile(ic), ic);
+  const items = ["Боевой посох", "Окованный сундук", "Рюкзак", "Мешочек с компонентами", "Мешок"].map(n => E.itemIcon({ name: n, type: "gear" }));
+  for (const ic of items) assert.ok(I.iconFile(ic), ic);
+  assert.equal(new Set(items).size, items.length);
   for (const g of G.GEAR) assert.ok(ALL.has(E.itemIcon({ name: g.name, type: g.kind === "armor" ? "armor" : "weapon" })), g.name);
 });
 
-test("new icons are offered in the icon picker", async () => {
-  const I = await import(P + "icons.js");
+test("new icons are offered in the icon picker", () => {
   for (const k of ["chest", "thorns", "bug", "lock", "lips", "frame", "prism", "maze", "antimagic", "footprints", "disc", "yinyang", "upgrade"]) assert.ok(I.ICON_NAMES.includes(k), k);
 });

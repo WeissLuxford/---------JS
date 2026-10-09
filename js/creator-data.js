@@ -21,31 +21,31 @@ export const DRAGONS = {
 
 export const RACES = {
   dwarf: {
-    name: "Дварф", icon: "hammer", asi: { con: 2 }, speed: 25, dark: 60, resist: ["poison"], langs: "Общий, дварфийский",
+    name: "Дварф", icon: "gi/kier-heyl/dwarf-helmet", asi: { con: 2 }, speed: 25, dark: 60, resist: ["poison"], langs: "Общий, дварфийский",
     weapons: "боевой топор, ручной топор, лёгкий молот, боевой молот", tools: "инструменты кузнеца, пивовара или каменщика (на выбор)",
     blurb: "Крепкие и упрямые мастера камня и стали. Сопротивление яду, тёмное зрение.",
     subraces: { hill: { name: "Холмовой дварф", asi: { wis: 1 }, hpPerLevel: 1, blurb: "+1 Мудрость, +1 хит за каждый уровень" } }
   },
   elf: {
-    name: "Эльф", icon: "leaf", asi: { dex: 2 }, speed: 30, dark: 60, skills: ["perception"], langs: "Общий, эльфийский",
+    name: "Эльф", icon: "gi/delapouite/elf-ear", asi: { dex: 2 }, speed: 30, dark: 60, skills: ["perception"], langs: "Общий, эльфийский",
     blurb: "Изящные и долгоживущие. Владение Внимательностью, иммунитет к магическому сну.",
     subraces: { high: { name: "Высший эльф", asi: { int: 1 }, weapons: "длинный меч, короткий меч, короткий лук, длинный лук", cantrip: "wizard", extraLang: 1, blurb: "+1 Интеллект, заговор волшебника, эльфийское оружие" } }
   },
   halfling: {
-    name: "Полурослик", icon: "boot", asi: { dex: 2 }, speed: 25, size: "Маленький", langs: "Общий, язык полуросликов",
+    name: "Полурослик", icon: "gi/delapouite/hobbit-dwelling", asi: { dex: 2 }, speed: 25, size: "Маленький", langs: "Общий, язык полуросликов",
     blurb: "Маленькие и везучие: единица на d20 перебрасывается.",
     subraces: { lightfoot: { name: "Легконогий полурослик", asi: { cha: 1 }, blurb: "+1 Харизма, прячется за существами крупнее себя" } }
   },
-  human: { name: "Человек", icon: "user", asi: { str: 1, dex: 1, con: 1, int: 1, wis: 1, cha: 1 }, speed: 30, langs: "Общий и ещё один на выбор", extraLang: 1, blurb: "Разносторонние: +1 ко всем характеристикам." },
-  dragonborn: { name: "Драконорождённый", icon: "dragon", asi: { str: 2, cha: 1 }, speed: 30, langs: "Общий, драконий", dragon: true, blurb: "Потомки драконов: оружие дыхания и сопротивление стихии предка." },
+  human: { name: "Человек", icon: "gi/delapouite/castle", asi: { str: 1, dex: 1, con: 1, int: 1, wis: 1, cha: 1 }, speed: 30, langs: "Общий и ещё один на выбор", extraLang: 1, blurb: "Разносторонние: +1 ко всем характеристикам." },
+  dragonborn: { name: "Драконорождённый", icon: "gi/lorc/dragon-breath", asi: { str: 2, cha: 1 }, speed: 30, langs: "Общий, драконий", dragon: true, blurb: "Потомки драконов: оружие дыхания и сопротивление стихии предка." },
   gnome: {
-    name: "Гном", icon: "gear", asi: { int: 2 }, speed: 25, size: "Маленький", dark: 60, langs: "Общий, гномий",
+    name: "Гном", icon: "gi/lorc/pointy-hat", asi: { int: 2 }, speed: 25, size: "Маленький", dark: 60, langs: "Общий, гномий",
     blurb: "Любопытные изобретатели. Преимущество на спасброски Инт, Мдр и Хар против магии.",
     subraces: { rock: { name: "Скальный гном", asi: { con: 1 }, tools: "инструменты ремесленника (жестянщика)", blurb: "+1 Телосложение, мастер механических игрушек" } }
   },
-  halfElf: { name: "Полуэльф", icon: "mask", asi: { cha: 2 }, plusTwo: true, speed: 30, dark: 60, anySkills: 2, langs: "Общий, эльфийский и ещё один на выбор", extraLang: 1, blurb: "+2 Харизма, +1 к двум другим, два любых навыка." },
-  halfOrc: { name: "Полуорк", icon: "fist", asi: { str: 2, con: 1 }, speed: 30, dark: 60, skills: ["intimidation"], langs: "Общий, орочий", blurb: "Сильные и стойкие: раз в день остаются на 1 хите вместо 0." },
-  tiefling: { name: "Тифлинг", icon: "horns", asi: { int: 1, cha: 2 }, speed: 30, dark: 60, resist: ["fire"], langs: "Общий, инфернальный", spells: ["Thaumaturgy"], blurb: "Наследники преисподней: сопротивление огню и заклинания предков." }
+  halfElf: { name: "Полуэльф", icon: "gi/kier-heyl/elf-helmet", asi: { cha: 2 }, plusTwo: true, speed: 30, dark: 60, anySkills: 2, langs: "Общий, эльфийский и ещё один на выбор", extraLang: 1, blurb: "+2 Харизма, +1 к двум другим, два любых навыка." },
+  halfOrc: { name: "Полуорк", icon: "gi/lorc/bestial-fangs", asi: { str: 2, con: 1 }, speed: 30, dark: 60, skills: ["intimidation"], langs: "Общий, орочий", blurb: "Сильные и стойкие: раз в день остаются на 1 хите вместо 0." },
+  tiefling: { name: "Тифлинг", icon: "gi/lorc/horned-skull", asi: { int: 1, cha: 2 }, speed: 30, dark: 60, resist: ["fire"], langs: "Общий, инфернальный", spells: ["Thaumaturgy"], blurb: "Наследники преисподней: сопротивление огню и заклинания предков." }
 };
 
 export const BACKGROUNDS = {

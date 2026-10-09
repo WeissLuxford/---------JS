@@ -36,7 +36,7 @@ await page.click("[data-m=rules-ref]");
 await sleep(300);
 await page.fill(".modal-back.in [data-q]", "падение");
 await sleep(100);
-const vis = await page.$$eval(".ref-item", els => els.filter(e => !e.hidden).map(e => e.querySelector("summary span").textContent));
+const vis = await page.$$eval(".ref-item", els => els.filter(e => !e.hidden).map(e => e.querySelector("summary span:not(.ic)").textContent));
 ok("rules search", vis.length === 1 && vis[0] === "Падение", vis.join(","));
 await page.screenshot({ path: OUT + "ref.png" });
 await page.goBack();

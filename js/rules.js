@@ -1,34 +1,34 @@
 import { GEAR } from "./gear.js";
 export const ABILITIES = [
-  { key: "str", name: "Сила", short: "СИЛ", desc: "Физическая мощь: атаки и урон оружием ближнего боя, Атлетика, переноска тяжестей." },
-  { key: "dex", name: "Ловкость", short: "ЛОВ", desc: "Проворство и реакция: КД без тяжёлой брони, инициатива, дальнобойное и фехтовальное оружие." },
-  { key: "con", name: "Телосложение", short: "ТЕЛ", desc: "Здоровье и выносливость: хиты за уровень, удержание концентрации." },
-  { key: "int", name: "Интеллект", short: "ИНТ", desc: "Память и логика: Магия, История, Анализ, Природа, Религия." },
-  { key: "wis", name: "Мудрость", short: "МДР", desc: "Восприятие и интуиция: Внимательность, Проницательность, Медицина, Выживание." },
-  { key: "cha", name: "Харизма", short: "ХАР", desc: "Сила личности: Убеждение, Обман, Запугивание, Выступление." }
+  { key: "str", icon: "tw/ability/strength", name: "Сила", short: "СИЛ", desc: "Физическая мощь: атаки и урон оружием ближнего боя, Атлетика, переноска тяжестей." },
+  { key: "dex", icon: "tw/ability/dexterity", name: "Ловкость", short: "ЛОВ", desc: "Проворство и реакция: КД без тяжёлой брони, инициатива, дальнобойное и фехтовальное оружие." },
+  { key: "con", icon: "tw/ability/constitution", name: "Телосложение", short: "ТЕЛ", desc: "Здоровье и выносливость: хиты за уровень, удержание концентрации." },
+  { key: "int", icon: "tw/ability/intelligence", name: "Интеллект", short: "ИНТ", desc: "Память и логика: Магия, История, Анализ, Природа, Религия." },
+  { key: "wis", icon: "tw/ability/wisdom", name: "Мудрость", short: "МДР", desc: "Восприятие и интуиция: Внимательность, Проницательность, Медицина, Выживание." },
+  { key: "cha", icon: "tw/ability/charisma", name: "Харизма", short: "ХАР", desc: "Сила личности: Убеждение, Обман, Запугивание, Выступление." }
 ];
 
 export const ABILITY_KEYS = ABILITIES.map(a => a.key);
 
 export const SKILLS = [
-  { key: "acrobatics", name: "Акробатика", ab: "dex", desc: "Удержать равновесие, сделать кувырок, вывернуться из захвата." },
-  { key: "investigation", name: "Анализ", ab: "int", desc: "Искать улики, делать выводы, разбираться в устройстве механизмов и ловушек." },
-  { key: "athletics", name: "Атлетика", ab: "str", desc: "Лазать, прыгать, плавать, бороться и выталкивать." },
-  { key: "perception", name: "Внимательность", ab: "wis", desc: "Заметить, услышать или почуять что-то. Даёт пассивную Внимательность." },
-  { key: "survival", name: "Выживание", ab: "wis", desc: "Идти по следу, охотиться, ориентироваться на местности, предсказывать погоду." },
-  { key: "performance", name: "Выступление", ab: "cha", desc: "Развлекать публику музыкой, танцем, актёрской игрой или рассказом." },
-  { key: "intimidation", name: "Запугивание", ab: "cha", desc: "Влиять угрозами, враждебными действиями и демонстрацией силы." },
-  { key: "history", name: "История", ab: "int", desc: "Вспомнить события, легенды, королевства, войны и знаменитых личностей." },
-  { key: "sleightOfHand", name: "Ловкость рук", ab: "dex", desc: "Карманные кражи, фокусы, незаметно подбросить или спрятать предмет." },
-  { key: "arcana", name: "Магия", ab: "int", desc: "Знания о заклинаниях, магических предметах, планах бытия и их обитателях." },
-  { key: "medicine", name: "Медицина", ab: "wis", desc: "Стабилизировать умирающего, распознать болезнь." },
-  { key: "deception", name: "Обман", ab: "cha", desc: "Убедительно лгать, скрывать правду словами и поведением." },
-  { key: "nature", name: "Природа", ab: "int", desc: "Знания о местности, растениях, животных и погоде." },
-  { key: "insight", name: "Проницательность", ab: "wis", desc: "Распознать истинные намерения, ложь и настроение собеседника." },
-  { key: "religion", name: "Религия", ab: "int", desc: "Знания о божествах, обрядах, культах и священных символах." },
-  { key: "stealth", name: "Скрытность", ab: "dex", desc: "Двигаться бесшумно, прятаться от врагов." },
-  { key: "persuasion", name: "Убеждение", ab: "cha", desc: "Влиять тактом, дружелюбием и честными доводами." },
-  { key: "animalHandling", name: "Уход за животными", ab: "wis", desc: "Успокоить животное, понять его намерения, управлять верховым зверем." }
+  { key: "acrobatics", icon: "gi/darkzaitzev/acrobatic", name: "Акробатика", ab: "dex", desc: "Удержать равновесие, сделать кувырок, вывернуться из захвата." },
+  { key: "investigation", icon: "gi/lorc/magnifying-glass", name: "Анализ", ab: "int", desc: "Искать улики, делать выводы, разбираться в устройстве механизмов и ловушек." },
+  { key: "athletics", icon: "gi/lorc/muscle-up", name: "Атлетика", ab: "str", desc: "Лазать, прыгать, плавать, бороться и выталкивать." },
+  { key: "perception", icon: "gi/delapouite/eye-target", name: "Внимательность", ab: "wis", desc: "Заметить, услышать или почуять что-то. Даёт пассивную Внимательность." },
+  { key: "survival", icon: "gi/lorc/footprint", name: "Выживание", ab: "wis", desc: "Идти по следу, охотиться, ориентироваться на местности, предсказывать погоду." },
+  { key: "performance", icon: "gi/lorc/lyre", name: "Выступление", ab: "cha", desc: "Развлекать публику музыкой, танцем, актёрской игрой или рассказом." },
+  { key: "intimidation", icon: "gi/lorc/wolf-howl", name: "Запугивание", ab: "cha", desc: "Влиять угрозами, враждебными действиями и демонстрацией силы." },
+  { key: "history", icon: "gi/delapouite/ancient-ruins", name: "История", ab: "int", desc: "Вспомнить события, легенды, королевства, войны и знаменитых личностей." },
+  { key: "sleightOfHand", icon: "gi/caro-asercion/coinflip", name: "Ловкость рук", ab: "dex", desc: "Карманные кражи, фокусы, незаметно подбросить или спрятать предмет." },
+  { key: "arcana", icon: "gi/lorc/crystal-ball", name: "Магия", ab: "int", desc: "Знания о заклинаниях, магических предметах, планах бытия и их обитателях." },
+  { key: "medicine", icon: "gi/delapouite/first-aid-kit", name: "Медицина", ab: "wis", desc: "Стабилизировать умирающего, распознать болезнь." },
+  { key: "deception", icon: "gi/lorc/double-face-mask", name: "Обман", ab: "cha", desc: "Убедительно лгать, скрывать правду словами и поведением." },
+  { key: "nature", icon: "gi/delapouite/oak-leaf", name: "Природа", ab: "int", desc: "Знания о местности, растениях, животных и погоде." },
+  { key: "insight", icon: "gi/lorc/third-eye", name: "Проницательность", ab: "wis", desc: "Распознать истинные намерения, ложь и настроение собеседника." },
+  { key: "religion", icon: "gi/lorc/holy-symbol", name: "Религия", ab: "int", desc: "Знания о божествах, обрядах, культах и священных символах." },
+  { key: "stealth", icon: "gi/lorc/cloak-dagger", name: "Скрытность", ab: "dex", desc: "Двигаться бесшумно, прятаться от врагов." },
+  { key: "persuasion", icon: "gi/lorc/conversation", name: "Убеждение", ab: "cha", desc: "Влиять тактом, дружелюбием и честными доводами." },
+  { key: "animalHandling", icon: "gi/delapouite/horse-head", name: "Уход за животными", ab: "wis", desc: "Успокоить животное, понять его намерения, управлять верховым зверем." }
 ];
 
 export const DAMAGE = {
@@ -45,8 +45,8 @@ export const DAMAGE = {
   radiant: { name: "Излучение", color: "#f4d66d", icon: "dmgRadiant" },
   slashing: { name: "Рубящий", color: "#cbbfa8", icon: "dmgSlashing" },
   thunder: { name: "Звук", color: "#b48cff", icon: "dmgThunder" },
-  healing: { name: "Лечение", color: "#7ee08a", icon: "heart" },
-  temp: { name: "Временные хиты", color: "#9fc6ff", icon: "shield" }
+  healing: { name: "Лечение", color: "#7ee08a", icon: "gi/zeromancer/heart-plus" },
+  temp: { name: "Временные хиты", color: "#9fc6ff", icon: "tw/hp/temp" }
 };
 
 export const DAMAGE_TYPES = Object.keys(DAMAGE).filter(k => k !== "healing" && k !== "temp");
@@ -72,24 +72,24 @@ export const EFFECT_PRESETS = {
 
 export const STANDARD_ACTIONS = {
   action: [
-    { key: "attack", name: "Атака", icon: "swords", desc: "Одна атака оружием или безоружным ударом. Вместо атаки можно сделать захват или толчок." },
-    { key: "grapple", name: "Захват", icon: "fist", roll: "skill:athletics", desc: "Вместо одной атаки. Твоя Атлетика против Атлетики или Акробатики цели. При успехе цель схвачена: её скорость 0." },
-    { key: "shove", name: "Толчок", icon: "hand", roll: "skill:athletics", desc: "Вместо одной атаки. Твоя Атлетика против Атлетики или Акробатики цели: сбить с ног или оттолкнуть на 5 фт." },
-    { key: "dash", name: "Рывок", icon: "boot", desc: "До конца хода у тебя есть ещё столько же перемещения, сколько скорость." },
-    { key: "disengage", name: "Отход", icon: "back", desc: "До конца хода твоё перемещение не провоцирует атаки по возможности." },
-    { key: "dodge", name: "Уклонение", icon: "shield", effect: "dodge", desc: "До начала следующего хода атаки по тебе с помехой (если ты видишь атакующего), а спасброски Ловкости с преимуществом." },
-    { key: "help", name: "Помощь", icon: "people", desc: "Союзник получает преимущество на следующую проверку или атаку по цели в 5 фт от тебя." },
-    { key: "hide", name: "Засада", icon: "moon", roll: "skill:stealth", desc: "Попытка спрятаться: проверка Скрытности против пассивной Внимательности врагов." },
-    { key: "search", name: "Поиск", icon: "search", roll: "skill:perception", desc: "Ищешь что-то: обычно Внимательность, иногда Анализ." },
-    { key: "ready", name: "Подготовка", icon: "hourglass", desc: "Выбери условие и действие. Когда условие случится, потратишь реакцию, чтобы сделать это действие." },
-    { key: "object", name: "Использовать предмет", icon: "bag", desc: "Выпить зелье, достать второй предмет, открыть тяжёлую дверь и т.п. Одно простое взаимодействие в ход бесплатно." }
+    { key: "attack", name: "Атака", icon: "gi/lorc/crossed-swords", desc: "Одна атака оружием или безоружным ударом. Вместо атаки можно сделать захват или толчок." },
+    { key: "grapple", name: "Захват", icon: "gi/lorc/grab", roll: "skill:athletics", desc: "Вместо одной атаки. Твоя Атлетика против Атлетики или Акробатики цели. При успехе цель схвачена: её скорость 0." },
+    { key: "shove", name: "Толчок", icon: "gi/delapouite/push", roll: "skill:athletics", desc: "Вместо одной атаки. Твоя Атлетика против Атлетики или Акробатики цели: сбить с ног или оттолкнуть на 5 фт." },
+    { key: "dash", name: "Рывок", icon: "gi/lorc/sprint", desc: "До конца хода у тебя есть ещё столько же перемещения, сколько скорость." },
+    { key: "disengage", name: "Отход", icon: "gi/delapouite/exit-door", desc: "До конца хода твоё перемещение не провоцирует атаки по возможности." },
+    { key: "dodge", name: "Уклонение", icon: "gi/lorc/dodging", effect: "dodge", desc: "До начала следующего хода атаки по тебе с помехой (если ты видишь атакующего), а спасброски Ловкости с преимуществом." },
+    { key: "help", name: "Помощь", icon: "gi/delapouite/shaking-hands", desc: "Союзник получает преимущество на следующую проверку или атаку по цели в 5 фт от тебя." },
+    { key: "hide", name: "Засада", icon: "gi/lorc/hood", roll: "skill:stealth", desc: "Попытка спрятаться: проверка Скрытности против пассивной Внимательности врагов." },
+    { key: "search", name: "Поиск", icon: "gi/lorc/spyglass", roll: "skill:perception", desc: "Ищешь что-то: обычно Внимательность, иногда Анализ." },
+    { key: "ready", name: "Подготовка", icon: "gi/lorc/hourglass", desc: "Выбери условие и действие. Когда условие случится, потратишь реакцию, чтобы сделать это действие." },
+    { key: "object", name: "Использовать предмет", icon: "gi/lorc/drink-me", desc: "Выпить зелье, достать второй предмет, открыть тяжёлую дверь и т.п. Одно простое взаимодействие в ход бесплатно." }
   ],
   bonus: [
-    { key: "offhand", name: "Атака второй рукой", icon: "dagger", desc: "Только если ты атаковал лёгким рукопашным оружием, а во второй руке тоже лёгкое: ещё одна атака без модификатора характеристики к урону." }
+    { key: "offhand", name: "Атака второй рукой", icon: "gi/lorc/daggers", desc: "Только если ты атаковал лёгким рукопашным оружием, а во второй руке тоже лёгкое: ещё одна атака без модификатора характеристики к урону." }
   ],
   reaction: [
-    { key: "opportunity", name: "Атака по возможности", icon: "swords", desc: "Когда враг, которого ты видишь, выходит из твоей досягаемости: одна рукопашная атака." },
-    { key: "readied", name: "Подготовленное действие", icon: "hourglass", desc: "Если в свой ход ты выбрал «Подготовку», реакция тратится, когда случится условие." }
+    { key: "opportunity", name: "Атака по возможности", icon: "gi/lorc/sword-clash", desc: "Когда враг, которого ты видишь, выходит из твоей досягаемости: одна рукопашная атака." },
+    { key: "readied", name: "Подготовленное действие", icon: "gi/lorc/sands-of-time", desc: "Если в свой ход ты выбрал «Подготовку», реакция тратится, когда случится условие." }
   ]
 };
 
@@ -184,21 +184,21 @@ export const ACCENTS = {
 };
 
 export const SCENE_TIMES = {
-  dawn: { name: "Рассвет", icon: "sunrise" },
-  day: { name: "День", icon: "sun" },
-  dusk: { name: "Закат", icon: "sunrise" },
-  night: { name: "Ночь", icon: "moon" }
+  dawn: { name: "Рассвет", icon: "gi/delapouite/sunrise" },
+  day: { name: "День", icon: "gi/lorc/sun" },
+  dusk: { name: "Закат", icon: "gi/delapouite/sunset" },
+  night: { name: "Ночь", icon: "gi/delapouite/moon-bats" }
 };
 
 export const SCENE_WEATHER = {
-  clear: { name: "Ясно", icon: "sun" },
-  overcast: { name: "Облачно", icon: "overcast" },
-  wind: { name: "Сильный ветер", icon: "wind" },
-  fog: { name: "Туман", icon: "fog" },
-  rain: { name: "Ливень", icon: "rain" },
-  storm: { name: "Гроза", icon: "storm" },
-  snow: { name: "Снегопад", icon: "snowcloud" },
-  blizzard: { name: "Метель", icon: "snow" }
+  clear: { name: "Ясно", icon: "gi/lorc/sunbeams" },
+  overcast: { name: "Облачно", icon: "gi/delapouite/sun-cloud" },
+  wind: { name: "Сильный ветер", icon: "gi/lorc/wind-slap" },
+  fog: { name: "Туман", icon: "gi/delapouite/fog" },
+  rain: { name: "Ливень", icon: "gi/lorc/heavy-rain" },
+  storm: { name: "Гроза", icon: "gi/lorc/lightning-storm" },
+  snow: { name: "Снегопад", icon: "gi/lorc/snowing" },
+  blizzard: { name: "Метель", icon: "gi/lorc/snowflake-2" }
 };
 
 export function hasDarkvision(c) {
@@ -320,27 +320,27 @@ export const RARITY = {
 };
 
 export const ITEM_TYPES = {
-  weapon: { name: "Оружие", icon: "sword" },
-  wand: { name: "Палочка, жезл, посох", icon: "wand" },
-  armor: { name: "Броня", icon: "armor" },
-  artifact: { name: "Артефакт", icon: "gem" },
-  tool: { name: "Инструменты", icon: "wrench" },
-  consumable: { name: "Расходник", icon: "potion" },
-  ammo: { name: "Боеприпасы", icon: "arrow" },
-  book: { name: "Книга", icon: "book" },
-  gear: { name: "Снаряжение", icon: "bag" },
-  treasure: { name: "Ценность", icon: "coin" },
-  misc: { name: "Прочее", icon: "pouch" }
+  weapon: { name: "Оружие", icon: "gi/lorc/broadsword" },
+  wand: { name: "Палочка, жезл, посох", icon: "gi/lorc/wizard-staff" },
+  armor: { name: "Броня", icon: "gi/lorc/breastplate" },
+  artifact: { name: "Артефакт", icon: "gi/lorc/gem-pendant" },
+  tool: { name: "Инструменты", icon: "gi/delapouite/toolbox" },
+  consumable: { name: "Расходник", icon: "gi/lorc/round-bottom-flask" },
+  ammo: { name: "Боеприпасы", icon: "gi/lorc/arrow-cluster" },
+  book: { name: "Книга", icon: "gi/delapouite/book-cover" },
+  gear: { name: "Снаряжение", icon: "gi/lorc/knapsack" },
+  treasure: { name: "Ценность", icon: "gi/skoll/open-treasure-chest" },
+  misc: { name: "Прочее", icon: "gi/lorc/swap-bag" }
 };
 
 export const FEATURE_CATS = {
-  class: { name: "Классовые умения", icon: "sigil" },
-  invocation: { name: "Таинственные воззвания", icon: "eye" },
-  gift: { name: "Дары покровителя", icon: "pact" },
-  race: { name: "Расовые черты", icon: "horns" },
-  background: { name: "Предыстория", icon: "scroll" },
-  feat: { name: "Черты", icon: "star" },
-  other: { name: "Прочее", icon: "sparkle" }
+  class: { name: "Классовые умения", icon: "gi/delapouite/sword-altar" },
+  invocation: { name: "Таинственные воззвания", icon: "gi/delapouite/warlock-eye" },
+  gift: { name: "Дары покровителя", icon: "gi/lorc/imp-laugh" },
+  race: { name: "Расовые черты", icon: "gi/delapouite/elf-ear" },
+  background: { name: "Предыстория", icon: "gi/lorc/scroll-unfurled" },
+  feat: { name: "Черты", icon: "gi/lorc/laurels" },
+  other: { name: "Прочее", icon: "gi/delapouite/sparkles" }
 };
 
 export const FEATURE_SOURCES = {

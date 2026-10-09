@@ -148,7 +148,7 @@ export function mountHome(root, navigate) {
     const cur = Math.max(0, Number(c.hp.current) || 0);
     const pct = d.hpMax ? Math.max(0, Math.min(100, Math.round((cur / d.hpMax) * 100))) : 0;
     const i = c.info;
-    const rows = [["sparkle", i.subclass], ["book", i.background]].filter(r => r[1]);
+    const rows = [["gi/lorc/book-aura", i.subclass], ["gi/lorc/scroll-unfurled", i.background]].filter(r => r[1]);
     const when = c.updatedAt ? "изменён " + timeAgo(c.updatedAt) + (shortWho(c.updatedBy) ? " · " + shortWho(c.updatedBy) : "") : "";
     const lock = c.visibility === "private" && getMode() === "cloud" && access.enforced;
     const href = `#/c/${encodeURIComponent(c.id)}`;
@@ -226,7 +226,7 @@ export function mountHome(root, navigate) {
       </span>
     </article>`;
     const i = c.info;
-    const rows = [["people", i.subrace], [t.icon, [i.cls, i.level ? `${i.level} уровня` : ""].filter(Boolean).join(" ")], ["sparkle", i.subclass], ["book", i.background], ["scales", i.alignment]].filter(r => r[1]);
+    const rows = [["gi/delapouite/family-tree", i.subrace], [t.icon, [i.cls, i.level ? `${i.level} уровня` : ""].filter(Boolean).join(" ")], ["gi/lorc/book-aura", i.subclass], ["gi/lorc/scroll-unfurled", i.background], ["gi/lorc/scales", i.alignment]].filter(r => r[1]);
     const lead = [i.race, i.age ? `${i.age} ${years(i.age)}` : ""].filter(Boolean).join(" · ");
     return `<article class="tpl-hero tpl-card ${hidden ? "arch" : ""}">
       <button class="tpl-art" ${t.board ? `data-tpl-board="${esc(t.key)}" aria-label="Доска персонажа: ${esc(c.name)}"` : "disabled"}>

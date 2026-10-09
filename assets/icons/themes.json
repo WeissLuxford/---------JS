@@ -217,6 +217,9 @@
   "own": {
     "ui": ["back", "next", "down", "dots", "plus", "minus", "close", "edit", "trash", "check", "history", "download", "upload", "archive", "copy", "link", "camera", "cloud", "cloudOff", "menu", "search", "phone", "tablet", "monitor", "signature", "info", "range", "area", "timer", "lock", "upgrade"],
     "words": {
+      "acLow": "armor shield",
+      "acHalf": "armor shield",
+      "acFull": "armor shield",
       "user": "person character",
       "swords": "swords combat",
       "pact": "pentagram warlock",

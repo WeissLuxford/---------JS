@@ -1,4 +1,4 @@
-const VERSION = "v42";
+const VERSION = "v43";
 const SHELL = "dnd-shell-" + VERSION;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -37,6 +37,7 @@ const PRECACHE = [
   "js/home.js",
   "js/icons.js",
   "js/icon-art.js",
+  "js/icon-credits.js",
   "js/library.js",
   "js/main.js",
   "js/notes.js",
@@ -64,7 +65,8 @@ const PRECACHE = [
   "js/ui.js",
   "data/spells-srd.json",
   "data/features-srd.json",
-  "data/templates.json"
+  "data/templates.json",
+  "assets/icons/picker.json"
 ];
 const CDN_HOSTS = ["www.gstatic.com", "fonts.googleapis.com", "fonts.gstatic.com"];
 const NETWORK_WAIT = 3500;
@@ -72,7 +74,8 @@ const NETWORK_WAIT = 3500;
 self.addEventListener("install", event => {
   event.waitUntil(
     caches.open(SHELL)
-      .then(cache => Promise.all(PRECACHE.map(url => cache.add(new Request(url, { cache: "reload" })).catch(() => null))))
+      .then(cache => Promise.all(PRECACHE.map(url => cache.add(new Request(url, { cache: "reload" })).catch(() => null)))
+        .then(() => fetch("assets/icons/used.json", { cache: "reload" }).then(r => r.json()).then(list => Promise.all(list.map(url => cache.add(url).catch(() => null)))).catch(() => null)))
       .then(() => self.skipWaiting())
   );
 });
@@ -113,6 +116,10 @@ self.addEventListener("fetch", event => {
   const url = new URL(request.url);
   if (url.origin === self.location.origin) {
     if (url.pathname.includes("/old/")) return;
+    if (url.pathname.includes("/assets/icons/")) {
+      event.respondWith(caches.match(request).then(hit => hit || fromNetwork(request, SHELL)));
+      return;
+    }
     event.respondWith(networkFirst(event, request));
     return;
   }

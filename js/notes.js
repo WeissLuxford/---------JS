@@ -1,13 +1,13 @@
 import { esc } from "./ui.js";
 
 export const NOTE_SECTIONS = [
-  { key: "sessions", name: "Журнал", icon: "notebook", add: "Сессия" },
-  { key: "people", name: "Люди", icon: "people", add: "Человек" },
-  { key: "places", name: "Места", icon: "map", add: "Место" },
-  { key: "quests", name: "Задания", icon: "flag", add: "Задание" },
-  { key: "clues", name: "Улики", icon: "monocle", add: "Улика" },
-  { key: "patron", name: "Покровитель", icon: "pact", add: "Запись" },
-  { key: "misc", name: "Прочее", icon: "scroll", add: "Заметка" }
+  { key: "sessions", name: "Журнал", icon: "gi/delapouite/notebook", add: "Сессия" },
+  { key: "people", name: "Люди", icon: "gi/lorc/rally-the-troops", add: "Человек" },
+  { key: "places", name: "Места", icon: "gi/lorc/treasure-map", add: "Место" },
+  { key: "quests", name: "Задания", icon: "gi/delapouite/flag-objective", add: "Задание" },
+  { key: "clues", name: "Улики", icon: "gi/lorc/footprint", add: "Улика" },
+  { key: "patron", name: "Покровитель", icon: "gi/delapouite/warlock-hood", add: "Запись" },
+  { key: "misc", name: "Прочее", icon: "gi/lorc/papers", add: "Заметка" }
 ];
 
 export const SECTION_NAME = Object.fromEntries(NOTE_SECTIONS.map(s => [s.key, s.name]));

@@ -1,4 +1,4 @@
-import { icon } from "./icons.js";
+import { icon, svgIcon } from "./icons.js";
 import { esc, openModal } from "./ui.js";
 import { NOTE_SECTIONS, SECTION_NAME, NOTE_ATTITUDE, CLUE_STATE, NOTE_STATUS, referencedIds, linkIndex, mentionMatcher, plainText, norm } from "./notes.js";
 
@@ -212,7 +212,7 @@ export function openBoard({ c, charId, onOpen }) {
       return `<g class="bd-node ${dim(n.id) ? "dim" : ""} ${st.sel === n.id ? "sel" : ""} ${hit && hit.has(n.id) ? "hit" : ""} ${n.status === "false" ? "false" : ""}" data-node="${esc(n.id)}" transform="translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})" tabindex="0" role="button" aria-label="${esc(SECTION_NAME[n.sec])}: ${esc(n.title)}">
         <circle class="bd-pin" r="${r}" style="--c:${col};--ring:${ring}"></circle>
         <circle class="bd-tack" cy="${-r + 3}" r="3.5"></circle>
-        <svg class="bd-ic" x="-11" y="-11" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${icon(SEC_ICON[n.sec]).replace(/^<svg[^>]*>|<\/svg>$/g, "")}</svg>
+        ${svgIcon(SEC_ICON[n.sec], col, -11, -11, 22)}
         <text class="bd-label" y="${r + 15}" text-anchor="middle">${esc(label)}</text>
       </g>`;
     }).join("");

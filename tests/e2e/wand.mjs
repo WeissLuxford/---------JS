@@ -51,7 +51,7 @@ const toasts = await page.locator("#toasts .toast").allInnerTexts();
 ok("last charge triggers break roll", toasts.some(t => t.includes("Последний заряд, d20")), toasts.join(" | ").replace(/\n/g, " "));
 await page.keyboard.press("Escape");
 await page.click(".tab[data-tab=inventory]");
-const ic = await page.$eval(".slot:has-text('Палочка холода') .slot-ic svg", s => s.innerHTML.length);
+const ic = await page.$eval(".slot:has-text('Палочка холода') .slot-ic .ic", s => s.outerHTML.length);
 ok("wand icon", ic > 0);
 await page.click(".slot:has-text('Палочка холода')");
 await sleep(300);

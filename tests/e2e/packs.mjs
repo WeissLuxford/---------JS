@@ -22,7 +22,7 @@ await page.goto("http://localhost:8765/#/c/kirion-thorndike/inventory");
 await page.waitForSelector(".sheet");
 await add("Рюкзак");
 await add("Мешочек с компонентами");
-const icOf = async name => page.locator(`[data-open^='item:']:has-text('${name}') svg`).first().innerHTML();
+const icOf = async name => page.locator(`[data-open^='item:']:has-text('${name}') .ic`).first().innerHTML();
 ok("backpack and pouch have different icons", (await icOf("Рюкзак")) !== (await icOf("Мешочек с компонентами")));
 await open("Мешочек с компонентами");
 ok("pouch offers an explanation, not a pack", (await page.locator(".modal-back.in [data-x=pouch-info]").count()) === 1 && (await page.locator(".modal-back.in [data-x=pack]").count()) === 0);

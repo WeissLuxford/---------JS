@@ -66,15 +66,15 @@ export function installLevelUp(X) {
     const swappable = c.spells.filter(sp => Number(sp.level) > 0 && sp.cost === "slot");
     const ownInvs = c.features.filter(f => f.category === "invocation");
     const groups = {
-      cantrips: { need: pk.cantrips, title: "Новый заговор", ic: "sparkle" },
-      spells: { need: pk.spells, title: cls && cls.book ? "Заклинания в книгу" : "Новое заклинание", ic: "book" },
-      arcanum: { need: pk.arcanum ? 1 : 0, title: `Таинственный арканум (${pk.arcanum} круг)`, ic: "star" },
-      invocations: { need: pk.invocations, title: "Новое воззвание", ic: "eye" },
-      swapSpell: { need: 1, title: "Новое вместо забытого", ic: "book" },
-      swapInv: { need: 1, title: "Новое воззвание вместо старого", ic: "eye" }
+      cantrips: { need: pk.cantrips, title: "Новый заговор", ic: "gi/lorc/magic-palm" },
+      spells: { need: pk.spells, title: cls && cls.book ? "Заклинания в книгу" : "Новое заклинание", ic: "gi/delapouite/spell-book" },
+      arcanum: { need: pk.arcanum ? 1 : 0, title: `Таинственный арканум (${pk.arcanum} круг)`, ic: "gi/delapouite/secret-book" },
+      invocations: { need: pk.invocations, title: "Новое воззвание", ic: "gi/delapouite/warlock-eye" },
+      swapSpell: { need: 1, title: "Новое вместо забытого", ic: "gi/delapouite/card-exchange" },
+      swapInv: { need: 1, title: "Новое воззвание вместо старого", ic: "gi/lorc/trade" }
     };
     const options = g => {
-      if (g === "invocations" || g === "swapInv") return invs.filter(x => !x.have).sort((a, b) => Number(b.ok) - Number(a.ok)).map(x => ({ key: x.key, name: x.name, sub: x.ok ? "" : x.why, desc: x.description, ok: x.ok, icon: "eye", color: "#c07cff" }));
+      if (g === "invocations" || g === "swapInv") return invs.filter(x => !x.have).sort((a, b) => Number(b.ok) - Number(a.ok)).map(x => ({ key: x.key, name: x.name, sub: x.ok ? "" : x.why, desc: x.description, ok: x.ok, icon: "gi/delapouite/warlock-eye", color: "#c07cff" }));
       if (!lib) return [];
       const list = g === "cantrips" ? spellCandidates(lib, c, cls, 0, { cantrips: true }) : g === "arcanum" ? lib.filter(x => x.level === pk.arcanum && (x.classes || []).includes(cls.key)) : spellCandidates(lib, c, cls, maxLvl);
       return list.map(x => {
@@ -149,10 +149,10 @@ export function installLevelUp(X) {
       if (st.invOut && !st.pick.swapInv.size) out.push("замена воззвания");
       return out;
     };
-    const featsHtml = feats.length ? `<section class="lu-sec"><h3>${icon("sigil")}Новые умения</h3><p class="hint">Добавятся во вкладку «Умения» сами.</p>${feats.map((f, i) => `<label class="lu-feat"><input type="checkbox" data-feat-i="${i}" checked><span><b>${esc(f.name)}</b>${f.uses ? `<small>${f.recharge === "short" ? "восстанавливается коротким отдыхом" : "раз за длинный отдых"}</small>` : ""}<span class="lu-feat-d">${rich(f.description)}</span></span></label>`).join("")}</section>` : "";
-    const choiceHtml = choices.map(ch => `<section class="lu-sec"><h3>${icon("star")}${esc(ch.title)}: ${ch.max > 1 ? `выбери ${ch.max}` : "выбери один"}</h3>${ch.list.map(x => `<label class="lu-feat"><input type="${ch.max > 1 ? "checkbox" : "radio"}" name="lu-ch-${ch.key}" value="${esc(x.key)}" data-choice="${ch.key}"><span><b>${esc(x.name)}</b><span class="lu-feat-d">${rich(x.description)}</span></span></label>`).join("")}</section>`).join("");
+    const featsHtml = feats.length ? `<section class="lu-sec"><h3>${icon("gi/lorc/book-aura")}Новые умения</h3><p class="hint">Добавятся во вкладку «Умения» сами.</p>${feats.map((f, i) => `<label class="lu-feat"><input type="checkbox" data-feat-i="${i}" checked><span><b>${esc(f.name)}</b>${f.uses ? `<small>${f.recharge === "short" ? "восстанавливается коротким отдыхом" : "раз за длинный отдых"}</small>` : ""}<span class="lu-feat-d">${rich(f.description)}</span></span></label>`).join("")}</section>` : "";
+    const choiceHtml = choices.map(ch => `<section class="lu-sec"><h3>${icon("gi/delapouite/choice")}${esc(ch.title)}: ${ch.max > 1 ? `выбери ${ch.max}` : "выбери один"}</h3>${ch.list.map(x => `<label class="lu-feat"><input type="${ch.max > 1 ? "checkbox" : "radio"}" name="lu-ch-${ch.key}" value="${esc(x.key)}" data-choice="${ch.key}"><span><b>${esc(x.name)}</b><span class="lu-feat-d">${rich(x.description)}</span></span></label>`).join("")}</section>`).join("");
     const genericNotes = plan.notes.filter(n => !(feats.length && /Умение покровителя/.test(n)) && !(boons.length && /Дар договора/.test(n)));
-    const asiHtml = plan.asi ? `<section class="lu-sec"><h3>${icon("star")}Увеличение характеристик</h3>
+    const asiHtml = plan.asi ? `<section class="lu-sec"><h3>${icon("gi/delapouite/upgrade")}Увеличение характеристик</h3>
       <label class="fld chk"><input type="radio" name="lu-asi" value="one"><span>+2 к одной</span></label>
       <div class="lu-row" data-show="one"><select data-a1-one>${abOpts("")}</select></div>
       <label class="fld chk"><input type="radio" name="lu-asi" value="two"><span>+1 к двум разным</span></label>
@@ -162,31 +162,31 @@ export function installLevelUp(X) {
       <label class="fld chk"><input type="radio" name="lu-asi" value="later" checked><span>Решу потом</span></label>
       <p class="hint">Характеристика не может стать больше 20.</p></section>` : "";
     const spellSec = [pk.cantrips ? pickerHtml("cantrips") : "", pk.spells ? pickerHtml("spells", `<p class="hint">Доступны заклинания до ${maxLvl} круга${sub && sub.spells ? `, включая расширенный список: ${esc(sub.name)}` : ""}.</p>`) : "", pk.arcanum ? pickerHtml("arcanum") : ""].join("");
-    const swapSpellSec = pk.swapSpell && swappable.length ? `<details class="lu-sec lu-swap" data-swap="spell"><summary><h3>${icon("history")}Заменить известное заклинание</h3><span class="hint">необязательно</span></summary>
+    const swapSpellSec = pk.swapSpell && swappable.length ? `<details class="lu-sec lu-swap" data-swap="spell"><summary><h3>${icon("gi/delapouite/card-exchange")}Заменить известное заклинание</h3><span class="hint">необязательно</span></summary>
       <label class="fld"><span>Забыть</span><select data-swap-out><option value="">Ничего не менять</option>${swappable.map(sp => `<option value="${esc(sp.id)}">${esc(sp.name)} (${sp.level} круг)</option>`).join("")}</select></label>
       <div data-swap-pick hidden>${pickerHtml("swapSpell")}</div></details>` : "";
     const invSec = pk.invocations ? `<section class="lu-sec">${pickerHtml("invocations", `<p class="hint">Серые пока недоступны: рядом написано, чего не хватает.</p>`)}</section>` : "";
-    const swapInvSec = pk.swapInvocation && ownInvs.length ? `<details class="lu-sec lu-swap" data-swap="inv"><summary><h3>${icon("history")}Заменить воззвание</h3><span class="hint">необязательно</span></summary>
+    const swapInvSec = pk.swapInvocation && ownInvs.length ? `<details class="lu-sec lu-swap" data-swap="inv"><summary><h3>${icon("gi/lorc/trade")}Заменить воззвание</h3><span class="hint">необязательно</span></summary>
       <label class="fld"><span>Убрать</span><select data-inv-out><option value="">Ничего не менять</option>${ownInvs.map(f => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join("")}</select></label>
       <div data-inv-pick hidden>${pickerHtml("swapInv")}</div></details>` : "";
-    const notesHtml = genericNotes.length ? `<section class="lu-sec"><h3>${icon("sparkle")}Ещё на этом уровне</h3><ul class="lu-todo">${genericNotes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>${cls ? "" : `<p class="hint">Класс не распознан, поэтому подсказки общие. Проверь умения класса в книге игрока.</p>`}</section>` : "";
+    const notesHtml = genericNotes.length ? `<section class="lu-sec"><h3>${icon("gi/delapouite/checklist")}Ещё на этом уровне</h3><ul class="lu-todo">${genericNotes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>${cls ? "" : `<p class="hint">Класс не распознан, поэтому подсказки общие. Проверь умения класса в книге игрока.</p>`}</section>` : "";
     const m = openModal({
       title: `Повышение уровня: ${from} → ${plan.to}`,
       cls: "levelup",
       body: `<p class="lu-who">${esc(c.name)} · ${esc(cls ? cls.name : c.info.cls || "класс не указан")}${sub ? ` · ${esc(sub.name)}` : ""} · кость хитов ${esc(c.hitDie)}</p>
-        <section class="lu-sec"><h3>${icon("heart")}Хиты за уровень</h3>
+        <section class="lu-sec"><h3>${icon("gi/zeromancer/heart-plus")}Хиты за уровень</h3>
           <label class="fld chk"><input type="radio" name="lu-hp" value="avg" checked><span>Среднее: ${avg} ${fmt(con)} = <b>+${Math.max(1, avg + con)}</b></span></label>
           <label class="fld chk"><input type="radio" name="lu-hp" value="roll"><span>Бросить ${esc(c.hitDie)} ${fmt(con)} <b data-roll-res></b></span></label>
           <button class="btn sm" data-roll-hp>${icon("d20")}Бросить ${esc(c.hitDie)}</button>
         </section>
         ${featsHtml}
         ${choiceHtml}
-        ${spellSec ? `<section class="lu-sec"><h3>${icon("book")}Заклинания</h3>${spellSec}</section>` : ""}
+        ${spellSec ? `<section class="lu-sec"><h3>${icon("gi/delapouite/spell-book")}Заклинания</h3>${spellSec}</section>` : ""}
         ${swapSpellSec}
         ${invSec}
         ${swapInvSec}
         ${asiHtml}
-        <section class="lu-sec"><h3>${icon("check")}Изменится само</h3><div data-changes>${changesHtml()}</div></section>
+        <section class="lu-sec"><h3>${icon("gi/lorc/cycle")}Изменится само</h3><div data-changes>${changesHtml()}</div></section>
         ${notesHtml}
         <p class="lu-left hint" data-left></p>
         <div class="form-actions"><button class="btn ghost" data-close>Отмена</button><button class="btn gold" data-go>${icon("star")}Повысить уровень</button></div>`
