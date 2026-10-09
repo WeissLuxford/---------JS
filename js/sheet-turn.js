@@ -1,7 +1,7 @@
 import { DAMAGE, fmt, usesInfo, uid, presetEffect, cleanEffect, EFFECT_PRESETS, STANDARD_ACTIONS, movementInfo, ACTIONS, sceneInfo } from "./rules.js";
 import { icon, actionMark } from "./icons.js";
 import { esc, $, toast, openModal, openForm } from "./ui.js";
-import { combatSources } from "./tabs.js";
+import { combatSources, icBox } from "./tabs.js";
 import { itemIcon, spellIcon, featureIcon, attackIcon, effectFields } from "./entities.js";
 import { clone } from "./sheet-util.js";
 export function installTurn(X) {
@@ -12,7 +12,7 @@ export function installTurn(X) {
     const a = ACTIONS[kind];
     const used = !!S.ui.turn[kind];
     const rows = [];
-    const row = (ref, ic, color, name, sub, off = false) => rows.push({ html: `<button class="am-row ${off ? "off" : ""}" data-am-open="${esc(ref)}" style="--c:${color}">${icon(ic)}<span><b>${esc(name)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</span></button>` });
+    const row = (ref, ic, color, name, sub, off = false, fx = "") => rows.push({ html: `<button class="am-row ${off ? "off" : ""}" data-am-open="${esc(ref)}" style="--c:${color}">${icBox(ic, color, fx)}<span><b>${esc(name)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</span></button>` });
     const groups = [];
     const flushGroup = title => {
       if (rows.length) groups.push(`<div class="am-group">${esc(title)}</div>${rows.splice(0).map(r => r.html).join("")}`);
@@ -29,7 +29,7 @@ export function installTurn(X) {
     c.spells.filter(sp => (sp.action || "action") === kind).forEach(sp => {
       const ready = X.spellReady(sp);
       const ic = spellIcon(c, sp);
-      row("spell:" + sp.id, ic.icon, ic.color, sp.name, [Number(sp.level) ? `${sp.level} круг` : "заговор", ready === false ? "нечем заплатить" : ready].filter(Boolean).join(" · "), ready === false);
+      row("spell:" + sp.id, ic.icon, ic.color, sp.name, [Number(sp.level) ? `${sp.level} круг` : "заговор", ready === false ? "нечем заплатить" : ready].filter(Boolean).join(" · "), ready === false, "hot");
     });
     flushGroup("Заклинания");
     c.features.filter(f => f.action === kind).forEach(f => {

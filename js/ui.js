@@ -424,9 +424,15 @@ function rollOut(html, { timeout, kind = "", append = false } = {}) {
   return close;
 }
 
-function critBanner(kind, entry) {
+const NAT = {
+  attack: { crit: ["Попадание, крит", "Естественная 20: кости урона вдвое"], fumble: ["Промах", "Естественная 1: мимо при любой сумме"] },
+  death: { crit: ["Снова в строю", "Естественная 20: 1 хит"], fumble: ["Два провала", "Естественная 1"] }
+};
+
+function critBanner(kind, entry, special = "attack") {
+  const [title, sub] = (NAT[special] || NAT.attack)[kind];
   if (rollCardOn()) {
-    if (entry && !entry.querySelector(".rc-crit")) entry.insertAdjacentHTML("afterbegin", `<div class="rc-crit ${kind}">${kind === "crit" ? "Критический успех" : "Критический провал"}</div>`);
+    if (entry && !entry.querySelector(".rc-crit")) entry.insertAdjacentHTML("afterbegin", `<div class="rc-crit ${kind}">${esc(title)}</div>`);
     return;
   }
   if (!fxSettings().anim) return;
@@ -438,14 +444,14 @@ function critBanner(kind, entry) {
     document.body.appendChild(el);
   }
   el.className = "";
-  el.innerHTML = kind === "crit" ? `<b>Критический успех</b><span>Естественная 20</span>` : `<b>Критический провал</b><span>Естественная 1</span>`;
+  el.innerHTML = `<b>${esc(title)}</b><span>${esc(sub)}</span>`;
   void el.offsetWidth;
   el.className = `in ${kind}`;
   clearTimeout(el._t);
   el._t = setTimeout(() => (el.className = ""), 1900);
 }
 
-function rollFx(el, { finals = [], crit = false, fumble = false, ms = 620, dice = 1, landed = false } = {}) {
+function rollFx(el, { finals = [], crit = false, fumble = false, ms = 620, dice = 1, landed = false, special = "attack" } = {}) {
   const fx = fxSettings();
   const totals = Array.from(el.querySelectorAll("[data-final]"));
   const land = () => {
@@ -454,11 +460,11 @@ function rollFx(el, { finals = [], crit = false, fumble = false, ms = 620, dice 
     if (crit) {
       el.classList.add("crit-fx");
       playSound("crit");
-      critBanner("crit", el);
+      critBanner("crit", el, special);
     } else if (fumble) {
       el.classList.add("fumble-fx");
       playSound("fumble");
-      critBanner("fumble", el);
+      critBanner("fumble", el, special);
     }
   };
   if (landed) return land();
@@ -490,16 +496,18 @@ function whyHtml(why, fail) {
   return `${fail ? `<div class="r-fail">Автоматический провал: ${esc(fail)}</div>` : ""}${(why || []).map(w => `<div class="r-why">${esc(w)}</div>`).join("")}`;
 }
 
-export function showD20(label, modifier, result, mode, { why = [], fail = "", extra = "", landed = false } = {}) {
-  const cls = result.nat20 ? "crit" : result.nat1 ? "fumble" : "";
+export function showD20(label, modifier, result, mode, { why = [], fail = "", extra = "", landed = false, special = "attack" } = {}) {
+  const nat20 = !!special && result.nat20;
+  const nat1 = !!special && result.nat1;
+  const cls = nat20 ? "crit" : nat1 ? "fumble" : "";
   const both = result.b != null ? `<span class="r-both">${result.a} / ${result.b} ${mode === "adv" ? "преим." : "помеха"}</span>` : "";
-  const note = result.nat20 ? "Естественная 20!" : result.nat1 ? "Естественная 1" : "";
+  const note = nat20 ? NAT[special].crit[1] : nat1 ? NAT[special].fumble[1] : "";
   logRoll({ label, text: `${fail ? "провал" : result.total} (${result.pick}${fmt(modifier)})` });
   const t = rollOut(
-    `<div class="roll ${cls} ${fail ? "failed" : ""}">${die(20, result.nat20 ? "#f4d66d" : result.nat1 ? "#e5533d" : "#cbbfa8", result.pick)}<div class="r-body"><div class="r-label">${esc(label)}</div><div class="r-calc">${result.pick} ${fmt(modifier).replace(/^([+−])/, "$1 ")} ${both}</div>${note ? `<div class="r-note">${note}</div>` : ""}${whyHtml(why, fail)}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div><div class="r-total" ${fail ? "" : `data-final="${result.total}"`}>${fail ? "✕" : result.total}</div></div>`,
+    `<div class="roll ${cls} ${fail ? "failed" : ""}">${die(20, nat20 ? "#f4d66d" : nat1 ? "#e5533d" : "#cbbfa8", result.pick)}<div class="r-body"><div class="r-label">${esc(label)}</div><div class="r-calc">${result.pick} ${fmt(modifier).replace(/^([+−])/, "$1 ")} ${both}</div>${note ? `<div class="r-note">${note}</div>` : ""}${whyHtml(why, fail)}${extra ? `<div class="r-btns">${extra}</div>` : ""}</div><div class="r-total" ${fail ? "" : `data-final="${result.total}"`}>${fail ? "✕" : result.total}</div></div>`,
     { timeout: extra ? 9000 : why.length || fail ? 6500 : 4500, kind: /атака/i.test(label) || /data-hit-dmg/.test(extra) ? "attack" : "d20" }
   );
-  rollFx(t.el, { crit: result.nat20, fumble: result.nat1, dice: result.b != null ? 2 : 1, landed });
+  rollFx(t.el, { crit: nat20, fumble: nat1, dice: result.b != null ? 2 : 1, landed, special });
 }
 
 export function showBeams(label, modifier, results, mode, { why = [], extra = "", landed = false } = {}) {
@@ -913,8 +921,38 @@ export function diceStack(lines) {
   return `<div class="dice-block"><div class="dice-stack n${Math.min(3, lines.length)}">${dice}</div><div class="dice-texts">${texts}</div></div>`;
 }
 
+const FX_CORE = { "#ff8a3d": "#ffe98a", "#ff7a4a": "#ffe08a", "#ea5a73": "#ffc4dc", "#f0b75a": "#fff1b8", "#f4d66d": "#fffbe0" };
+
+function mixTo(hex, to, k) {
+  return "#" + [1, 3, 5].map(i => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - k) + to * k).toString(16).padStart(2, "0")).join("");
+}
+
+export function artFx(fx, color, k = 1) {
+  if (!fx || !/^#[0-9a-f]{6}$/i.test(color) || typeof document === "undefined" || typeof document.getElementById !== "function" || !document.body) return "";
+  const c = color.toLowerCase();
+  const id = `fx-${fx}-${c.slice(1)}${k === 1 ? "" : "-s"}`;
+  if (document.getElementById(id)) return id;
+  let host = document.getElementById("art-fx");
+  if (!host) {
+    host = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    host.id = "art-fx";
+    host.setAttribute("width", "0");
+    host.setAttribute("height", "0");
+    host.setAttribute("aria-hidden", "true");
+    host.style.position = "absolute";
+    document.body.appendChild(host);
+  }
+  const glow = `<feGaussianBlur in="SourceAlpha" stdDeviation="${3 * k}" result="g1"/><feGaussianBlur in="SourceAlpha" stdDeviation="${8 * k}" result="g2"/><feComponentTransfer in="g1" result="g1a"><feFuncA type="linear" slope=".6"/></feComponentTransfer><feComponentTransfer in="g2" result="g2a"><feFuncA type="linear" slope=".4"/></feComponentTransfer><feMerge result="gm"><feMergeNode in="g2a"/><feMergeNode in="g1a"/></feMerge><feFlood flood-color="${c}"/><feComposite in2="gm" operator="in" result="glow"/>`;
+  const body = fx === "halo"
+    ? `<feMorphology in="SourceAlpha" operator="dilate" radius="${6 * k}" result="d"/><feMorphology in="d" operator="erode" radius="${6 * k}" result="closed"/><feGaussianBlur in="closed" stdDeviation="${9 * k}" result="h0"/><feComponentTransfer in="h0" result="h1"><feFuncA type="linear" slope=".9"/></feComponentTransfer><feFlood flood-color="${c}"/><feComposite in2="h1" operator="in" result="halo"/><feFlood flood-color="${mixTo(c, 0, .92)}"/><feComposite in2="SourceAlpha" operator="in" result="body"/><feMerge><feMergeNode in="halo"/><feMergeNode in="body"/></feMerge>`
+    : `${glow}<feFlood flood-color="${c}"/><feComposite in2="SourceAlpha" operator="in" result="rim"/><feGaussianBlur in="SourceAlpha" stdDeviation="${2.2 * k}" result="sb"/><feComponentTransfer in="sb" result="cm0"><feFuncA type="linear" slope="3.2" intercept="-1.75"/></feComponentTransfer><feComposite in="cm0" in2="SourceAlpha" operator="in" result="cm"/><feFlood flood-color="${FX_CORE[c] || mixTo(c, 255, .62)}"/><feComposite in2="cm" operator="in" result="core"/><feMerge><feMergeNode in="glow"/><feMergeNode in="rim"/><feMergeNode in="core"/></feMerge>`;
+  host.insertAdjacentHTML("beforeend", `<filter id="${id}" x="-60%" y="-60%" width="220%" height="220%" color-interpolation-filters="sRGB">${body}</filter>`);
+  return id;
+}
+
 export function card(m) {
-  const art = m.art ? `<div class="card-art" style="--c:${m.art.color || "#e9c77a"}">${icon(m.art.icon)}</div>` : "";
+  const fx = m.art ? artFx(m.art.fx, m.art.color || "") : "";
+  const art = m.art ? `<div class="card-art${fx ? " fx" : ""}${m.art.fx === "flat" ? " flat" : ""}" style="--c:${m.art.color || "#e9c77a"}${fx ? `;--fx:url(#${fx})` : ""}">${icon(m.art.icon)}</div>` : "";
   const badges = (m.badges || []).filter(b => b && b.text).map(b => `<span class="badge" style="--c:${b.color || "#c9a35b"}">${esc(b.text)}</span>`).join("");
   const meta = (m.meta || []).filter(x => x && x.text).map(x => `<span class="meta-i">${icon(x.icon)}${esc(x.text)}</span>`).join("");
   const footer = (m.footer || []).filter(Boolean).map(f => `<span class="foot-i">${f.mark || ""}${esc(f.text)}</span>`).join("");

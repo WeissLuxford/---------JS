@@ -1,11 +1,11 @@
 import { GEAR } from "./gear.js";
 export const ABILITIES = [
-  { key: "str", icon: "tw/ability/strength", name: "Сила", short: "СИЛ", desc: "Физическая мощь: атаки и урон оружием ближнего боя, Атлетика, переноска тяжестей." },
-  { key: "dex", icon: "tw/ability/dexterity", name: "Ловкость", short: "ЛОВ", desc: "Проворство и реакция: КД без тяжёлой брони, инициатива, дальнобойное и фехтовальное оружие." },
-  { key: "con", icon: "tw/ability/constitution", name: "Телосложение", short: "ТЕЛ", desc: "Здоровье и выносливость: хиты за уровень, удержание концентрации." },
-  { key: "int", icon: "tw/ability/intelligence", name: "Интеллект", short: "ИНТ", desc: "Память и логика: Магия, История, Анализ, Природа, Религия." },
-  { key: "wis", icon: "tw/ability/wisdom", name: "Мудрость", short: "МДР", desc: "Восприятие и интуиция: Внимательность, Проницательность, Медицина, Выживание." },
-  { key: "cha", icon: "tw/ability/charisma", name: "Харизма", short: "ХАР", desc: "Сила личности: Убеждение, Обман, Запугивание, Выступление." }
+  { key: "str", color: "#ff5a4a", icon: "tw/ability/strength", name: "Сила", short: "СИЛ", desc: "Физическая мощь: атаки и урон оружием ближнего боя, Атлетика, переноска тяжестей." },
+  { key: "dex", color: "#5fd36a", icon: "tw/ability/dexterity", name: "Ловкость", short: "ЛОВ", desc: "Проворство и реакция: КД без тяжёлой брони, инициатива, дальнобойное и фехтовальное оружие." },
+  { key: "con", color: "#ff9a3c", icon: "tw/ability/constitution", name: "Телосложение", short: "ТЕЛ", desc: "Здоровье и выносливость: хиты за уровень, удержание концентрации." },
+  { key: "int", color: "#4fa3ff", icon: "tw/ability/intelligence", name: "Интеллект", short: "ИНТ", desc: "Память и логика: Магия, История, Анализ, Природа, Религия." },
+  { key: "wis", color: "#e9d36a", icon: "tw/ability/wisdom", name: "Мудрость", short: "МДР", desc: "Восприятие и интуиция: Внимательность, Проницательность, Медицина, Выживание." },
+  { key: "cha", color: "#c77dff", icon: "tw/ability/charisma", name: "Харизма", short: "ХАР", desc: "Сила личности: Убеждение, Обман, Запугивание, Выступление." }
 ];
 
 export const ABILITY_KEYS = ABILITIES.map(a => a.key);
@@ -310,12 +310,12 @@ export const RECHARGE = {
 };
 
 export const RARITY = {
-  common: { name: "Обычный", color: "#cfc6b6" },
+  common: { name: "Обычный", color: "#cfc6b6", fx: "flat" },
   uncommon: { name: "Необычный", color: "#4fcf6a" },
   rare: { name: "Редкий", color: "#4aa8ff" },
-  veryRare: { name: "Очень редкий", color: "#b46bff" },
-  legendary: { name: "Легендарный", color: "#e6a940" },
-  artifact: { name: "Артефакт", color: "#ff6f4a" },
+  veryRare: { name: "Очень редкий", color: "#b46bff", fx: "hot" },
+  legendary: { name: "Легендарный", color: "#e6a940", fx: "hot" },
+  artifact: { name: "Артефакт", color: "#ff6f4a", fx: "hot" },
   story: { name: "Сюжетный", color: "#e9c77a" }
 };
 

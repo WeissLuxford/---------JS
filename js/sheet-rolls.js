@@ -43,7 +43,7 @@ export function installRolls(X) {
   const twoDice = mode => mode === "adv" || mode === "dis";
   const roll3d = n => (dice3dReady() ? throw3d(n) : null);
   const dropped = (r, mode) => (r.b == null ? -1 : mode === "adv" ? (r.a >= r.b ? 1 : 0) : r.a <= r.b ? 1 : 0);
-  const landD20 = (r, mode, text = String(r.total)) => landDice({ text, kind: r.nat20 ? "crit" : r.nat1 ? "fumble" : "", discard: dropped(r, mode) });
+  const landD20 = (r, mode, text = String(r.total), special = "attack") => landDice({ text, kind: !special ? "" : r.nat20 ? "crit" : r.nat1 ? "fumble" : "", discard: dropped(r, mode) });
 
   const trackD20 = (r, mode, tag) => X.track("d20", { pick: r.pick, a: r.a, b: r.b, mode, total: r.total, kind: tag });
 
@@ -55,8 +55,9 @@ export function installRolls(X) {
     if (S.disposed) return null;
     const r = rollD20(modifier, st.mode, preset || []);
     const parts = addBonus(r, st);
-    if (preset) landD20(r, st.mode, st.fail ? "✕" : String(r.total));
-    showD20(label, modifier, r, st.mode, { why: [...bonusLines(parts), ...st.why], fail: st.fail, extra: typeof extra === "function" ? extra(r) : extra || "", landed: !!preset });
+    const special = kind === "attack" ? "attack" : "";
+    if (preset) landD20(r, st.mode, st.fail ? "✕" : String(r.total), special);
+    showD20(label, modifier, r, st.mode, { why: [...bonusLines(parts), ...st.why], fail: st.fail, extra: typeof extra === "function" ? extra(r) : extra || "", landed: !!preset, special });
     consumeOnce(st);
     trackD20(r, st.mode, tag);
     return r;
@@ -238,8 +239,8 @@ export function installRolls(X) {
       if (S.disposed || !S.c) return;
       const r = rollD20(0, st.mode, preset || []);
       const parts = addBonus(r, st);
-      if (preset) landD20(r, st.mode);
-      showD20("Спасбросок от смерти", 0, r, st.mode, { why: [...bonusLines(parts), ...st.why], landed: !!preset });
+      if (preset) landD20(r, st.mode, String(r.total), "death");
+      showD20("Спасбросок от смерти", 0, r, st.mode, { why: [...bonusLines(parts), ...st.why], landed: !!preset, special: "death" });
       consumeOnce(st);
       trackD20(r, st.mode, "death");
       let outcome = "";

@@ -9,7 +9,7 @@ await ctx.route(/googleapis\.com|google\.com|firebasejs/, x => x.abort());
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", e => errors.push(e.message));
-await page.goto("http://localhost:8765/#/c/kirion-thorndike/char");
+await page.goto("http://localhost:8765/?sw#/c/kirion-thorndike/char");
 await page.waitForSelector(".sheet");
 const active = await page.evaluate(async () => { const reg = await navigator.serviceWorker.ready; return !!reg.active; });
 ok("service worker active", active);

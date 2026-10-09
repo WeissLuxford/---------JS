@@ -1,6 +1,6 @@
 import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, containerTree, fmt, usesInfo, spellCast, effectSummary, spellInCombat, itemInCombat, featureInCombat, xpInfo, ammoFor, sceneInfo } from "./rules.js";
 import { icon, actionMark, acIcon, hpIcon, PORTRAIT_PLACEHOLDER } from "./icons.js";
-import { esc, pips, rich } from "./ui.js";
+import { esc, pips, rich, artFx } from "./ui.js";
 import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum, PROF_KINDS } from "./entities.js";
 import { NOTE_SECTIONS, SECTION_NAME, NOTE_STATUS, NOTE_ATTITUDE, CLUE_STATE, noteTagsOf, searchNotes, queryStems, highlight, snippetHtml, plainText, richLinks, backlinks, currentSession, pinnedNotes, linkTargets } from "./notes.js";
 
@@ -128,21 +128,23 @@ function defenseLines(c) {
 
 export function tabChar(ctx) {
   const { c, d } = ctx;
+  const abColor = k => (ABILITIES.find(a => a.key === k) || {}).color || "var(--gold-2)";
+  const sense = (k, label, calc, v) => { const s = SKILLS.find(x => x.key === k); return `<div style="--ac:${abColor(s.ab)}"><span>${icon(s.icon)}${label}</span><b data-calc="${calc}">${v}</b></div>`; };
   const abil = ABILITIES.map(a => `
     <div class="abil" data-card="ability:${a.key}">
-      <button class="abil-top" data-roll="check:${a.key}">${icon(a.icon, "abil-ic")}<span class="abil-mod" data-calc="mod.${a.key}">${fmt(d.mods[a.key])}</span><span class="abil-name">${a.key === "con" ? "Телосл." : a.name} <b class="abil-num" data-calc="score.${a.key}">${esc(c.abilities[a.key])}</b></span></button>
+      <button class="abil-top" data-roll="check:${a.key}" style="--ac:${a.color}">${icon(a.icon, "abil-ic")}<span class="abil-mod" data-calc="mod.${a.key}">${fmt(d.mods[a.key])}</span><span class="abil-name">${a.key === "con" ? "Телосл." : a.name} <b class="abil-num" data-calc="score.${a.key}">${esc(c.abilities[a.key])}</b></span></button>
     </div>`).join("");
   const saves = ABILITIES.map(a => `
     <div class="row">
-      <button class="prof ${c.saves[a.key] ? "p1" : ""}" data-act="toggle-save" data-k="${a.key}" title="Владение" aria-label="Владение спасброском: ${a.name}" aria-pressed="${c.saves[a.key] ? "true" : "false"}"></button>
+      <button class="prof prof-ic ${c.saves[a.key] ? "p1" : "p0"}" style="--ac:${a.color}" data-act="toggle-save" data-k="${a.key}" title="Владение" aria-label="Владение спасброском: ${a.name}" aria-pressed="${c.saves[a.key] ? "true" : "false"}">${icon(a.icon)}</button>
       <button class="row-name" data-roll="save:${a.key}">${a.name}</button>
       <span class="row-val" data-calc="save.${a.key}">${fmt(d.saves[a.key])}</span>
     </div>`).join("");
   const skills = SKILLS.map(s => {
     const p = Number(c.skills[s.key]) || 0;
     return `<div class="row" data-card="skill:${s.key}">
-      <button class="prof p${p}" data-act="cycle-skill" data-k="${s.key}" title="Нет / владение / компетентность" aria-label="${s.name}: ${["нет владения", "владение", "компетентность"][p]}"></button>
-      <button class="row-name" data-roll="skill:${s.key}">${icon(s.icon, "sk-ic")}${s.name}<small>${abShort(s.ab)}</small></button>
+      <button class="prof prof-ic p${p}" style="--ac:${(ABILITIES.find(a => a.key === s.ab) || {}).color || "var(--gold-2)"}" data-act="cycle-skill" data-k="${s.key}" title="Нет / владение / компетентность" aria-label="${s.name}: ${["нет владения", "владение", "компетентность"][p]}">${icon(s.icon)}</button>
+      <button class="row-name" data-roll="skill:${s.key}">${s.name}<small>${abShort(s.ab)}</small></button>
       <span class="row-val" data-calc="skill.${s.key}">${fmt(d.skills[s.key])}</span>
     </div>`;
   }).join("");
@@ -151,7 +153,7 @@ export function tabChar(ctx) {
     return `<div class="prof-line"><span class="prof-l">${l}</span><span class="prof-chips">${list.length ? list.map(x => `<span class="prof-chip">${esc(x)}</span>`).join("") : `<span class="dim">Нет</span>`}</span></div>`;
   }).join("");
   const caster = c.spellAbility && ((c.spells || []).length || (c.casterType && c.casterType !== "none"));
-  const spellLine = caster ? `<button class="spell-line" data-act="go-tab" data-to="spells">${icon("book")}<span>Заклинания: СЛ <b data-calc="dc">${d.spell.dc}</b> · атака <b data-calc="satk">${fmt(d.spell.atk)}</b></span></button>` : "";
+  const spellLine = caster ? `<button class="spell-line" data-act="go-tab" data-to="spells" style="--ac:${abColor(c.spellAbility)}">${icon("book")}<span>Заклинания: СЛ <b data-calc="dc">${d.spell.dc}</b> · атака <b data-calc="satk">${fmt(d.spell.atk)}</b></span></button>` : "";
 
   return `
   <div class="char-grid">
@@ -184,9 +186,9 @@ export function tabChar(ctx) {
       ${hpPanel(ctx)}
       ${panel("Чувства", `
         <div class="senses">
-          <div><span>Пассивная Внимательность</span><b data-calc="pp">${d.passive.perception}</b></div>
-          <div><span>Пассивная Проницательность</span><b data-calc="pi">${d.passive.insight}</b></div>
-          <div><span>Пассивный Анализ</span><b data-calc="pinv">${d.passive.investigation}</b></div>
+          ${sense("perception", "Пассивная Внимательность", "pp", d.passive.perception)}
+          ${sense("insight", "Пассивная Проницательность", "pi", d.passive.insight)}
+          ${sense("investigation", "Пассивный Анализ", "pinv", d.passive.investigation)}
           ${c.senses ? `<div class="full"><span>${esc(c.senses)}</span></div>` : ""}
           ${defenseLines(c)}
         </div>`, { ic: "tw/attribute/vision", cls: "p-senses" })}
@@ -198,12 +200,22 @@ export function tabChar(ctx) {
   ${panel("Владения и языки", `<div class="prof-grid">${prof}</div>`, { ic: "gi/lorc/anvil", actions: `<button class="btn ghost sm" data-act="edit-prof">${icon("edit")}Изменить</button>` })}`;
 }
 
-function combatRow({ rid, open, name, sub, color, ic, hit, dmg }) {
+export function icBox(ic, color, fx) {
+  const f = fx ? artFx(fx, color, .3) : "";
+  return `<i class="ic-box"${f ? ` style="--fx:url(#${f})"` : ""}>${icon(ic)}</i>`;
+}
+
+function combatRow({ rid, open, name, sub, color, ic, hit, dmg, fx }) {
   return `<div class="atk-row" data-rid="${esc(rid)}">
-    <button class="atk-name" data-open="${esc(open)}" data-card="${esc(open)}" style="--c:${color}">${icon(ic)}<span><b>${esc(name)}</b><small>${esc(sub || "")}</small></span></button>
+    <button class="atk-name" data-open="${esc(open)}" data-card="${esc(open)}" style="--c:${color}">${icBox(ic, color, fx)}<span><b>${esc(name)}</b><small>${esc(sub || "")}</small></span></button>
     ${hit}
     ${dmg}
   </div>`;
+}
+
+function abMark(key) {
+  const a = ABILITIES.find(x => x.key === key);
+  return a ? `<i class="hit-ab" style="--ac:${a.color}" title="${esc(a.name)}">${icon(a.icon)}</i>` : "";
 }
 
 function dmgChip(roll, beams, dice, type) {
@@ -224,7 +236,7 @@ function attackRow(ctx, at) {
 function weaponRow(ctx, it) {
   const w = ctx.d.weapons[it.id];
   const dt = DAMAGE[w.type] || DAMAGE.bludgeoning;
-  const hit = `<button class="chip hit" data-roll="iattack:${esc(it.id)}">${fmt(w.hit)}</button>`;
+  const hit = `<button class="chip hit" data-roll="iattack:${esc(it.id)}">${abMark(w.ability === "spell" ? ctx.c.spellAbility : w.ability)}${fmt(w.hit)}</button>`;
   return combatRow({ rid: it.id, open: "item:" + it.id, name: it.name, sub: (w.range || "") + ammoNote(ctx.c, it), color: dt.color, ic: itemIcon(it), hit, dmg: dmgChip("idmg:" + it.id, 1, w.dmg + (w.lines.length > 1 ? " + …" : ""), w.type) });
 }
 
@@ -234,9 +246,9 @@ function spellRow(ctx, sp) {
   const first = cast.lines.find(l => l.type !== "healing" && l.type !== "temp") || cast.lines[0];
   const ic = spellIcon(c, sp);
   const hit = sp.attack
-    ? `<button class="chip hit" data-roll="sattack:${esc(sp.id)}">${cast.beams > 1 ? `<small>${cast.beams}×</small>` : ""}${fmt(spellAtk(d, sp))}</button>`
+    ? `<button class="chip hit" data-roll="sattack:${esc(sp.id)}">${abMark(c.spellAbility)}${cast.beams > 1 ? `<small>${cast.beams}×</small>` : ""}${fmt(spellAtk(d, sp))}</button>`
     : sp.save ? `<span class="chip dc">СЛ ${spellDc(d, sp)} ${abShort(sp.save)}</span>` : `<span></span>`;
-  return combatRow({ rid: sp.id, open: "spell:" + sp.id, name: sp.name, sub: [Number(sp.level) ? `${sp.level} круг` : "заговор", sp.range].filter(Boolean).join(" · "), color: ic.color, ic: ic.icon, hit, dmg: first ? dmgChip("sdmg:" + sp.id, cast.beams, first.dice, first.type) : "" });
+  return combatRow({ rid: sp.id, open: "spell:" + sp.id, name: sp.name, sub: [Number(sp.level) ? `${sp.level} круг` : "заговор", sp.range].filter(Boolean).join(" · "), color: ic.color, ic: ic.icon, fx: "hot", hit, dmg: first ? dmgChip("sdmg:" + sp.id, cast.beams, first.dice, first.type) : "" });
 }
 
 const nameKey = s => String(s || "").trim().toLowerCase().replace(/ё/g, "е");
@@ -409,7 +421,7 @@ function spellTile(ctx, sp) {
   const flags = [sp.concentration ? `<i class="flag" title="Концентрация">К</i>` : "", sp.ritual ? `<i class="flag" title="Ритуал">Р</i>` : "", unprep ? `<i class="flag off" title="Не подготовлено">н/п</i>` : "", sp.cost === "item" ? `<i class="flag green" title="Тратит заряды предмета">${icon("gi/lorc/candle-light")}</i>` : ""].join("");
   const search = [sp.name, sp.nameEn, sp.source].filter(Boolean).join(" ").toLowerCase();
   return `<button class="tile ${unprep ? "unprep" : ""}" data-rid="${esc(sp.id)}" data-open="spell:${esc(sp.id)}" data-card="spell:${esc(sp.id)}" data-search="${esc(search)}" style="--c:${ic.color}">
-    <span class="tile-ic">${icon(ic.icon)}</span>
+    <span class="tile-ic fx"${(f => f ? ` style="--fx:url(#${f})"` : "")(artFx("hot", ic.color, .35))}>${icon(ic.icon)}</span>
     <span class="tile-main"><span class="tile-name">${esc(sp.name)}</span><span class="tile-sub">${actionMark(a.shape, a.color)}<span class="tile-sub-t">${esc(sp.castTime || a.name)}${dmg ? ` · <span class="tile-dmg">${esc(dmg)}</span>` : ""}</span></span></span>
     <span class="tile-side">${flags}${u ? pips(u.max, u.left, "#e9a54a") : ""}</span>
   </button>`;
@@ -417,14 +429,15 @@ function spellTile(ctx, sp) {
 
 export function tabSpells(ctx) {
   const { c, d } = ctx;
-  const abil = (ABILITIES.find(a => a.key === c.spellAbility) || {}).name || "не выбрана";
+  const sa = ABILITIES.find(a => a.key === c.spellAbility) || {};
+  const abil = sa.name || "не выбрана";
   const head = `
-    <div class="spell-head">
+    <div class="spell-head" style="--ac:${sa.color || "var(--gold)"}">
       ${statMedal("СЛ спасброска", d.spell.dc, { calc: "dc", ic: "tw/attribute/test" })}
       ${statMedal("Бонус атаки", fmt(d.spell.atk), { calc: "satk", roll: "spellatk", ic: "gi/lorc/target-arrows" })}
       ${statMedal("Модификатор", fmt(d.spell.mod), { ic: "tw/attribute/bonus" })}
     </div>
-    <button class="spell-abil" data-act="spell-ability" title="Изменить заклинательную характеристику">Заклинательная характеристика: <b>${esc(abil)}</b>${icon("edit")}</button>
+    <button class="spell-abil" data-act="spell-ability" title="Изменить заклинательную характеристику" style="--ac:${sa.color || "var(--gold-2)"}">Заклинательная характеристика: <b>${esc(abil)}</b>${icon("edit")}</button>
     ${slotsBlock(ctx)}`;
   const f = ctx.ui.spellFilter || "all";
   const hasUnprep = c.spells.some(sp => Number(sp.level) > 0 && sp.prepared === false);
@@ -540,7 +553,7 @@ export function tabInventory(ctx) {
   const slot = it => {
     const r = RARITY[it.rarity] || RARITY.common;
     return `<button class="slot ${it.equipped ? "eq" : ""} ${it.isContainer ? "box" : ""}" data-rid="${esc(it.id)}" data-open="item:${esc(it.id)}" data-card="item:${esc(it.id)}" style="--c:${r.color}">
-      <span class="slot-ic">${icon(itemIcon(it))}</span>
+      <span class="slot-ic${r.fx === "flat" ? " flat" : ""}"${(f => f ? ` style="--fx:url(#${f})"` : "")(r.fx === "hot" ? artFx("hot", r.color, .45) : "")}>${icon(itemIcon(it))}</span>
       ${Number(it.qty) > 1 ? `<span class="slot-qty">${it.qty}</span>` : ""}
       ${it.attuned ? `<span class="slot-att" title="Настроено">${icon("sparkle")}</span>` : ""}
       ${it.isContainer && tree[it.id] && tree[it.id].count ? `<span class="slot-box" title="Внутри">${tree[it.id].count}</span>` : ""}

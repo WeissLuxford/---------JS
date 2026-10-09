@@ -89,6 +89,7 @@ const SPELL_WORDS = [
 ].map(([w, ic]) => [W(w), ic]);
 
 const FEATURE_WORDS = [
+  ["ледян", "gi/lorc/frostfire"], ["запретн", "gi/lorc/burning-book"],
   ["рывок|проворн|быстр|скорост", "gi/lorc/sprint"], ["увеличение характеристик|компетентн|мастерств", "gi/delapouite/upgrade"], ["ки(?![а-яё])|монастыр|медитац", "gi/delapouite/yin-yang"], ["критическ", "gi/delapouite/dice-twenty-faces-twenty"], ["нежит|смерт", "gi/lorc/reaper-scythe"], ["алхими|зель", "gi/lorc/fizzing-flask"], ["звёзд|звезд|созвезд", "gi/delapouite/polar-star"],
   ["зрени|глаз|взор", "gi/lorc/eyeball"], ["маск|облик|личин", "gi/lorc/drama-masks"], ["живуч|жизн|здоров|крепк", "gi/zeromancer/heart-plus"], ["крыл|полёт|полет", "gi/lorc/feathered-wing"],
   ["рог|наследи|тифлинг|дьявол|адск", "gi/lorc/bull-horns"], ["гримуар|книг|архив|знани|учён|учен", "gi/delapouite/spell-book"], ["сопротивл|защит|стойк", "gi/lorc/checked-shield"],
@@ -203,7 +204,7 @@ export function spellModel(c, d, sp, slotLevel, extra = 0) {
   return {
     title: sp.name,
     subtitle: spellLevelText(sp) + (sp.nameEn ? ` · ${sp.nameEn}` : ""),
-    art: spellIcon(c, sp),
+    art: { ...spellIcon(c, sp), fx: "hot" },
     badges: [sp.source ? { text: sp.source } : null, castLvlNote ? { text: castLvlNote, color: "#c07cff" } : null],
     dice: lines,
     body,
@@ -262,7 +263,7 @@ export function itemModel(c, d, it) {
   return {
     title: it.name,
     subtitle: `${t.name} · ${r.name}`,
-    art: { icon: itemIcon(it), color: r.color },
+    art: { icon: itemIcon(it), color: r.color, fx: r.fx },
     rarityColor: r.color,
     badges: [it.equipped ? { text: "Экипировано", color: "#e9c77a" } : null, it.requiresAttunement ? { text: it.attuned ? "Настроено" : "Требует настройки", color: it.attuned ? "#b46bff" : "#8d8577" } : null],
     dice: lines,
@@ -296,11 +297,12 @@ export function attackModel(c, d, at) {
 export function skillModel(c, d, key) {
   const s = SKILLS.find(x => x.key === key);
   const p = Number(c.skills[key]) || 0;
+  const abColor = (ABILITIES.find(a => a.key === s.ab) || {}).color || "var(--gold-2)";
   return {
     title: s.name,
     subtitle: `Навык · ${abName(s.ab)}`,
-    art: { icon: s.icon, color: "var(--gold-2)" },
-    badges: [{ text: p === 2 ? "Компетентность" : p === 1 ? "Владение" : "Без владения", color: p ? "var(--gold-2)" : "#8d8577" }],
+    art: { icon: s.icon, color: abColor, fx: "flat" },
+    badges: [{ text: p === 2 ? "Компетентность" : p === 1 ? "Владение" : "Без владения", color: p ? abColor : "#8d8577" }],
     stats: `<span class="big-num">${fmt(d.skills[key])}</span><span>${abShort(s.ab)} ${fmt(d.mods[s.ab])}${p ? ` · мастерство ${fmt(p === 2 ? d.pb * 2 : d.pb)}` : ""}</span>`,
     body: rich(s.desc + (key === "perception" ? `\n\nПассивная Внимательность: ${d.passive.perception}.` : "")),
     footer: [{ mark: actionMark("ring", "#e9c77a"), text: "Нажми, чтобы бросить" }]
@@ -312,7 +314,7 @@ export function abilityModel(c, d, key) {
   return {
     title: a.name,
     subtitle: "Характеристика",
-    art: { icon: a.icon, color: "var(--gold-2)" },
+    art: { icon: a.icon, color: a.color, fx: "flat" },
     stats: `<span class="big-num">${esc(c.abilities[key])}</span><span>Модификатор ${fmt(d.mods[key])} · Спасбросок ${fmt(d.saves[key])}${c.saves[key] ? " (владение)" : ""}</span>`,
     body: rich(a.desc)
   };
@@ -321,7 +323,7 @@ export function abilityModel(c, d, key) {
 export function conditionModel(key) {
   const k = CONDITIONS.find(x => x.key === key);
   if (!k) return null;
-  return { title: k.name, subtitle: "Состояние", art: { icon: k.icon || "skull", color: "#e5533d" }, body: rich(k.desc), footer: [{ mark: actionMark("ring", "#e5533d"), text: "Влияет на броски сам" }] };
+  return { title: k.name, subtitle: "Состояние", art: { icon: k.icon || "skull", color: "#e5533d", fx: "halo" }, body: rich(k.desc), footer: [{ mark: actionMark("ring", "#e5533d"), text: "Влияет на броски сам" }] };
 }
 
 const EXHAUSTION = ["Нет", "Помеха на проверки характеристик", "Скорость уменьшается вдвое", "Помеха на атаки и спасброски", "Максимум хитов уменьшается вдвое", "Скорость равна 0", "Смерть"];
@@ -387,7 +389,7 @@ export function statModel(c, d, key) {
   }
   if (key === "exhaustion") {
     const ex = Number(c.exhaustion) || 0;
-    return { title: "Истощение", subtitle: `Уровень ${ex}`, art: { icon: "gi/delapouite/tired-eye", color: "#e5533d" }, body: rich(EXHAUSTION.slice(1).map((t, i) => `- ${i + 1 <= ex ? "**" : ""}${i + 1}: ${t}${i + 1 <= ex ? "**" : ""}`).join("\n") + "\n\nЭффекты складываются. Длинный отдых снимает 1 уровень."), footer: [{ mark: actionMark("ring", "#e5533d"), text: "Влияет на броски, скорость и хиты сам" }] };
+    return { title: "Истощение", subtitle: `Уровень ${ex}`, art: { icon: "gi/delapouite/tired-eye", color: "#e5533d", fx: "halo" }, body: rich(EXHAUSTION.slice(1).map((t, i) => `- ${i + 1 <= ex ? "**" : ""}${i + 1}: ${t}${i + 1 <= ex ? "**" : ""}`).join("\n") + "\n\nЭффекты складываются. Длинный отдых снимает 1 уровень."), footer: [{ mark: actionMark("ring", "#e5533d"), text: "Влияет на броски, скорость и хиты сам" }] };
   }
   return null;
 }
