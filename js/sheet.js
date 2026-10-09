@@ -3,8 +3,9 @@ import { icon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, warmSounds, reducedMotion, getPath, setPath, download, timeAgo, rollCardOn, setRollCard, closeRollCard, spendDamageButtons } from "./ui.js";
 import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources } from "./tabs.js";
 import { cardFor, findEntity } from "./entities.js";
-import { subscribeChar, saveChanges, addHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError } from "./store.js";
-import { diffPaths, applyPaths } from "./sync.js";
+import { describeChanges } from "./changes.js";
+import { subscribeChar, saveChanges, addHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError, watchProposals, watchMyProposal, saveProposal, deleteProposal } from "./store.js";
+import { cloudDiff, rebase, applyCloud } from "./cloud.js";
 import { onAccess, getAccess, myEmail, signIn, IN_APP } from "./access.js";
 import { openAccounts } from "./admin.js";
 import { openShare } from "./share.js";
@@ -82,6 +83,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
   function syncText() {
     const st = lastStatus || {};
     const state = syncState();
+    if (state !== "error" && rights().propose && S.proposed) return "Правки отправлены владельцу на проверку";
     if (state === "error") return st.error || "Не удалось сохранить";
     if (state === "local") return st.error || "Лист хранится только в этом браузере";
     if (state === "offline") return "Нет сети: всё сохранится, когда появится интернет";
@@ -183,6 +185,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     }
     const incoming = normalize(data);
     incoming.id = id;
+    S.legacy = meta.legacy || [];
     if (!S.c) {
       S.base = clone(incoming);
       S.c = incoming;
@@ -192,9 +195,8 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       if (rights().role !== "owner" && !S.preview) addRecent({ id, name: S.c.name, sub: subtitle(S.c) });
       return;
     }
-    const local = diffPaths(S.base, S.c);
+    const merged = normalize(rebase(S.base, S.c, incoming));
     S.base = clone(incoming);
-    const merged = normalize(applyPaths(clone(incoming), local));
     merged.id = id;
     if (sameContent(merged, S.c)) return;
     S.c = merged;
@@ -225,7 +227,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     const own = !!(S.c && S.c.ownerUid && S.c.ownerUid === a.uid);
     if (own) return { canEdit: true, role: "owner" };
     if (a.isAdmin) return { canEdit: true, role: "admin" };
-    if (S.isEditor) return { canEdit: true, role: "editor" };
+    if (S.isEditor) return { canEdit: true, role: "editor", propose: true };
     return { canEdit: false, role: S.c && !S.c.ownerUid ? "orphan" : "viewer" };
   }
 
@@ -317,12 +319,116 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         </header>
         <nav class="tabs" role="tablist">${TABS.map(t => `<button class="tab ${S.tab === t.key ? "on" : ""}" data-tab="${t.key}" role="tab">${icon(t.icon)}<span class="tab-l">${t.name}</span><span class="tab-s">${t.short || t.name}</span></button>`).join("")}</nav>
         ${roBar()}
+        <div data-proposals>${proposalBar()}</div>
         ${c.archived ? `<div class="archived-bar">${icon("archive")} Персонаж в архиве <button class="btn sm" data-act="unarchive">Вернуть</button></div>` : ""}
         <main class="tab-body" data-body></main>
       </div>`;
     renderTab();
     paintSync();
+    syncProposalWatch();
     if (keepScroll) window.scrollTo(0, y);
+  }
+
+  let offProps = () => {};
+  let propsKey = "";
+
+  function syncProposalWatch() {
+    const r = rights();
+    const key = getMode() === "cloud" && S.c && !S.disposed && !S.preview ? (r.role === "owner" || r.role === "admin" ? "owner" : r.propose ? "editor" : "") : "";
+    if (key === propsKey) return;
+    propsKey = key;
+    offProps();
+    offProps = () => {};
+    S.proposals = [];
+    if (key === "owner") {
+      offProps = watchProposals(id, list => {
+        if (S.disposed) return;
+        S.proposals = list;
+        const el = $("[data-proposals]", root);
+        if (el) el.innerHTML = proposalBar();
+        if (S.propModal) S.propModal.refresh();
+      });
+    }
+    if (key === "editor") offProps = watchMyProposal(id, onMyProposal);
+  }
+
+  function proposalBar() {
+    const list = S.proposals || [];
+    if (!list.length) return "";
+    const names = [...new Set(list.map(p => p.by.name || "Редактор"))];
+    return `<div class="prop-bar">${icon("people")}<span>${esc(names.join(", "))} ${names.length > 1 ? "предлагают" : "предлагает"} правки</span><button class="btn sm gold" data-act="proposals">Посмотреть</button></div>`;
+  }
+
+  function proposalNext(p) {
+    const next = normalize(applyCloud(S.c, p.changes));
+    next.id = id;
+    return next;
+  }
+
+  function openProposals() {
+    const body = document.createElement("div");
+    const paint = () => {
+      const list = S.proposals || [];
+      if (!list.length) {
+        body.innerHTML = `<p class="empty">Предложений больше нет</p>`;
+        return;
+      }
+      body.innerHTML = list.map(p => {
+        const lines = describeChanges(S.c, proposalNext(p));
+        return `<section class="prop-item">
+          <h3>${icon("user")}${esc(p.by.name || "Редактор")}<small>${esc(timeAgo(p.at))}</small></h3>
+          ${lines.length ? `<ul>${lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : `<p class="empty">Всё это уже есть в листе</p>`}
+          <div class="form-actions"><button class="btn ghost" data-decline="${esc(p.uid)}">${icon("close")}Отклонить</button><button class="btn gold" data-accept="${esc(p.uid)}">${icon("check")}Принять</button></div>
+        </section>`;
+      }).join("");
+    };
+    paint();
+    const m = openModal({ title: "Предложенные правки", body, onClose: () => (S.propModal = null) });
+    S.propModal = { refresh: paint };
+    body.addEventListener("click", e => {
+      const acc = e.target.closest("[data-accept]");
+      const dec = e.target.closest("[data-decline]");
+      const uid = (acc || dec) && (acc || dec).dataset[acc ? "accept" : "decline"];
+      const p = uid && (S.proposals || []).find(x => x.uid === uid);
+      if (!p) return;
+      if (acc) {
+        const next = proposalNext(p);
+        X.withUndo(`Правки: ${p.by.name || "редактор"}`, () => mutate(c => X.restoreFrom(c, next)));
+      }
+      S.proposals = S.proposals.filter(x => x.uid !== uid);
+      deleteProposal(id, uid).catch(err => toast(`${icon("cloudOff")} ${esc(humanError(err, "write"))}`, { kind: "bad" }));
+      const el = $("[data-proposals]", root);
+      if (el) el.innerHTML = proposalBar();
+      paint();
+      if (!S.proposals.length) m.close();
+    });
+  }
+
+  function onMyProposal(p) {
+    if (S.disposed || !S.c) return;
+    if (p) {
+      S.proposed = true;
+      if (!S.saveTimer && !cloudDiff(S.base, S.c).length) {
+        S.c = normalize(applyCloud(S.base, p.changes));
+        S.c.id = id;
+        S.d = compute(S.c);
+        if (inputFocused()) S.pendingRender = true;
+        else rerenderKeepingModal();
+      }
+      paintSync();
+      return;
+    }
+    if (!S.proposed) return;
+    S.proposed = false;
+    paintSync();
+    setTimeout(() => {
+      if (S.disposed || S.saveTimer || S.proposed || !cloudDiff(S.base, S.c).length) return;
+      S.c = normalize(clone(S.base));
+      S.c.id = id;
+      S.d = compute(S.c);
+      rerenderKeepingModal();
+      toast(`${icon("people")} Владелец разобрал твои правки, лист обновлён`);
+    }, 2500);
   }
 
   function renderTab() {
@@ -494,8 +600,28 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     clearTimeout(S.saveTimer);
     S.saveTimer = null;
     if (!S.c || !S.base) return;
-    const changes = diffPaths(S.base, S.c);
+    if (rights().propose) {
+      const changes = cloudDiff(S.base, S.c);
+      S.proposed = changes.length > 0;
+      paintSync();
+      try {
+        await saveProposal(id, changes, describeChanges(S.base, S.c));
+        S.retry = 0;
+        S.saveFailed = false;
+      } catch (err) {
+        S.saveFailed = true;
+        S.retry = Math.min((S.retry || 1000) * 2, 30000);
+        if (!S.disposed) S.saveTimer = setTimeout(flush, S.retry);
+      }
+      return;
+    }
+    const legacy = S.legacy || [];
+    const changes = cloudDiff(S.base, S.c, legacy);
     if (!changes.length) return;
+    if (legacy.length && !S.migrated) {
+      S.migrated = true;
+      addHistory(id, S.base, "Перед переходом на новый формат хранения");
+    }
     try {
       await saveChanges(id, changes, clone(S.c));
       S.retry = 0;
@@ -520,7 +646,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
   }
 
   function hasUnsaved() {
-    return !!(S.c && S.base && (S.saveTimer || diffPaths(S.base, S.c).length));
+    return !!(S.c && S.base && (S.saveTimer || (!rights().propose && cloudDiff(S.base, S.c).length)));
   }
 
   function mutate(fn, opts) {
@@ -791,6 +917,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         mutate(ch => { ch.archived = false; }, { render: false });
         return renderAll(true);
       case "menu": return X.menu();
+      case "proposals": return openProposals();
       case "roll-mode":
         S.rollMode = S.rollMode === "normal" ? "adv" : S.rollMode === "adv" ? "dis" : "normal";
         if (el) el.innerHTML = rollModeLabel();
@@ -1257,6 +1384,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     unStatus();
     offAccess();
     offInvite();
+    offProps();
     offHover();
     offLong();
     offOrder();

@@ -1,5 +1,6 @@
 import { FIREBASE_CONFIG, FIREBASE_VERSION } from "./config.js";
-import { DELETE, applyPaths } from "./sync.js";
+import { DELETE } from "./sync.js";
+import { toCloud, fromCloud, legacyLists, applyToCloudDoc } from "./cloud.js";
 import { whoAmI } from "./device.js";
 import { initAccess, currentUid, getAccess } from "./access.js";
 
@@ -156,13 +157,13 @@ export async function initStore() {
   return mode;
 }
 
-function listFrom(q, cb) {
+function listFrom(q, cb, conv = x => x) {
   return fs.onSnapshot(
     q,
     { includeMetadataChanges: true },
     snap => {
       const list = [];
-      snap.forEach(d => list.push({ ...d.data(), id: d.id }));
+      snap.forEach(d => list.push({ ...conv(d.data()), id: d.id }));
       cb(list, { fromCache: snap.metadata.fromCache });
     },
     err => {
@@ -175,15 +176,15 @@ function listFrom(q, cb) {
 export function subscribeList(cb, scope = "mine") {
   if (mode === "cloud") {
     const uid = currentUid();
-    if (scope === "all") return listFrom(fs.collection(db, "characters"), cb);
+    if (scope === "all") return listFrom(fs.collection(db, "characters"), cb, fromCloud);
     if (!uid) {
       cb([], {});
       return () => {};
     }
-    return listFrom(fs.query(fs.collection(db, "characters"), fs.where("ownerUid", "==", uid)), cb);
+    return listFrom(fs.query(fs.collection(db, "characters"), fs.where("ownerUid", "==", uid)), cb, fromCloud);
   }
   let live = true;
-  const emit = map => live && cb(Object.entries(map).map(([id, c]) => ({ ...c, id })), {});
+  const emit = map => live && cb(Object.entries(map).map(([id, c]) => ({ ...fromCloud(c), id })), {});
   queueMicrotask(() => emit(readLocal()));
   localListeners.add(emit);
   return () => {
@@ -211,7 +212,8 @@ export function subscribeChar(id, cb) {
             if (snap.metadata.fromCache) return cb(undefined, { offline: true });
             return cb(null, {});
           }
-          cb({ ...snap.data(), id: snap.id }, { pendingWrites: snap.metadata.hasPendingWrites, fromCache: snap.metadata.fromCache });
+          const raw = snap.data();
+          cb({ ...fromCloud(raw), id: snap.id }, { pendingWrites: snap.metadata.hasPendingWrites, fromCache: snap.metadata.fromCache, legacy: legacyLists(raw) });
         },
         err => {
           const denied = String(err && err.code).includes("permission-denied");
@@ -231,7 +233,7 @@ export function subscribeChar(id, cb) {
     const json = map[id] ? JSON.stringify(map[id]) : "";
     if (json === last) return;
     last = json;
-    cb(map[id] ? { ...clone(map[id]), id } : null, { self: !!meta.self });
+    cb(map[id] ? { ...fromCloud(map[id]), id } : null, { self: !!meta.self });
   };
   queueMicrotask(() => emit(readLocal()));
   localListeners.add(emit);
@@ -255,8 +257,7 @@ export async function saveChanges(id, changes, full) {
   const now = Date.now();
   if (mode === "local") {
     const map = readLocal();
-    const doc = map[id] ? map[id] : stripId(full);
-    applyPaths(doc, changes);
+    const doc = applyToCloudDoc(toCloud(fromCloud(map[id] ? map[id] : stripId(full))), changes);
     doc.updatedAt = now;
     doc.updatedBy = publicWho();
     map[id] = doc;
@@ -286,6 +287,51 @@ export async function saveChanges(id, changes, full) {
   }
 }
 
+const encodeChanges = changes => changes.map(([p, v]) => (v === DELETE ? { p, d: true } : { p, v }));
+
+export function decodeChanges(list) {
+  return (Array.isArray(list) ? list : [])
+    .filter(x => x && Array.isArray(x.p) && x.p.length && x.p.every(k => typeof k === "string" && k))
+    .map(x => [x.p, x.d ? DELETE : x.v]);
+}
+
+function proposalFrom(d) {
+  const x = d.data() || {};
+  return { uid: d.id, at: Number(x.at) || 0, by: x.by || {}, changes: decodeChanges(x.changes), summary: Array.isArray(x.summary) ? x.summary.map(String) : [] };
+}
+
+export function watchProposals(id, cb) {
+  if (mode !== "cloud") return () => {};
+  return fs.onSnapshot(
+    fs.collection(db, "characters", id, "proposals"),
+    snap => cb(snap.docs.map(proposalFrom).filter(p => p.changes.length).sort((a, b) => a.at - b.at)),
+    () => cb([])
+  );
+}
+
+export function watchMyProposal(id, cb) {
+  const uid = currentUid();
+  if (mode !== "cloud" || !uid) return () => {};
+  return fs.onSnapshot(
+    fs.doc(db, "characters", id, "proposals", uid),
+    snap => cb(snap.exists() ? proposalFrom(snap) : null),
+    () => cb(null)
+  );
+}
+
+export async function saveProposal(id, changes, summary) {
+  const uid = currentUid();
+  if (mode !== "cloud" || !uid) return;
+  const ref = fs.doc(db, "characters", id, "proposals", uid);
+  if (!changes.length) return fs.deleteDoc(ref);
+  await fs.setDoc(ref, { at: Date.now(), by: publicWho(), changes: encodeChanges(changes), summary: summary.slice(0, 100).map(x => String(x).slice(0, 300)) });
+}
+
+export function deleteProposal(id, uid) {
+  if (mode !== "cloud") return Promise.resolve();
+  return fs.deleteDoc(fs.doc(db, "characters", id, "proposals", uid));
+}
+
 export function newCharId() {
   if (mode === "cloud") return fs.doc(fs.collection(db, "characters")).id;
   return Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
@@ -310,11 +356,11 @@ export async function createChar(id, c) {
   }
   if (mode === "local") {
     const map = readLocal();
-    map[id] = data;
+    map[id] = toCloud(data);
     writeLocal(map);
     return id;
   }
-  await fs.setDoc(fs.doc(db, "characters", id), data);
+  await fs.setDoc(fs.doc(db, "characters", id), toCloud(data));
   return id;
 }
 
@@ -329,7 +375,7 @@ export async function createIfMissing(id, c) {
   const now = Date.now();
   await fs.runTransaction(db, async t => {
     const cur = await t.get(ref);
-    if (!cur.exists()) t.set(ref, { ...stripId(c), createdAt: now, updatedAt: now });
+    if (!cur.exists()) t.set(ref, toCloud({ ...stripId(c), createdAt: now, updatedAt: now }));
   });
 }
 
@@ -400,8 +446,9 @@ export async function deleteCharacter(id) {
     throw e;
   });
   const hist = await fs.getDocsFromServer(fs.collection(db, "characters", id, "history"));
+  const props = await fs.getDocsFromServer(fs.collection(db, "characters", id, "proposals")).catch(() => ({ docs: [] }));
   const emails = acl && acl.exists() ? acl.data().emails || [] : [];
-  const refs = [...hist.docs.map(d => d.ref), ...emails.map(e => fs.doc(db, "invites", e, "chars", id)), fs.doc(db, "characters", id, "acl", "main"), fs.doc(db, "characters", id, "board", "main")];
+  const refs = [...hist.docs.map(d => d.ref), ...props.docs.map(d => d.ref), ...emails.map(e => fs.doc(db, "invites", e, "chars", id)), fs.doc(db, "characters", id, "acl", "main"), fs.doc(db, "characters", id, "board", "main")];
   for (let i = 0; i < refs.length; i += 400) {
     const batch = fs.writeBatch(db);
     refs.slice(i, i + 400).forEach(r => batch.delete(r));
@@ -508,7 +555,7 @@ export function removeRecent(id) {
 export async function listCharactersOf(uid) {
   if (mode !== "cloud") return [];
   const snap = await fs.getDocsFromServer(fs.query(fs.collection(db, "characters"), fs.where("ownerUid", "==", uid)));
-  return snap.docs.map(d => ({ ...d.data(), id: d.id })).filter(c => c.ownerUid === uid);
+  return snap.docs.map(d => ({ ...fromCloud(d.data()), id: d.id })).filter(c => c.ownerUid === uid);
 }
 
 export async function deleteCharactersOf(uid) {
@@ -518,18 +565,18 @@ export async function deleteCharactersOf(uid) {
 }
 
 export async function fetchAllCharacters() {
-  if (mode !== "cloud") return Object.entries(readLocal()).map(([id, c]) => ({ ...c, id }));
+  if (mode !== "cloud") return Object.entries(readLocal()).map(([id, c]) => ({ ...fromCloud(c), id }));
   const snap = await fs.getDocs(fs.collection(db, "characters"));
-  return snap.docs.map(d => ({ ...d.data(), id: d.id }));
+  return snap.docs.map(d => ({ ...fromCloud(d.data()), id: d.id }));
 }
 
 export async function getCharOnce(id) {
   if (mode !== "cloud") {
     const c = readLocal()[id];
-    return c ? { ...c, id } : null;
+    return c ? { ...fromCloud(c), id } : null;
   }
   const snap = await fs.getDoc(fs.doc(db, "characters", id));
-  return snap.exists() ? { ...snap.data(), id } : null;
+  return snap.exists() ? { ...fromCloud(snap.data()), id } : null;
 }
 
 let pruneTick = 0;

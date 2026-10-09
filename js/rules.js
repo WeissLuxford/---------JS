@@ -643,8 +643,19 @@ export function cleanEffect(e, i = 0) {
     mine: !!x.mine,
     concName: String(x.concName ?? "").slice(0, 120),
     until: ["short", "long"].includes(x.until) ? x.until : "",
-    note: String(x.note ?? "").slice(0, 300)
+    note: String(x.note ?? "").slice(0, 300),
+    ...(typeof x._o === "number" && Number.isFinite(x._o) ? { _o: x._o } : {})
   };
+}
+
+function uniqueIds(list) {
+  const seen = new Set();
+  return list.map(x => {
+    let id = x.id;
+    for (let n = 2; seen.has(id); n++) id = `${x.id}-${n}`;
+    seen.add(id);
+    return id === x.id ? x : { ...x, id };
+  });
 }
 
 export function rageDamage(level) {
@@ -781,6 +792,8 @@ export function normalize(c) {
   for (const k of NOTE_KEYS) {
     out.notes[k] = (Array.isArray(out.notes[k]) ? out.notes[k] : []).filter(x => x && typeof x === "object" && !Array.isArray(x)).map((x, i) => cleanNote(x, k, i));
   }
+  for (const k of ["attacks", "spells", "features", "items", "effects"]) out[k] = uniqueIds(out[k]);
+  for (const k of NOTE_KEYS) out.notes[k] = uniqueIds(out.notes[k]);
   for (const k of ["saves", "skills", "slotsUsed", "conditions"]) {
     out[k] = out[k] && typeof out[k] === "object" && !Array.isArray(out[k]) ? out[k] : {};
   }

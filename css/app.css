@@ -445,6 +445,14 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
 .hist-tag.bad { border-color: rgba(229, 83, 61, .55); color: #ffb4a6; }
 .hist-tag.ok { border-color: rgba(79, 207, 106, .5); color: #a8f0a9; }
 .hist-tag.gold { border-color: rgba(233, 199, 122, .55); color: var(--gold-2); }
+.prop-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: center; padding: 8px 14px; background: rgba(233, 199, 122, .1); border-bottom: 1px solid rgba(233, 199, 122, .35); color: var(--gold-3); font-size: 15px; text-align: center; }
+.prop-bar .ic { flex: none; color: var(--gold-2); }
+.prop-item { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.prop-item:last-child { border-bottom: 0; }
+.prop-item h3 { display: flex; align-items: center; gap: 8px; font-size: 18px; color: var(--gold-2); }
+.prop-item h3 small { margin-left: auto; color: var(--dim); font-size: 13px; font-family: inherit; }
+.prop-item ul { margin: 8px 0 4px; padding-left: 20px; color: var(--text-2); }
+.prop-item li { margin: 3px 0; }
 .archived-bar { display: flex; align-items: center; gap: 10px; justify-content: center; padding: 8px; background: rgba(229, 83, 61, .12); border-bottom: 1px solid rgba(229, 83, 61, .35); color: #ffc9bf; }
 
 .tab-body { max-width: 1320px; margin: 0 auto; padding: 16px 14px 40px; }

@@ -44,7 +44,9 @@
 
 ## Сущности
 
-Все имеют строковый `id` (латиница, цифры, `-`, `_`). Поле `uses` у сущностей это число или формула: `=pb`, `=int+lvl`, `=cha` и т.п. (`evalFormula`), `used` сколько потрачено, `recharge` один из `always/short/long/dawn/none`.
+Все имеют строковый `id` (латиница, цифры, `-`, `_`), уникальный в своём списке (повтор `normalize()` переименует в `id-2`).
+
+**Как списки лежат в облаке.** На устройстве `attacks`, `spells`, `features`, `items`, `effects` и `notes.*` это массивы. В документе Firestore и в `localStorage` каждый такой список хранится картой `{<id>: {...запись, _o}}`, где `_o` это число для порядка (меньше = выше). Перевод туда и обратно в `js/cloud.js` (`toCloud`, `fromCloud`), только на границе `js/store.js`, остальной код видит массивы. Запись без поля `id` внутри (обрывок после правки удалённой записи) при чтении пропускается. Старые документы с массивами читаются как есть и при первой правке переписываются картами целиком (перед этим снимок в историю). Поле `uses` у сущностей это число или формула: `=pb`, `=int+lvl`, `=cha` и т.п. (`evalFormula`), `used` сколько потрачено, `recharge` один из `always/short/long/dawn/none`.
 
 - **Атака**: `name, kind (attack/save), ability (str..cha/spell/none), proficient, bonus, damage ("1d8"), addMod, dmgBonus, damageType, saveAbility, range, scaling (none/cantrip-dice/cantrip-beams), count, action, notes`
 - **Заклинание**: `name, nameEn, level 0..9, school, action, castTime, range, area, duration, concentration, ritual, components, save, attack, damage[{dice,type,addMod}], scaling, upcast, castAt, onSave, description, higher, source, cost (slot/uses/item/free), uses, recharge, used, prepared, combat (""/yes/no: показывать в панели боя; по умолчанию атакующие заговоры), itemId, charges, maxCharges, dcOverride, atkOverride`. При `cost: item` заклинание тратит заряды предмета `itemId`: от `charges` до `maxCharges` за раз, каждый заряд сверх минимума добавляет кубы `upcast`

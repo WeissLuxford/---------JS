@@ -79,7 +79,7 @@ export function openShare(c) {
         </section>
         ${manage ? `<section>
           <h4>${icon("edit")} Редакторы</h4>
-          <p class="hint">Человек с этой Google-почтой сможет править лист после входа на сайт через Google. Персонаж появится у него в разделе «Со мной поделились». Почты редакторов видишь только ты.</p>
+          <p class="hint">Человек с этой Google-почтой после входа через Google сможет предлагать правки: ты увидишь их на листе и решишь, принять или отклонить. Персонаж появится у него в разделе «Со мной поделились». Почты редакторов видишь только ты.</p>
           <div class="ed-list" data-list><div class="loading small">${icon("hourglass")} Загружаю...</div></div>
           <form class="ed-add" data-add><input type="email" inputmode="email" autocomplete="off" placeholder="почта@gmail.com" aria-label="Google-почта редактора"><button class="btn" type="submit">${icon("plus")}Пригласить</button></form>
           <p class="hint small">Нужен точный адрес Google-аккаунта, как в Gmail.</p>

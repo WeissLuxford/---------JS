@@ -1,4 +1,4 @@
-const VERSION = "v39";
+const VERSION = "v40";
 const SHELL = "dnd-shell-" + VERSION;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -17,6 +17,7 @@ const PRECACHE = [
   "js/board.js",
   "js/changes.js",
   "js/classes.js",
+  "js/cloud.js",
   "js/creator-build.js",
   "js/creator-data.js",
   "js/creator.js",

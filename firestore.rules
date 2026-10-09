@@ -22,7 +22,7 @@ service cloud.firestore {
     function canEdit(id, data) { return isAdmin() || (notBanned() && (isOwner(data) || isEditor(id))); }
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
     function optStr(d, k, n) { return !(k in d) || (d[k] is string && d[k].size() <= n); }
-    function optList(d, k, n) { return !(k in d) || (d[k] is list && d[k].size() <= n); }
+    function optList(d, k, n) { return !(k in d) || ((d[k] is list || d[k] is map) && d[k].size() <= n); }
     function validCharacter(d) {
       return d.keys().size() < 60
         && d.get('name', '') is string && d.get('name', '').size() <= 120
@@ -46,7 +46,7 @@ service cloud.firestore {
         && request.resource.data.get('ownerUid', '') == request.auth.uid
         && notFuture(request.resource.data.get('createdAt', 0))
         && validCharacter(request.resource.data);
-      allow update: if canEdit(id, resource.data)
+      allow update: if (isAdmin() || (notBanned() && isOwner(resource.data)))
         && validCharacter(request.resource.data)
         && (isAdmin() || !changed().hasAny(['ownerUid', 'createdAt']))
         && (ownerOf(resource.data) == '' || ownerOf(request.resource.data) != '')
@@ -65,6 +65,18 @@ service cloud.firestore {
           && !('portrait' in request.resource.data.data);
         allow update: if false;
         allow delete: if isAdmin() || isOwner(charDoc(id).data);
+      }
+
+      match /proposals/{uid} {
+        allow read: if isAdmin() || isOwner(charDoc(id).data) || (signedIn() && request.auth.uid == uid);
+        allow create, update: if notBanned() && request.auth.uid == uid && isEditor(id)
+          && request.resource.data.keys().hasOnly(['at', 'by', 'changes', 'summary'])
+          && notFuture(request.resource.data.at)
+          && request.resource.data.by is map && request.resource.data.by.size() <= 8
+          && request.resource.data.by.get('uid', '') == request.auth.uid
+          && request.resource.data.changes is list && request.resource.data.changes.size() <= 400
+          && request.resource.data.summary is list && request.resource.data.summary.size() <= 100;
+        allow delete: if isAdmin() || isOwner(charDoc(id).data) || (signedIn() && request.auth.uid == uid);
       }
 
       match /board/{doc} {

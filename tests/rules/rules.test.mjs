@@ -32,7 +32,15 @@ await t("saveAcl: acl then invite", (async () => { await setDoc(doc(alice, "char
 await t("editor: cannot read other editors in acl", assertFails(getDoc(doc(bob, "characters", "a1", "acl", "main"))));
 await t("editor: reads own invite", assertSucceeds(getDoc(doc(bob, "invites", "bob@gmail.com", "chars", "a1"))));
 await t("editor: invites list", assertSucceeds(getDocs(collection(bob, "invites", "bob@gmail.com", "chars"))));
-await t("editor: field patch", assertSucceeds(updateDoc(doc(bob, "characters", "a1"), new FieldPath("hp", "temp"), 3, "updatedAt", now(), "updatedBy", who("bob", "Bob B"))));
+await t("editor: no direct field patch", assertFails(updateDoc(doc(bob, "characters", "a1"), new FieldPath("hp", "temp"), 3, "updatedAt", now(), "updatedBy", who("bob", "Bob B"))));
+await t("editor: writes own proposal", assertSucceeds(setDoc(doc(bob, "characters", "a1", "proposals", "bob"), { at: now(), by: who("bob", "Bob B"), changes: [{ p: ["hp", "temp"], v: 3 }], summary: ["Врем. хиты: 0 → 3"] })));
+await t("editor: cannot write a proposal as someone else", assertFails(setDoc(doc(bob, "characters", "a1", "proposals", "carol"), { at: now(), by: who("carol", "Carol"), changes: [], summary: [] })));
+await t("stranger: cannot propose", assertFails(setDoc(doc(carol, "characters", "a1", "proposals", "carol"), { at: now(), by: who("carol", "Carol"), changes: [], summary: [] })));
+await t("owner: lists move to maps and then one item field is patched", (async () => {
+  await updateDoc(doc(alice, "characters", "a1"), "items", { "it-x": { id: "it-x", name: "Верёвка", qty: 1, _o: 1 } }, "updatedAt", now(), "updatedBy", who("alice", "Alice A"));
+  await updateDoc(doc(alice, "characters", "a1"), new FieldPath("items", "it-x", "qty"), 2, "updatedAt", now(), "updatedBy", who("alice", "Alice A"));
+})());
+await t("owner: reads and deletes proposals", (async () => { await getDocs(collection(alice, "characters", "a1", "proposals")); await deleteDoc(doc(alice, "characters", "a1", "proposals", "bob")); })());
 await t("editor: history read + write", (async () => { await getDocs(collection(bob, "characters", "a1", "history")); await addDoc(collection(bob, "characters", "a1", "history"), { at: now(), reason: "", by: who("bob", "Bob B"), data: { name: "x" } }); })());
 await t("viewer (signed out) opens link sheet", assertSucceeds(getDoc(doc(pub, "characters", "a1"))));
 await t("viewer 'Копия себе' (createChar of copy)", assertSucceeds(setDoc(doc(carol, "characters", "c-copy"), createData("carol", "Carol"))));
