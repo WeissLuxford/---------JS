@@ -1,4 +1,4 @@
-const VERSION = "v40";
+const VERSION = "v41";
 const SHELL = "dnd-shell-" + VERSION;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -11,6 +11,7 @@ const PRECACHE = [
   "apple-touch-icon.png",
   "css/app.css",
   "js/access.js",
+  "js/achievements.js",
   "js/admin.js",
   "js/ambient.js",
   "js/backup.js",
@@ -46,6 +47,7 @@ const PRECACHE = [
   "js/share.js",
   "js/sheet.js",
   "js/sheet-cards.js",
+  "js/sheet-chronicle.js",
   "js/sheet-dialogs.js",
   "js/sheet-levelup.js",
   "js/sheet-magic.js",

@@ -20,12 +20,14 @@ import { installCards } from "./sheet-cards.js";
 import { installDialogs } from "./sheet-dialogs.js";
 import { installLevelUp } from "./sheet-levelup.js";
 import { installScenes } from "./sheet-scenes.js";
+import { installChronicle } from "./sheet-chronicle.js";
+import { skinFor } from "./achievements.js";
 import { installNotes, loadRecent } from "./sheet-notes.js";
 import { keepAwake, setWake, wakeOn, wakeSupported } from "./wake.js";
 import { sheetIssues } from "./checks.js";
 import { loadTemplates, templateCopy } from "./templates.js";
 import { shakeOn, setShake, watchShake, shakeSupported } from "./shake.js";
-import { dice3dOn, setDice3d, preloadDice3d, setDiceColor } from "./dice3d.js";
+import { dice3dOn, setDice3d, preloadDice3d, setDiceColor, setDiceSkin } from "./dice3d.js";
 
 export function mountSheet(root, id, initialTab, navigate, opts = {}) {
   const S = {
@@ -56,8 +58,10 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
 
   let lastStatus = null;
   const X = { S, root, id, navigate, status: () => lastStatus };
-  Object.assign(X, { here, backupTick, downloadBackup, paintSync, loaderMessage, rights, checkEditor, readOnly, roText, roBar, inputFocused, rerenderKeepingModal, renderAll, renderTab, grow, calcValue, updateCalcs, snapshot, changed, flush, hasUnsaved, mutate, curHp, clampHp, setHp, filterSpells, rollModeLabel, takeMode, runAction, runActionInner });
+  const applyDiceSkin = () => S.c && setDiceSkin(skinFor(S.c.diceSkin));
+  Object.assign(X, { applyDiceSkin, here, backupTick, downloadBackup, paintSync, loaderMessage, rights, checkEditor, readOnly, roText, roBar, inputFocused, rerenderKeepingModal, renderAll, renderTab, grow, calcValue, updateCalcs, snapshot, changed, flush, hasUnsaved, mutate, curHp, clampHp, setHp, filterSpells, rollModeLabel, takeMode, runAction, runActionInner });
   installScenes(X);
+  installChronicle(X);
   installRolls(X);
   installUndo(X);
   installMagic(X);
@@ -300,6 +304,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     const c = S.c;
     document.title = `${c.name} · Лист персонажа`;
     applyAccent(c.accent);
+    setDiceSkin(skinFor(c.diceSkin));
     setDiceColor((ACCENTS[c.accent] || ACCENTS.gold).c[0]);
     document.body.classList.toggle("no-explain", !explainOn());
     setAmbient(c.scene);
@@ -326,6 +331,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     renderTab();
     paintSync();
     syncProposalWatch();
+    X.checkAchievements();
     if (keepScroll) window.scrollTo(0, y);
   }
 
@@ -593,6 +599,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     S.saveTimer = setTimeout(flush, 650);
     if (render) renderTab();
     else updateCalcs();
+    X.checkAchievements();
     if (S.openRef && S.openModalApi) X.refreshEntityModal();
   }
 
@@ -918,6 +925,8 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         return renderAll(true);
       case "menu": return X.menu();
       case "proposals": return openProposals();
+      case "achievements": return X.openTrophies();
+      case "dice-skin": return X.openSkins();
       case "roll-mode":
         S.rollMode = S.rollMode === "normal" ? "adv" : S.rollMode === "adv" ? "dis" : "normal";
         if (el) el.innerHTML = rollModeLabel();
@@ -931,6 +940,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       case "inspiration": {
         if (c.inspiration) {
           mutate(ch => { ch.inspiration = false; });
+          X.track("insp");
           S.rollMode = "adv";
           const b = $("[data-act=roll-mode]", root);
           if (b) b.innerHTML = rollModeLabel();
@@ -1041,6 +1051,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
           }));
           if (ended.length) tips.unshift({ text: `Закончилось: ${ended.join(", ")}` });
         }
+        X.track("rounds");
         return X.showReminders(tips);
       }
       case "tips-toggle": {
@@ -1097,9 +1108,12 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
             return true;
           });
         });
+        X.track("rounds");
         return toast(`${icon("hourglass")} Следующий раунд${ended.length ? `. Закончилось: ${esc(ended.join(", "))}` : ""}`, { timeout: 2400 });
       }
-      case "end-combat": return mutate(ch => { ch.effects = ch.effects.filter(x => x.rounds == null || x.rounds > 10); });
+      case "end-combat":
+        mutate(ch => { ch.effects = ch.effects.filter(x => x.rounds == null || x.rounds > 10); });
+        return X.track("combats");
       case "toggle-order":
         S.ui.ordering = !S.ui.ordering;
         if (S.ui.ordering) {
@@ -1216,7 +1230,9 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         ch.exhaustion = Number(el.dataset.i);
         clampHp(ch);
       });
-      case "drop-conc": return mutate(ch => { ch.concentration = ""; });
+      case "drop-conc":
+        mutate(ch => { ch.concentration = ""; });
+        return X.track("concLost");
     }
   }
 

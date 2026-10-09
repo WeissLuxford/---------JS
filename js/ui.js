@@ -317,6 +317,9 @@ export function playSound(kind, { dice = 1 } = {}) {
       tone(a, { type: "sine", from: 264, at, dur: 1.8, vol: 0.05 });
       tone(a, { type: "sine", from: 367, at, dur: 1.2, vol: 0.03 });
     });
+  } else if (kind === "achievement") {
+    [659.3, 880, 1174.7].forEach((f, i) => tone(a, { type: "triangle", from: f, at: i * 0.09, dur: 0.6, vol: 0.05 }));
+    tone(a, { type: "sine", from: 1760, at: 0.3, dur: 0.9, vol: 0.025 });
   } else if (kind === "heartbeat") {
     tone(a, { type: "sine", from: 75, to: 48, dur: 0.16, vol: 0.2 });
     tone(a, { type: "sine", from: 68, to: 44, at: 0.24, dur: 0.2, vol: 0.15 });
@@ -569,12 +572,14 @@ function renderDamage(label, lines, crit, exprs, take, { after } = {}) {
   const byType = {};
   let total = 0;
   let count = 0;
+  const all = [];
   for (const [i, line] of lines.entries()) {
     const expr = exprs[i];
     const r = rollDice(expr, take ? take[i] : undefined);
     if (!r) continue;
     total += r.total;
     count += r.rolls.length;
+    all.push(...r.rolls);
     byType[line.type] = (byType[line.type] || 0) + r.total;
     const dt = DAMAGE[line.type] || DAMAGE.bludgeoning;
     const rolls = r.rolls.length ? `<span class="r-rolls">[${r.rolls.map(x => (x.sign < 0 ? "−" : "") + x.r).join(", ")}]</span>` : "";
@@ -590,7 +595,7 @@ function renderDamage(label, lines, crit, exprs, take, { after } = {}) {
   );
   rollFx(t.el, { ms: 420, dice: count, landed: !!take });
   if (take) landDice({ text: String(total) });
-  return { total, byType };
+  return { total, byType, allMax: all.length >= 2 && all.every(x => x.r === x.f) };
 }
 
 export const DIE_COLORS = { 4: "#4fcf6a", 6: "#4cc4d9", 8: "#a86ee6", 10: "#e55ca6", 12: "#e5533d", 20: "#f08a2c", 100: "#d7b35a" };

@@ -1,11 +1,12 @@
 import { canInstall } from "./pwa.js";
-import { SKILLS, ABILITIES, mod, compute, normalize, fmt, importCharacter, payCoins, COIN_NAMES, CONDITIONS, FEATURE_CATS, SCENE_TIMES, SCENE_WEATHER, sceneInfo } from "./rules.js";
+import { SKILLS, ABILITIES, mod, compute, normalize, fmt, importCharacter, payCoins, COIN_NAMES, COIN_CP, CONDITIONS, FEATURE_CATS, SCENE_TIMES, SCENE_WEATHER, sceneInfo } from "./rules.js";
 import { icon } from "./icons.js";
 import { esc, $, toast, openModal, confirmDialog, promptNumber, rollLog, fxSettings, playSound, dateTime, timeAgo, download, pickFile, rollCardOn } from "./ui.js";
 import { subtitle } from "./tabs.js";
 import { cardFor, itemIcon, spellIcon, featureIcon, attackIcon } from "./entities.js";
 import { listHistory, createChar, getMode, subscribeList, getRecents, newCharId } from "./store.js";
 import { describeChanges } from "./changes.js";
+import { skinFor } from "./achievements.js";
 import { NOTE_SECTIONS, SECTION_NAME, searchNotes, queryStems, words } from "./notes.js";
 import { describeWho, isMe, KIND_ICONS } from "./device.js";
 import { currentUid } from "./access.js";
@@ -34,6 +35,7 @@ export function installDialogs(X) {
       const next = payCoins(S.c.coins, n, unit);
       if (!next) return toast(`Не хватает денег: нужно ${n} ${COIN_NAMES[unit]}`, { kind: "bad" });
       X.mutate(c => { c.coins = next; });
+      X.track("pay", { gp: (n * (COIN_CP[unit] || 100)) / 100 });
     } else {
       if (!Number.isInteger(n)) return toast("Получить можно только целое число монет", { kind: "bad" });
       X.mutate(c => { c.coins[unit] = (Number(c.coins[unit]) || 0) + n; });
@@ -144,6 +146,7 @@ export function installDialogs(X) {
         c.effects = (c.effects || []).filter(e => e.until !== "short" && (e.rounds == null || e.rounds > 600)).map(e => (e.rounds == null ? e : { ...e, rounds: e.rounds - 600 }));
       });
       m.close();
+      X.track("rest", { long: false });
       restSummary("Короткий отдых", "campfire", before);
     };
   }
@@ -168,6 +171,7 @@ export function installDialogs(X) {
       c.concentration = "";
       X.resetUses(c, ["short", "long", "dawn"]);
     });
+    X.track("rest", { long: true });
     restSummary("Длинный отдых", "moon", before);
   }
 
@@ -273,6 +277,8 @@ export function installDialogs(X) {
         ["short-rest", "campfire", "Короткий отдых"],
         ["long-rest", "moon", "Длинный отдых"],
         ["dice", "d20", "Бросить кубы"],
+        ["achievements", "crown", "Достижения и летопись"],
+        ...(r.canEdit && !r.propose ? [["dice-skin", "d20", "Кубики: " + skinFor(S.c.diceSkin).name]] : []),
         ["roll-mode", "d20", "Режим броска: " + (S.rollMode === "adv" ? "преимущество" : S.rollMode === "dis" ? "помеха" : "обычный")],
         ...(S.d.level < 20 && r.canEdit ? [["level-up", "star", "Повысить уровень"]] : [])
       ]],
@@ -311,7 +317,7 @@ export function installDialogs(X) {
       ["rollcard-toggle", "frame", "Результат броска по центру", "Карточка поверх кубиков, держится до касания. Выключи, чтобы результаты шли уведомлениями внизу", rollCardOn()]
     ];
     const switchRow = ([act, ic, label, sub, on]) => `<button class="menu-item menu-switch ${on ? "on" : ""}" data-sw="${act}" role="switch" aria-checked="${on}">${icon(ic)}<span>${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ""}</span><i class="sw"></i></button>`;
-    const roles = { owner: "Ты владелец этого листа.", admin: "Ты владелец сайта и можешь править любой лист.", editor: "Тебя пригласили редактором этого листа.", viewer: "Ты смотришь чужой лист.", guest: "Ты не вошёл: лист только для просмотра.", banned: "Твой аккаунт запрещён.", orphan: "У листа нет владельца.", open: cloud ? "Пока правила базы не обновлены, править может любой, у кого есть ссылка." : "Облако недоступно: данные хранятся только в этом браузере." };
+    const roles = { owner: "Ты владелец этого листа.", admin: "Ты владелец сайта и можешь править любой лист.", editor: "Тебя пригласили к этому листу: твои правки уходят владельцу предложением.", viewer: "Ты смотришь чужой лист.", guest: "Ты не вошёл: лист только для просмотра.", banned: "Твой аккаунт запрещён.", orphan: "У листа нет владельца.", open: cloud ? "Пока правила базы не обновлены, править может любой, у кого есть ссылка." : "Облако недоступно: данные хранятся только в этом браузере." };
     const st = X.status() || {};
     const m = openModal({
       title: "Меню",

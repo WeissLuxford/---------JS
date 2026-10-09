@@ -6,5 +6,6 @@
   "license": "MIT License",
   "licenseUrl": "https://github.com/3d-dice/dice-box/blob/main/LICENSE",
   "author": "Frank Ali (3Ddice)",
+  "themes": "assets/themes/{smooth,gemstone,rock,rust,wooden,blueGreenMetal,gemstoneMarble,diceOfRolling} from @3d-dice/dice-themes 0.2.1 (npm pack, 2026-10-09, MIT, https://github.com/3d-dice/dice-themes, license text in assets/themes/LICENSE-dice-themes); package.json files dropped",
   "notes": "Contents: dist/ from the npm tarball (ES module entry dist/dice-box.es.js, workers world.*.js, Dice.js, style.css, assets/ammo/ammo.wasm.wasm, assets/themes/default) plus LICENSE and package.json. package.json lists @babylonjs/core, @babylonjs/loaders, @babylonjs/materials 5.57.1, copy-dir, node-abort-controller as dependencies, but dist is already bundled: Babylon is inlined in Dice.js and world.offscreen.js, and dist files only import each other by relative path, so no extra runtime packages are needed in the browser. copy-dir is used only by the npm postinstall script (copyAssets.js, not copied). The library needs assetPath pointing at dist/assets/ when initialised. .map and .min.js variants are kept; the non-minified or minified set alone is enough. Trimmed to the minified build used by the site (dice-box.es.min.js, world.*.min.js, Dice.min.js, style.css, assets); source maps and unminified copies removed."
 }

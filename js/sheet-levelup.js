@@ -344,6 +344,7 @@ export function installLevelUp(X) {
     const fx = fxSettings();
     const calm = !fx.anim || reducedMotion();
     if (fx.sound) playSound("levelup");
+    X.track("levelUps");
     const rows = [];
     const row = (ic, label, from, now) => rows.push(`<div class="lu-row">${icon(ic)}<span>${esc(label)}</span><b>${from !== "" ? `<s>${esc(from)}</s> ` : ""}${esc(now)}</b></div>`);
     row("heart", "Максимум хитов", String(d0.hpMax), `${d1.hpMax} (+${Math.max(0, d1.hpMax - d0.hpMax)})`);

@@ -5,7 +5,7 @@ export function installUndo(X) {
   const { S, id } = X;
 
   function restoreFrom(c, before) {
-    const keep = new Set(["id", "ownerUid", "ownerName", "visibility", "createdAt", "updatedAt", "updatedBy"]);
+    const keep = new Set(["id", "ownerUid", "ownerName", "visibility", "createdAt", "updatedAt", "updatedBy", "stats", "achievements"]);
     for (const k of new Set([...Object.keys(c), ...Object.keys(before)])) {
       if (keep.has(k)) continue;
       if (before[k] === undefined) delete c[k];

@@ -29,7 +29,8 @@ export const CREDITS = [
   {
     group: "Библиотеки",
     items: [
-      { title: "Dice Box", url: "https://fantasticdice.games", author: "Frank Ali, 3D Dice", authorUrl: "https://github.com/3d-dice", license: "MIT", note: "3D-кубики, которые катятся по экрану." }
+      { title: "Dice Box", url: "https://fantasticdice.games", author: "Frank Ali, 3D Dice", authorUrl: "https://github.com/3d-dice", license: "MIT", note: "3D-кубики, которые катятся по экрану." },
+      { title: "Dice Themes", url: "https://github.com/3d-dice/dice-themes", author: "Frank Ali, 3D Dice", authorUrl: "https://github.com/3d-dice", license: "MIT", note: "Материалы кубиков: гладкие, самоцвет, камень, ржавое железо, дерево, патина, мрамор, радуга." }
     ]
   },
   {

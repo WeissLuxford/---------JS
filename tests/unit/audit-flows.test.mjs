@@ -46,6 +46,7 @@ globalThis.document = {
   addEventListener() {}, removeEventListener() {},
   querySelector() { return null; },
   querySelectorAll() { return []; },
+  getElementById() { return null; },
   createElement() { return fakeEl("toast"); },
   body, activeElement: body, documentElement: fakeEl()
 };
@@ -59,6 +60,7 @@ const { installDialogs } = await import(P + "sheet-dialogs.js");
 const { installLevelUp } = await import(P + "sheet-levelup.js");
 const { installMagic } = await import(P + "sheet-magic.js");
 const { installScenes } = await import(P + "sheet-scenes.js");
+const { installChronicle } = await import(P + "sheet-chronicle.js");
 
 const PHB_XP = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000];
 
@@ -67,6 +69,8 @@ function makeX(src) {
   S.d = R.compute(S.c);
   const X = { S, root: fakeEl(), id: "t" };
   X.readOnly = () => false;
+  X.rights = () => ({ canEdit: true, role: "owner" });
+  X.changed = () => { S.d = R.compute(S.c); };
   X.takeMode = () => "normal";
   X.tipsOn = () => false;
   X.renderTab = () => {};
@@ -93,6 +97,7 @@ function makeX(src) {
     }
   };
   installScenes(X);
+  installChronicle(X);
   installMagic(X);
   installRolls(X);
   installDialogs(X);
@@ -588,4 +593,64 @@ test("ammo spent on attack decrements quantity", () => {
   withRandom([d20is(10)], () => X.doRoll("iattack:bow"));
   assert.equal(X.S.c.items.find(i => i.id === "ar").qty, 19);
   assert.equal(X.S.ui.ammoSpent.ar, 1);
+});
+
+test("chronicle: d20 rolls are counted, streaks and achievements follow", () => {
+  const X = makeX(base({ hp: { current: 30 } }));
+  withRandom([d20is(20)], () => X.doRoll("check:str"));
+  const st = X.S.c.stats;
+  assert.ok(st.since > 0);
+  assert.equal(st.rolls, 1);
+  assert.equal(st.crit, 1);
+  assert.equal(st.faces[20], 1);
+  assert.ok(X.S.c.achievements.firstRoll && X.S.c.achievements.crit1);
+  withRandom([d20is(20)], () => X.doRoll("save:dex"));
+  assert.equal(st.run20, 2);
+  assert.ok(X.S.c.achievements.twin20 && X.S.c.achievements.save20);
+  for (let i = 0; i < 5; i++) withRandom([d20is(3)], () => X.doRoll("check:str"));
+  assert.equal(st.bestLow, 5);
+  assert.ok(X.S.c.achievements.coldStreak);
+  assert.equal(st.run20, 0);
+  assert.equal(st.dayRolls, 7);
+});
+
+test("chronicle: falling to 0, a long rest and damage taken are recorded", async () => {
+  const X = makeX(base({ hp: { current: 10 } }));
+  X.applyHp("dmg", 25);
+  assert.equal(X.S.c.stats.downs, 1);
+  assert.equal(X.S.c.stats.taken, 10);
+  assert.ok(X.S.c.achievements.down1 && X.S.c.achievements.scratch);
+  X.applyHp("heal", 5);
+  assert.equal(X.S.c.stats.healed, 5);
+  await doLongRest(X);
+  assert.equal(X.S.c.stats.longRests, 1);
+  assert.ok(X.S.c.achievements.longRest && X.S.c.achievements.rough);
+});
+
+test("achievements: every check survives an empty sheet and a full one", async () => {
+  const A = await import(P + "achievements.js");
+  for (const c of [R.normalize({}), R.normalize((await import(P + "seed.js")).kirion())]) {
+    const d = R.compute(c);
+    for (const a of A.ACHIEVEMENTS) {
+      for (const ev of ["state", "d20", "dmg", "hp", "death", "cast", "pay", "rest"]) {
+        assert.doesNotThrow(() => a.test({ ev, data: {}, st: {}, c, d, count: 0 }), a.key);
+      }
+    }
+  }
+  assert.ok(A.ACHIEVEMENTS.length >= 100);
+  assert.equal(new Set(A.ACHIEVEMENTS.map(a => a.key)).size, A.ACHIEVEMENTS.length);
+  for (const s of A.DICE_SKINS) if (s.unlock) assert.ok(A.ACHIEVEMENTS.some(a => a.key === s.unlock), s.key);
+});
+
+test("dice skins: every theme ships its config and normalize keeps the chronicle", async () => {
+  const fs = await import("node:fs");
+  const A = await import(P + "achievements.js");
+  for (const s of A.DICE_SKINS) {
+    const cfg = new URL(`../../vendor/dice-box/dist/assets/themes/${s.theme}/theme.config.json`, import.meta.url);
+    assert.ok(fs.existsSync(cfg), s.theme);
+  }
+  const c = R.normalize({ stats: { rolls: 3 }, achievements: { crit1: 5, bad: "x" }, diceSkin: "wood" });
+  assert.deepEqual(c.stats, { rolls: 3 });
+  assert.deepEqual(c.achievements, { crit1: 5 });
+  assert.equal(c.diceSkin, "wood");
 });

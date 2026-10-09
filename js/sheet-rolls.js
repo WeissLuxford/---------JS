@@ -45,7 +45,9 @@ export function installRolls(X) {
   const dropped = (r, mode) => (r.b == null ? -1 : mode === "adv" ? (r.a >= r.b ? 1 : 0) : r.a <= r.b ? 1 : 0);
   const landD20 = (r, mode, text = String(r.total)) => landDice({ text, kind: r.nat20 ? "crit" : r.nat1 ? "fumble" : "", discard: dropped(r, mode) });
 
-  async function d20(label, modifier, kind, ability, extra) {
+  const trackD20 = (r, mode, tag) => X.track("d20", { pick: r.pick, a: r.a, b: r.b, mode, total: r.total, kind: tag });
+
+  async function d20(label, modifier, kind, ability, extra, tag = kind) {
     if (dice3dBusy()) return null;
     const st = rollSetup(kind, ability, X.takeMode());
     const pending = roll3d(twoDice(st.mode) ? 2 : 1);
@@ -56,6 +58,7 @@ export function installRolls(X) {
     if (preset) landD20(r, st.mode, st.fail ? "✕" : String(r.total));
     showD20(label, modifier, r, st.mode, { why: [...bonusLines(parts), ...st.why], fail: st.fail, extra: typeof extra === "function" ? extra(r) : extra || "", landed: !!preset });
     consumeOnce(st);
+    trackD20(r, st.mode, tag);
     return r;
   }
 
@@ -124,6 +127,8 @@ export function installRolls(X) {
     });
     const done = r => {
       if (r && r.byType.temp && !S.disposed) giveTemp(r.byType.temp);
+      const dealt = r ? r.total - (r.byType.healing || 0) - (r.byType.temp || 0) : 0;
+      if (dealt > 0 && !S.disposed) X.track("dmg", { dealt, crit, allMax: r.allMax });
       return r;
     };
     return res && typeof res.then === "function" ? res.then(done) : done(res);
@@ -189,9 +194,9 @@ export function installRolls(X) {
     if (k === "save") return d20(`Спасбросок: ${abName(a)}`, d.saves[a], "save", a);
     if (k === "skill") {
       const s = SKILLS.find(x => x.key === a);
-      return s && d20(s.name, d.skills[a], "check", s.ab);
+      return s && d20(s.name, d.skills[a], "check", s.ab, undefined, "skill");
     }
-    if (k === "init") return d20("Инициатива", d.init, "check", "dex");
+    if (k === "init") return d20("Инициатива", d.init, "check", "dex", undefined, "init");
     if (k === "spellatk") return d20("Атака заклинанием", d.spell.atk, "attack");
     const AK = { attack: "attack", iattack: "item", sattack: "spell" };
     const DK = { dmg: "attack", idmg: "item", sdmg: "spell", crit: "attack", icrit: "item" };
@@ -212,6 +217,7 @@ export function installRolls(X) {
         const crits = rs.filter(r => r.nat20).length;
         showBeams(`${p.name}: ${p.beams} ${p.beams < 5 ? "луча" : "лучей"}`, p.hit, rs, st.mode, { why: [...bonusLines(parts), ...st.why], extra: dmgButtons(kind, a, p.beams, crits, rs.every(r => r.nat1)), landed: !!preset });
         consumeOnce(st);
+        rs.forEach(r => trackD20(r, st.mode, "attack"));
         return;
       }
       return d20(`${p.name}: атака`, p.hit, "attack", "", r => dmgButtons(kind, a, 1, r.nat20 ? 1 : 0, r.nat1));
@@ -235,6 +241,7 @@ export function installRolls(X) {
       if (preset) landD20(r, st.mode);
       showD20("Спасбросок от смерти", 0, r, st.mode, { why: [...bonusLines(parts), ...st.why], landed: !!preset });
       consumeOnce(st);
+      trackD20(r, st.mode, "death");
       let outcome = "";
       const was = { deathSuccess: c.hp.deathSuccess, deathFail: c.hp.deathFail };
       X.mutate(ch => {
@@ -253,6 +260,7 @@ export function installRolls(X) {
           outcome = "stable";
         }
       });
+      if (outcome) X.track("death", { outcome, failBefore: was.deathFail });
       if (outcome) {
         setTimeout(() => {
           if (!S.disposed) X.deathScene(outcome);
@@ -289,6 +297,8 @@ export function installRolls(X) {
     let concLost = "";
     let killed = "";
     const failWas = Number(S.c.hp.deathFail) || 0;
+    const hpWas = X.curHp();
+    const tempWas = Number(S.c.hp.temp) || 0;
     const ok = X.mutate(c => {
       const hp = c.hp;
       hp.current = X.curHp(c);
@@ -325,6 +335,8 @@ export function installRolls(X) {
     });
     if (ok === false) return;
     const failNow = Number(S.c.hp.deathFail) || 0;
+    X.track("hp", { action, before: hpWas, after: X.curHp(), tempBefore: tempWas, tempAfter: Number(S.c.hp.temp) || 0, failBefore: failWas, failAfter: failNow });
+    if (concLost) X.track("concLost");
     if (failNow >= 3 && failWas < 3) X.deathScene("dead", killed ? `Мгновенная смерть: ${killed}.` : "");
     else if (failNow > failWas) {
       X.markDeath("deathFail", failWas, failNow);
@@ -362,10 +374,13 @@ export function installRolls(X) {
     if (X.curHp() <= 0) return toast("Без сознания нельзя тратить кости хитов", { kind: "bad" });
     const r = rollDice(`1d${maxDie(c.hitDie)}`);
     const heal = Math.max(0, r.total + d.mods.con);
+    const before = X.curHp();
     X.mutate(ch => {
       ch.hp.hitDiceUsed = (Number(ch.hp.hitDiceUsed) || 0) + 1;
       X.setHp(ch, X.curHp(ch) + heal);
     });
+    X.track("hd");
+    X.track("hp", { action: "heal", before, after: X.curHp(), tempBefore: 0, tempAfter: 0, failBefore: 0, failAfter: 0 });
     toast(`${icon("heart")} Кость хитов: ${r.total} ${fmt(d.mods.con)} = <b>+${heal}</b> хитов`, { kind: "good" });
   }
 

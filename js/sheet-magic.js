@@ -78,11 +78,14 @@ export function installMagic(X) {
     X.offerEffect(sp);
     toast(`${icon("wand")} <b>${esc(sp.name)}</b>: ${n} ${chargeWord(n)} из «${esc(info.item.name)}», осталось ${Math.max(0, info.left - n)}.${esc(concNote)}`, { kind: "info" });
     const brk = Number(info.item.breakOn);
+    let broke = false;
     if (emptied && brk) {
       const r = rollDice("1d20");
-      const broke = r.total === brk;
+      broke = r.total === brk;
       toast(`${icon("d20")} Последний заряд, d20: <b>${r.total}</b>. ${broke ? `«${esc(info.item.name)}» разрушается!` : "Предмет уцелел."}`, { kind: broke ? "bad" : "good", timeout: 9000 });
     }
+    X.track("cast", { level: Number(sp.level) || 0, slot: 0 });
+    if (emptied) X.track("use", { emptied, broke });
   }
 
   function castSpell(sp, chosenLevel) {
@@ -120,6 +123,7 @@ export function installMagic(X) {
       }
     });
     toast(`${icon("sparkle")} <b>${esc(sp.name)}</b>${castLevel ? ` (${castLevel} круг)` : ""}.${esc(concNote)}`, { kind: "info" });
+    X.track("cast", { level: lvl, slot: castLevel || 0, slotsLeft: castLevel ? availableSlotLevels(1).length + (S.d.pact ? pactLeft() : 0) : -1 });
     X.offerEffect(sp);
     X.castTemp(sp, castLevel || Number(sp.level) || 0);
   }
@@ -132,12 +136,15 @@ export function installMagic(X) {
     if (delta > 0 && u && u.left <= 0) return toast("Использования закончились", { kind: "bad" });
     if (pactCost && delta > 0 && S.d.pact && !pactLeft()) return toast("Нет свободных ячеек договора", { kind: "bad" });
     if (delta > 0) X.markAction(e.action);
+    let emptied = false;
     X.mutate(c => {
       const x = findEntity(c, kind, e.id);
       if (!x) return;
       if (u) x.used = Math.max(0, Math.min(u.max, (Number(x.used) || 0) + delta));
+      emptied = !!(u && delta > 0 && kind === "item" && x.used >= u.max);
       if (pactCost && delta > 0) spendSlot(c, S.d.pact ? S.d.pact.level : 1);
     });
+    if (emptied) X.track("use", { emptied });
   }
 
   function moveSpellToItem(sp) {

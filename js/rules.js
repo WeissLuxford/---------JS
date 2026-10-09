@@ -794,6 +794,9 @@ export function normalize(c) {
   }
   for (const k of ["attacks", "spells", "features", "items", "effects"]) out[k] = uniqueIds(out[k]);
   for (const k of NOTE_KEYS) out.notes[k] = uniqueIds(out.notes[k]);
+  out.stats = src.stats && typeof src.stats === "object" && !Array.isArray(src.stats) ? src.stats : {};
+  out.achievements = Object.fromEntries(Object.entries(src.achievements && typeof src.achievements === "object" && !Array.isArray(src.achievements) ? src.achievements : {}).filter(([, v]) => Number.isFinite(v)));
+  out.diceSkin = typeof src.diceSkin === "string" ? src.diceSkin.slice(0, 20) : "";
   for (const k of ["saves", "skills", "slotsUsed", "conditions"]) {
     out[k] = out[k] && typeof out[k] === "object" && !Array.isArray(out[k]) ? out[k] : {};
   }

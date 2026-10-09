@@ -3,6 +3,8 @@ import { fxSettings, reducedMotion, playSound, setDiceThrower } from "./ui.js";
 const KEY = "dnd.dice3d";
 const FALLBACK = "#c9a35b";
 let color = FALLBACK;
+let accent = FALLBACK;
+let skin = { theme: "default", tint: true };
 let box = null;
 let loading = null;
 let failed = false;
@@ -28,11 +30,31 @@ export function setDice3d(on) {
   return !!on;
 }
 
-export function setDiceColor(hex) {
-  const next = typeof hex === "string" && /^#[0-9a-f]{6}$/i.test(hex) ? hex : FALLBACK;
-  if (next === color) return;
+function applyLook() {
+  const next = skin.tint || !skin.color ? accent : skin.color;
+  const theme = skin.theme || "default";
+  if (next === color && box && box.config && box.config.theme === theme) return;
   color = next;
-  if (box) box.updateConfig({ themeColor: color }).catch(() => {});
+  if (box) box.updateConfig({ theme, themeColor: color }).catch(() => {});
+}
+
+export function setDiceColor(hex) {
+  accent = typeof hex === "string" && /^#[0-9a-f]{6}$/i.test(hex) ? hex : FALLBACK;
+  applyLook();
+}
+
+export function setDiceSkin(next) {
+  skin = next && next.theme ? next : { theme: "default", tint: true };
+  applyLook();
+}
+
+export async function previewDice() {
+  if (!dice3dReady()) {
+    if (loading) await loading;
+    if (!dice3dReady()) return;
+  }
+  const v = await throw3d(1);
+  if (v) landDice({ text: String(v[0]), kind: v[0] === 20 ? "crit" : v[0] === 1 ? "fumble" : "" });
 }
 
 function enabled() {
@@ -75,7 +97,7 @@ export function preloadDice3d() {
         container: "#dice3d",
         assetPath: new URL("../vendor/dice-box/dist/assets/", import.meta.url).pathname,
         origin: location.origin,
-        theme: "default",
+        theme: skin.theme || "default",
         themeColor: color,
         scale: 7,
         enableShadows: true,
