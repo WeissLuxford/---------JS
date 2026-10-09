@@ -1,0 +1,273 @@
+{
+  "themes": [
+    {
+      "key": "ability",
+      "ru": "Характеристики",
+      "tw": ["ability"],
+      "words": ["biceps", "muscle", "strong", "brain", "wisdom", "meditation", "charm", "acrobatic"]
+    },
+    {
+      "key": "skill",
+      "ru": "Навыки",
+      "tw": ["skill", "proficiency"],
+      "words": ["acrobatic", "tightrope", "magnifying", "conversation", "talk", "shouting", "lockpicking", "lockpick", "footprint", "hooded", "juggler", "juggling", "stealth", "sneaky", "spyglass", "mountain-climbing", "first-aid", "medical", "spy", "eye-target", "perception"]
+    },
+    {
+      "key": "condition",
+      "ru": "Состояния",
+      "tw": ["condition"],
+      "words": ["blind", "blindfold", "blinded", "charm", "charmed", "terror", "scared", "frightened", "sleepy", "sleep", "knockout", "prone", "manacles", "handcuffs", "handcuffed", "shackles", "petrified", "paralyzed", "paralysis", "stunned", "dizzy", "invisible", "tired", "exhausted", "deaf", "deafened", "grapple", "grappled", "restrained", "trapped", "unconscious", "poisoned", "nauseous", "sick", "fear", "hypnotize", "confused", "slowed", "frozen", "silenced", "cursed", "curse", "paranoia", "hidden", "worried", "sight-disabled", "weight-crush", "nothing-to-say"]
+    },
+    {
+      "key": "damage",
+      "ru": "Урон и стихии",
+      "tw": ["damage"],
+      "gi": ["fire", "ice", "lightning", "explosion"],
+      "words": ["fire", "flame", "flaming", "burn", "burning", "frost", "frozen", "ice", "icy", "cold", "snowflake", "lightning", "bolt", "thunder", "acid", "poison", "toxic", "venom", "necrotic", "radiant", "radiations", "psychic", "slash", "slashes", "pierced", "piercing", "blunt", "smash", "force", "explosion", "explosive", "damage", "wound"]
+    },
+    {
+      "key": "class",
+      "ru": "Классы",
+      "tw": ["class"],
+      "logo": ["class"],
+      "words": ["barbarian", "bard", "cleric", "druid", "fighter", "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard", "artificer"]
+    },
+    {
+      "key": "race",
+      "ru": "Расы и народы",
+      "logo": ["race"],
+      "words": ["elf", "elven", "dwarf", "dwarven", "orc", "goblin", "gnome", "halfling", "tiefling", "dragonborn", "troll", "ogre", "kobold", "centaur", "minotaur", "lizardman", "vampire", "werewolf", "giant", "triton", "genasi", "aasimar"]
+    },
+    {
+      "key": "spell",
+      "ru": "Магия и заклинания",
+      "tw": ["spell", "target", "slot"],
+      "words": ["magic", "magical", "spell", "spellbook", "rune", "runes", "arcane", "arcana", "wand", "orb", "crystal-ball", "portal", "aura", "sparkles", "swirl", "pentagram", "pentacle", "sigil", "enchant", "enchanted", "hex", "ritual", "mana", "summoning", "teleport", "levitation", "magick", "spellcasting", "incantation", "conjuring", "witch", "wizard", "mage", "sorcery", "energy", "beam", "ray", "missile", "fairy", "extra-vision", "marrow-drain", "laserburn"]
+    },
+    {
+      "key": "weapon",
+      "ru": "Оружие",
+      "tw": ["weapon"],
+      "gi": ["weapon", "blade", "axe", "arrow"],
+      "words": ["sword", "swords", "broadsword", "dagger", "daggers", "axe", "battleaxe", "handaxe", "bow", "arrow", "arrows", "crossbow", "spear", "mace", "hammer", "warhammer", "flail", "whip", "sling", "staff", "halberd", "glaive", "trident", "lance", "club", "scimitar", "rapier", "katana", "saber", "sabre", "knife", "pike", "scythe", "sickle", "shuriken", "dart", "javelin", "morningstar", "quarterstaff", "blade", "maul", "cutlass", "falchion", "claymore", "quiver", "bolas", "bomb", "grenade", "dynamite", "molotov", "caltrops", "deadly", "guns", "slinger"]
+    },
+    {
+      "key": "armor",
+      "ru": "Доспехи и щиты",
+      "gi": ["armor", "shield"],
+      "tw": [],
+      "words": ["armor", "armour", "shield", "helm", "helmet", "gauntlet", "breastplate", "mail", "chainmail", "cuirass", "pauldron", "greaves", "visored", "barbute"]
+    },
+    {
+      "key": "gear",
+      "ru": "Снаряжение и инструменты",
+      "gi": ["tool", "container", "bag"],
+      "words": ["rope", "torch", "lantern", "backpack", "bag", "sack", "pouch", "chest", "box", "barrel", "crate", "tent", "bedroll", "pickaxe", "shovel", "key", "lock", "padlock", "tool", "toolbox", "anvil", "saw", "spyglass", "compass", "map", "candle", "lamp", "bucket", "ladder", "chain", "net", "trap", "flint", "tinder", "waterskin", "canteen", "kit", "pitchfork", "hourglass", "mirror", "scales", "whistle", "bell", "anchor", "ladle", "spoon", "scissors", "keyring", "keys", "wallet", "smoking-pipe", "pipe", "wire", "chains", "metal-bar", "metal-plate", "abacus", "eyedropper", "palette", "coil", "fan", "goggles", "wrench", "pan", "cage", "frame", "flashlight", "needle", "feather"],
+      "tw": ["entity"]
+    },
+    {
+      "key": "potion",
+      "ru": "Зелья и алхимия",
+      "gi": ["chemical", "bottle", "glass"],
+      "words": ["potion", "flask", "vial", "bottle", "elixir", "cauldron", "alchemy", "alembic", "drink", "tincture", "mortar", "tube"]
+    },
+    {
+      "key": "treasure",
+      "ru": "Сокровища и украшения",
+      "gi": ["jewellery", "mineral"],
+      "words": ["coin", "coins", "gold", "gem", "gems", "crystal", "diamond", "ring", "necklace", "amulet", "pendant", "crown", "treasure", "jewel", "pearl", "ruby", "emerald", "sapphire", "money", "purse", "chalice", "goblet", "tiara", "earrings", "bracelet", "ingot", "loot"]
+    },
+    {
+      "key": "book",
+      "ru": "Книги, свитки, письма",
+      "gi": ["book"],
+      "words": ["book", "books", "scroll", "letter", "quill", "paper", "tome", "note", "notebook", "map", "treasure-map", "envelope", "parchment", "journal", "spellbook", "ink", "archive", "library", "feather"]
+    },
+    {
+      "key": "food",
+      "ru": "Еда и питьё",
+      "gi": ["food", "fruit", "meat"],
+      "words": ["bread", "meat", "cheese", "apple", "beer", "wine", "mug", "ale", "ham", "fish", "egg", "carrot", "mushroom", "cake", "pie", "soup", "drumstick", "stew", "tankard", "cooking", "pot", "honey"]
+    },
+    {
+      "key": "clothing",
+      "ru": "Одежда",
+      "gi": ["clothing", "hat", "boot"],
+      "words": ["cloak", "robe", "boot", "boots", "hat", "hood", "glove", "gloves", "belt", "cape", "dress", "shirt", "tunic", "trousers", "sandal", "shoe", "mask", "scarf", "coat", "monocle", "lorgnette"]
+    },
+    {
+      "key": "music",
+      "ru": "Музыка и звук",
+      "gi": ["musical-instrument", "sound"],
+      "words": ["lute", "harp", "lyre", "drum", "horn", "flute", "music", "musical", "violin", "bagpipes", "ocarina", "trumpet", "bell", "sing", "song"]
+    },
+    {
+      "key": "dice",
+      "ru": "Кубы и игры",
+      "tw": ["dice", "d20test"],
+      "gi": ["dice", "tarot", "cluedo", "catan", "board", "toy"],
+      "words": ["dice", "die", "d4", "d6", "d8", "d10", "d12", "d20", "card", "cards", "chess", "tarot", "coinflip", "roll"]
+    },
+    {
+      "key": "combat",
+      "ru": "Бой и действия",
+      "tw": ["combat", "d20test", "attribute", "target", "game"],
+      "gi": ["action", "target"],
+      "words": ["target", "initiative", "attack", "strike", "parry", "dodge", "block", "charge", "crossed", "duel", "fight", "battle", "war", "punch", "kick", "fist", "reaction", "ambush", "backstab", "reach", "melee", "ranged", "whiplash", "unbalanced", "edge-crack"]
+    },
+    {
+      "key": "life",
+      "ru": "Жизнь, лечение, смерть",
+      "tw": ["hp"],
+      "gi": ["life", "heart", "death", "skull", "blood"],
+      "words": ["heart", "hearts", "heal", "healing", "health", "blood", "bleeding", "skull", "death", "dead", "grave", "gravestone", "tombstone", "coffin", "tomb", "bone", "bones", "candle", "resurrection", "revive", "medical", "bandage", "pill", "life", "dying", "reaper", "soul"]
+    },
+    {
+      "key": "movement",
+      "ru": "Движение",
+      "tw": ["movement"],
+      "words": ["run", "running", "walk", "walking", "jump", "jumping", "swim", "swimming", "fly", "flying", "climb", "climbing", "boot", "wing", "wings", "footprint", "sprint", "dash", "teleport", "burrow", "crawl", "speed", "footprints", "path"]
+    },
+    {
+      "key": "creature",
+      "ru": "Существа и монстры",
+      "tw": ["monster"],
+      "gi": ["creature", "animal", "bird", "fish", "insect", "mammal", "reptile", "tentacle", "zombie", "vampire", "claw", "wing", "shell"],
+      "words": ["dragon", "wolf", "bear", "spider", "snake", "rat", "bat", "owl", "raven", "crow", "horse", "boar", "griffin", "hydra", "kraken", "beholder", "ghost", "ghoul", "zombie", "skeleton", "lich", "mummy", "demon", "devil", "imp", "angel", "elemental", "golem", "slime", "ooze", "beast", "monster", "troll", "goblin", "orc", "ogre", "fairy", "unicorn", "phoenix", "basilisk", "wyvern", "werewolf", "vampire", "cat", "dog", "fox", "eagle", "hawk", "frog", "toad", "scorpion", "beetle", "worm", "shark", "octopus", "squid", "tentacle", "tentacles", "minotaur", "cyclops", "centaur", "harpy", "medusa", "gargoyle", "claw", "fang", "fangs", "paw", "horns", "web", "bug", "shell", "scallop", "oyster", "nautilus", "tail"]
+    },
+    {
+      "key": "nature",
+      "ru": "Природа и погода",
+      "gi": ["nature", "plant", "wood", "stone", "sky"],
+      "words": ["tree", "leaf", "leaves", "flower", "mountain", "sun", "moon", "star", "stars", "cloud", "rain", "snow", "storm", "wind", "tornado", "volcano", "forest", "river", "wave", "water", "rock", "stone", "grass", "vine", "thorns", "mushroom", "herb", "oak", "pine", "sunrise", "sunset", "weather", "fog", "lightning", "earth", "planet", "comet", "smoke", "tide"]
+    },
+    {
+      "key": "place",
+      "ru": "Места и строения",
+      "tw": ["location"],
+      "gi": ["building"],
+      "words": ["castle", "tower", "house", "tavern", "temple", "church", "dungeon", "cave", "village", "city", "bridge", "gate", "door", "wall", "ruins", "fortress", "inn", "shop", "market", "camp", "campfire", "tent", "hut", "cabin", "mine", "crypt", "portal", "arena", "throne", "altar", "stairs", "well", "windmill", "lighthouse", "maze", "hole", "hatch", "fence", "platform"]
+    },
+    {
+      "key": "hazard",
+      "ru": "Ловушки и опасности",
+      "gi": ["trap"],
+      "tw": [],
+      "words": ["trap", "pit", "spikes", "spiked", "spiky", "barbed", "caltrops", "mine", "minefield", "mantrap", "hazard", "quicksand", "pitfall"]
+    },
+    {
+      "key": "vehicle",
+      "ru": "Транспорт и ездовые",
+      "words": ["ship", "boat", "cart", "wagon", "carriage", "horse", "saddle", "galleon", "canoe", "raft", "sled", "airship", "mount", "vehicle", "rowboat", "sail", "drakkar", "warship", "paddles", "figurehead"]
+    },
+    {
+      "key": "people",
+      "ru": "Люди, лица, профессии",
+      "gi": ["head", "body", "anatomy"],
+      "words": ["face", "head", "man", "woman", "person", "figure", "character", "portrait", "profile", "bust", "king", "queen", "knight", "pirate", "ninja", "viking", "monk", "priest", "cultist", "assassin", "thief", "soldier", "archer", "merchant", "farmer", "blacksmith", "executioner", "jester", "child", "baby", "guard", "party", "people", "crowd", "dm", "eyes", "mouth", "teeth", "jaw", "jawbone", "tongue", "lips", "hand", "hands", "palm", "finger", "thumb", "incisors", "backbone", "spinal", "severed", "high-five"]
+    },
+    {
+      "key": "symbol",
+      "ru": "Знаки и символы",
+      "gi": ["symbol", "celtic", "egypt", "greek-roman", "flag", "rank", "star", "abstract"],
+      "words": ["rune", "sigil", "symbol", "emblem", "banner", "flag", "glyph", "mark", "seal", "cross", "ankh", "triskele", "yin", "yang", "eye", "pentacle", "holy", "chevron", "rank", "aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces", "zodiac", "drama-masks", "eyes", "awareness", "expanded-rays", "shiny-entrance", "croissants-pupil"]
+    },
+    {
+      "key": "award",
+      "ru": "Награды и достижения",
+      "words": ["trophy", "medal", "laurel", "laurels", "crown", "ribbon", "cup", "podium", "achievement", "victory", "champion", "star-medal", "rank", "badge"]
+    },
+    {
+      "key": "time",
+      "ru": "Время и отдых",
+      "gi": ["time"],
+      "words": ["hourglass", "clock", "time", "timer", "stopwatch", "campfire", "bed", "sleep", "sleeping", "night", "moon", "sun", "sunrise", "rest", "calendar", "round"]
+    },
+    {
+      "key": "ui",
+      "ru": "Интерфейс",
+      "tw": ["util"],
+      "words": ["cog", "gear", "search", "home", "check", "tick", "cross", "plus", "minus", "close", "back", "next", "menu", "dots", "edit", "trash", "info", "settings", "arrow-cursor", "save", "download", "upload", "copy", "link", "lock", "unlock", "button", "play", "pause", "previous", "forward", "backward", "checklist", "confirmed", "toggles", "resize", "share", "folder", "files", "load", "click", "usable", "square", "circle", "touch", "position-marker", "pin", "price-tag", "thumb-up", "thumb-down", "unlocking", "pencil-ruler", "thought-bubble"]
+    },
+    {
+      "key": "brand",
+      "ru": "Логотипы и кампании",
+      "tw": ["logo", "campaign"],
+      "logo": ["adventurers-league", "faction", "logo", "ravnica-guild"],
+      "words": []
+    },
+    {
+      "key": "offstyle",
+      "ru": "Не фэнтези",
+      "gi": ["science-fiction", "robot", "machine", "police", "sport", "space"],
+      "words": ["gun", "pistol", "rifle", "revolver", "shotgun", "car", "truck", "phone", "smartphone", "computer", "laptop", "robot", "rocket", "satellite", "tank", "plane", "airplane", "helicopter", "missile", "bullet", "bullets", "laser", "cyborg", "android", "alien", "ufo", "spaceship", "astronaut", "football", "soccer", "basketball", "tennis", "baseball", "golf", "hockey", "police", "atomic", "nuclear", "radioactive", "electric", "battery", "microchip", "usb", "wifi", "tv", "television", "camera", "video", "movie", "pizza", "hamburger", "hotdog", "soda", "cigarette", "motorcycle", "bicycle", "train", "bus", "submarine", "mech", "mecha", "zat", "railway", "rail-road", "locomotive", "steamer", "traffic", "subway", "boarding-pass", "keyboard", "mouse", "joystick", "controller", "gamepad", "film", "projector", "clapperboard", "led", "metal-detector", "mesh-network", "highlighter", "toothbrush", "lipstick", "unicycle", "velocipede", "street-light", "mailbox", "lockers", "turnstile", "tablet", "carpet-bombing", "artillery", "japan", "i-brick", "j-brick", "l-brick", "o-brick", "s-brick", "t-brick", "z-brick", "retro-controller", "guns", "flashlight", "dynamite", "cluster-bomb", "minefield"]
+    }
+  ],
+  "flags": {
+    "face": {
+      "ru": "Человечек или лицо (владелец не любит у tw-dnd)",
+      "tw": ["entity/person", "entity/organization", "entity/summon", "game/character", "game/dm", "game/party", "game/social", "game/monster", "monster/humanoid", "monster/giant", "monster/fae", "monster/celestial", "monster/fiend"],
+      "words": ["face", "head", "man", "woman", "person", "figure", "character", "portrait", "profile", "bust", "people", "crowd", "silhouette", "humanoid", "girl", "boy", "child"]
+    },
+    "offstyle": {
+      "ru": "Не фэнтези: современное, фантастика, спорт",
+      "theme": "offstyle"
+    }
+  },
+  "own": {
+    "ui": ["back", "next", "down", "dots", "plus", "minus", "close", "edit", "trash", "check", "history", "download", "upload", "archive", "copy", "link", "camera", "cloud", "cloudOff", "menu", "search", "phone", "tablet", "monitor", "signature", "info", "range", "area", "timer", "lock", "upgrade"],
+    "words": {
+      "user": "person character",
+      "swords": "swords combat",
+      "pact": "pentagram warlock",
+      "sparkle": "sparkles magic",
+      "d20": "d20 dice",
+      "bolt": "lightning bolt",
+      "drop": "water drop acid",
+      "spiral": "swirl concentration",
+      "snow": "snowflake cold",
+      "flame": "fire flame",
+      "force": "force magic",
+      "wave": "wave thunder",
+      "eye2": "eye perception",
+      "bubble": "speech talk",
+      "lightning2": "lightning",
+      "heartbeat": "heart health",
+      "crystalball": "crystal-ball magic",
+      "ringgem": "ring gem",
+      "zombiehand": "zombie hand",
+      "firehand": "fire hand magic",
+      "spellfire": "fire magic",
+      "juggle": "juggling",
+      "dash": "run sprint",
+      "blind": "blind",
+      "charmed": "charmed",
+      "deaf": "deaf",
+      "scared": "frightened",
+      "invisible": "invisible",
+      "paralyzed": "paralyzed",
+      "prone": "prone",
+      "stunned": "stunned",
+      "sleep": "sleep",
+      "overcast": "cloud weather",
+      "rain": "rain weather",
+      "storm": "storm weather",
+      "snowcloud": "snow weather",
+      "fog": "fog weather",
+      "smoke": "smoke",
+      "constellation": "stars",
+      "medkit": "medical kit",
+      "chest": "chest treasure",
+      "yinyang": "yin yang symbol",
+      "antimagic": "magic",
+      "prism": "crystal magic",
+      "maze": "maze labyrinth",
+      "disc": "coin",
+      "rook": "chess",
+      "eye": "eye wisdom",
+      "fist": "fist strength",
+      "crown": "crown charisma award",
+      "brain": "brain intelligence"
+    }
+  }
+}

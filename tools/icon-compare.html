@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Сравнение иконок</title>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/app.css">
+<style>
+  body { background: var(--bg); color: var(--text); font-family: var(--font); margin: 0; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 18px 16px 80px; }
+  h1 { font-family: var(--font-head); color: var(--gold-2); font-size: 30px; margin: 6px 0 4px; }
+  h2 { font-family: var(--font-head); color: var(--gold-2); font-size: 24px; margin: 34px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  h3.grp { font-family: var(--font-head); color: var(--gold-3); font-size: 18px; margin: 22px 0 8px; }
+  .lead { color: var(--text-2); font-size: 17px; margin: 0 0 8px; }
+  .gx { display: inline-block; width: 1em; height: 1em; background: currentColor; -webkit-mask: var(--u) center / contain no-repeat; mask: var(--u) center / contain no-repeat; vertical-align: middle; }
+  .gx.miss { background: none; -webkit-mask: none; mask: none; outline: 1px dashed var(--bad); }
+  .tbl { display: grid; grid-template-columns: 150px 90px 90px 1fr; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .tbl > div { padding: 8px 10px; border-bottom: 1px solid rgba(201,163,91,.12); display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .tbl .th { background: var(--panel-2); color: var(--gold-2); font-family: var(--font-head); font-size: 15px; }
+  .tbl .nm { color: var(--text); font-size: 16px; }
+  .cell { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; color: var(--gold-3); }
+  .cell .ic, .cell .gx { width: 40px; height: 40px; font-size: 40px; }
+  .cell small { color: var(--faint); font-size: 10px; max-width: 110px; text-align: center; word-break: break-all; font-family: monospace; }
+  .cell.none { color: var(--faint); font-size: 13px; }
+  .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start; }
+  .col-h { font-family: var(--font-head); color: var(--gold-2); font-size: 20px; text-align: center; margin-bottom: 8px; }
+  .col-h small { display: block; font-family: var(--font); color: var(--faint); font-size: 13px; }
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+  .bg-card { --c: #ff8a3d; --rar: #c07cff; }
+  .card-art .gx { width: 100%; height: 100%; filter: drop-shadow(0 0 3px var(--c)) drop-shadow(0 0 10px var(--c)) drop-shadow(0 0 22px color-mix(in srgb, var(--c) 55%, transparent)); }
+  .card-head h3 { margin: 0; }
+  .meta-i .gx { width: 17px; height: 17px; color: #a69a87; }
+  .ach-medal .gx { width: 22px; height: 22px; }
+  .ach .ach-medal .gx { width: 19px; height: 19px; }
+  .ach-grid.one { grid-template-columns: 1fr; }
+  .abil { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .ab { border: 1px solid var(--line); border-radius: 10px; background: rgba(0,0,0,.22); padding: 8px 4px; text-align: center; color: var(--gold-2); }
+  .ab .ic, .ab .gx { width: 26px; height: 26px; }
+  .ab b { display: block; font-size: 22px; color: var(--gold-3); }
+  .ab small { color: var(--dim); font-size: 12px; }
+  .chips2 { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip2 { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 7px; border-radius: 99px; border: 1px solid rgba(229,83,61,.45); background: rgba(229,83,61,.1); color: #f2b7a8; font-size: 14px; }
+  .chip2 .ic, .chip2 .gx { width: 18px; height: 18px; }
+  .rowsk { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; background: rgba(0,0,0,.2); }
+  .rowsk div { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--text-2); }
+  .rowsk .ic, .rowsk .gx { width: 20px; height: 20px; color: var(--gold-2); }
+  .rowsk b { margin-left: auto; color: var(--gold-3); }
+  .tabs2 { display: flex; justify-content: space-around; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 8px 4px; }
+  .tabs2 span { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; color: var(--dim); }
+  .tabs2 span.on { color: var(--gold-2); }
+  .tabs2 .ic, .tabs2 .gx { width: 24px; height: 24px; }
+  .sizes { display: flex; align-items: flex-end; gap: 16px; color: var(--gold-3); padding: 8px 4px; }
+  .sz { display: flex; align-items: flex-end; gap: 6px; }
+  @media (max-width: 860px) {
+    .cols { grid-template-columns: 1fr; }
+    .tbl { grid-template-columns: 96px 64px 64px 1fr; }
+    .cell .ic, .cell .gx { width: 32px; height: 32px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Наши значки, tw-dnd, game-icons</h1>
+  <p class="lead">Наверху те же карточки и куски листа в трёх стилях. Ниже таблица по темам: наш линейный значок, tw-dnd и варианты из game-icons. Красная пунктирная рамка: файла нет.</p>
+
+  <h2>На карточках и в листе</h2>
+  <div class="cols" id="cols"></div>
+
+  <h2>По темам</h2>
+  <div id="table"></div>
+</div>
+<script type="module">
+import { icon } from "../js/icons.js";
+
+const GI = "../assets/icons/game-icons/";
+const TW = "../assets/icons/tw-dnd/";
+
+const ROWS = [
+  ["Характеристики", [
+    ["Сила", "fist", "ability/strength", ["delapouite/biceps", "lorc/strong", "delapouite/weight-lifting-up"]],
+    ["Ловкость", "dash", "ability/dexterity", ["darkzaitzev/acrobatic", "lorc/sprint", "felbrigg/dodge"]],
+    ["Телосложение", "heart", "ability/constitution", ["lorc/heart-organ", "lorc/muscle-up", "lorc/mailed-fist"]],
+    ["Интеллект", "brain", "ability/intelligence", ["lorc/brain", "lorc/brainstorm", "delapouite/spell-book"]],
+    ["Мудрость", "eye", "ability/wisdom", ["delapouite/wisdom", "lorc/meditation", "lorc/eye-shield"]],
+    ["Харизма", "crown", "ability/charisma", ["lorc/crown", "lorc/charm", "lorc/lips"]]
+  ]],
+  ["Навыки", [
+    ["Атлетика", "fist", "skill/athletics", ["delapouite/weight-lifting-up", "caro-asercion/mountain-climbing"]],
+    ["Акробатика", "dash", "skill/acrobatics", ["darkzaitzev/acrobatic", "delapouite/tightrope"]],
+    ["Скрытность", "mask", "skill/stealth", ["darkzaitzev/hooded-assassin", "lorc/hood"]],
+    ["Восприятие", "eye2", "skill/perception", ["delapouite/eye-target", "lorc/magnifying-glass"]],
+    ["Магия", "sparkle", "skill/arcana", ["lorc/magic-swirl", "lorc/rune-stone"]],
+    ["Убеждение", "bubble", "skill/persuasion", ["lorc/conversation", "skoll/talk"]],
+    ["Запугивание", "skull", "skill/intimidation", ["lorc/shouting", "delapouite/angry-eyes"]],
+    ["Медицина", "medkit", "skill/medicine", ["delapouite/first-aid-kit", "delapouite/healing"]],
+    ["Выживание", "tent", "skill/survival", ["lorc/campfire", "delapouite/camping-tent"]]
+  ]],
+  ["Состояния", [
+    ["Ослеплён", "blind", "condition/blinded", ["delapouite/blindfold"]],
+    ["Очарован", "charmed", "condition/charmed", ["lorc/charm", "lorc/chained-heart"]],
+    ["Испуган", "scared", "condition/frightened", ["lorc/terror"]],
+    ["Невидим", "invisible", "condition/invisible", ["delapouite/invisible", "delapouite/invisible-face"]],
+    ["Отравлен", "toxic", "condition/poisoned", ["lorc/poison-bottle", "sbed/poison"]],
+    ["Сбит с ног", "prone", "condition/prone", ["skoll/knockout"]],
+    ["Опутан", "chain", "condition/restrained", ["lorc/manacles"]],
+    ["Окаменел", "rock", "condition/petrified", ["lorc/stone-block"]],
+    ["Без сознания", "sleep", "condition/unconscious", ["lorc/sleepy", "delapouite/night-sleep"]],
+    ["Истощение", "hourglass", "condition/exhaustion", ["delapouite/tired-eye"]]
+  ]],
+  ["Типы урона", [
+    ["Огонь", "flame", "damage/fire", ["lorc/fire-ray", "carl-olsen/flame"]],
+    ["Холод", "snow", "damage/cold", ["lorc/frozen-orb", "lorc/ice-bolt"]],
+    ["Электричество", "lightning2", "damage/lightning", ["lorc/lightning-arc"]],
+    ["Звук", "wave", "damage/thunder", ["lorc/thunder-struck"]],
+    ["Кислота", "drop", "damage/acid", ["lorc/acid-blob", "sbed/acid"]],
+    ["Яд", "toxic", "damage/poison", ["lorc/poison-gas", "sbed/poison-cloud"]],
+    ["Некротическая", "skull", "damage/necrotic", ["lorc/skull-bolt", "lorc/haunting"]],
+    ["Излучение", "sun", "damage/radiant", ["lorc/sun-radiations", "lorc/angel-wings"]],
+    ["Психическая", "brain", "damage/psychic", ["lorc/psychic-waves"]],
+    ["Силовое поле", "force", "damage/force", ["lorc/magic-swirl"]],
+    ["Рубящий", "axe", "damage/slashing", ["lorc/crossed-slashes"]],
+    ["Колющий", "dagger", "damage/piercing", ["lorc/pierced-body"]],
+    ["Дробящий", "hammer", "damage/bludgeoning", ["lorc/hammer-drop"]]
+  ]],
+  ["Классы", [
+    ["Варвар", null, "class/barbarian", ["delapouite/barbarian", "lorc/mailed-fist"]],
+    ["Бард", null, "class/bard", ["delapouite/harp"]],
+    ["Жрец", null, "class/cleric", ["lorc/holy-symbol", "lorc/prayer"]],
+    ["Друид", null, "class/druid", ["delapouite/oak-leaf", "sparker/bear-face"]],
+    ["Воин", null, "class/fighter", ["lorc/crossed-swords", "delapouite/black-knight-helm"]],
+    ["Монах", null, "class/monk", ["delapouite/monk-face", "lorc/meditation"]],
+    ["Паладин", null, "class/paladin", ["lorc/bolt-shield", "lorc/holy-grail"]],
+    ["Следопыт", null, "class/ranger", ["delapouite/bow-arrow", "lorc/wolf-howl"]],
+    ["Плут", null, "class/rogue", ["lorc/rogue", "lorc/cloak-dagger"]],
+    ["Чародей", null, "class/sorcerer", ["lorc/fire-ray", "lorc/magic-swirl"]],
+    ["Колдун", null, "class/warlock", ["delapouite/warlock-hood", "skoll/pentacle"]],
+    ["Волшебник", null, "class/wizard", ["delapouite/wizard-face", "lorc/wizard-staff"]]
+  ]],
+  ["Оружие", [
+    ["Длинный меч", "sword", "weapon/sword", ["lorc/broadsword", "delapouite/sword-brandish"]],
+    ["Кинжал", "dagger", "weapon/dagger", ["lorc/plain-dagger", "lorc/daggers"]],
+    ["Лук", "bow", "weapon/bow", ["delapouite/bow-arrow", "lorc/target-arrows"]],
+    ["Боевой топор", "battleaxe", "weapon/battleaxe", ["lorc/battle-axe"]],
+    ["Боевой молот", "hammer", "weapon/hammer", ["delapouite/warhammer"]],
+    ["Посох", "staff", "weapon/staff", ["lorc/wizard-staff"]],
+    ["Арбалет", "crossbow", "weapon/crossbow", ["carl-olsen/crossbow"]],
+    ["Щит", "shield", "attribute/ac", ["lorc/checked-shield", "lorc/edged-shield"]]
+  ]],
+  ["Снаряжение", [
+    ["Зелье лечения", "potion", "entity/potion", ["delapouite/health-potion", "lorc/standing-potion"]],
+    ["Свиток", "scroll", "entity/scroll", ["lorc/scroll-unfurled", "lorc/tied-scroll"]],
+    ["Книга заклинаний", "book", "entity/spellbook", ["delapouite/spell-book", "lorc/book-cover"]],
+    ["Волшебная палочка", "wand", "entity/wand", ["lorc/crystal-wand", "lorc/fairy-wand"]],
+    ["Кольцо", "ring", "entity/ring", ["delapouite/diamond-ring", "delapouite/frozen-ring"]],
+    ["Рюкзак", "backpack", "entity/pack", ["delapouite/backpack"]],
+    ["Верёвка", "rope", null, ["delapouite/rope-coil"]],
+    ["Факел", "torch", null, ["delapouite/torch", "delapouite/primitive-torch"]],
+    ["Фонарь", "lantern", null, ["lorc/lantern", "delapouite/old-lantern"]],
+    ["Монеты", "coin", null, ["delapouite/two-coins", "delapouite/coins"]],
+    ["Сундук", "chest", "entity/loot", ["skoll/open-treasure-chest", "lorc/locked-chest"]]
+  ]],
+  ["Бой и лист", [
+    ["Хиты", "heart", "hp/full", ["zeromancer/heart-plus", "delapouite/healing"]],
+    ["КД", "shield", "attribute/ac", ["lorc/checked-shield", "lorc/edged-shield"]],
+    ["Инициатива", "bolt", "combat/initiative", ["lorc/sprint", "lorc/lightning-helix"]],
+    ["Скорость", "boot", "movement/walking", ["lorc/walking-boot", "delapouite/running-shoe"]],
+    ["Концентрация", "spiral", "game/concentration", ["lorc/meditation", "lorc/magic-swirl"]],
+    ["Короткий отдых", "campfire", "game/rest", ["lorc/campfire"]],
+    ["Долгий отдых", "moon", null, ["lorc/moon", "delapouite/night-sleep"]],
+    ["Вдохновение", "star", "game/inspiration", ["delapouite/sparkles", "lorc/laurel-crown"]],
+    ["Бросок d20", "d20", "dice/d20", ["delapouite/dice-twenty-faces-twenty", "delapouite/rolling-dices"]],
+    ["Спасброски от смерти", "candle", null, ["lorc/candle-skull", "lorc/candle-light"]],
+    ["Достижение", "crown", "util/star", ["lorc/trophy", "delapouite/laurels-trophy"]]
+  ]]
+];
+
+const exists = {};
+const tw = p => `<span class="gx" style="--u:url('${TW}${p}.svg')" data-chk="${TW}${p}.svg"></span>`;
+const gi = p => `<span class="gx" style="--u:url('${GI}${p}.svg')" data-chk="${GI}${p}.svg"></span>`;
+const our = n => icon(n);
+
+function table() {
+  return ROWS.map(([title, rows]) => `<h3 class="grp">${title}</h3><div class="tbl">
+    <div class="th">Что</div><div class="th">Наш</div><div class="th">tw-dnd</div><div class="th">game-icons</div>
+    ${rows.map(([name, o, t, g]) => `<div class="nm">${name}</div>
+      <div>${o ? `<span class="cell">${our(o)}<small>${o}</small></span>` : `<span class="cell none">нет</span>`}</div>
+      <div>${t ? `<span class="cell">${tw(t)}<small>${t.split("/")[1]}</small></span>` : `<span class="cell none">нет</span>`}</div>
+      <div>${g.map(p => `<span class="cell">${gi(p)}<small>${p}</small></span>`).join("")}</div>`).join("")}
+  </div>`).join("");
+}
+
+const SETS = [
+  { title: "Наш", sub: "линия 24×24, сейчас на сайте", ic: n => our(n.o) },
+  { title: "tw-dnd", sub: "силуэт, 286 штук, только D&D", ic: n => n.t ? tw(n.t) : our(n.o) },
+  { title: "game-icons", sub: "силуэт, 3894 штуки на всё", ic: n => gi(n.g) }
+];
+
+const I = {
+  fireball: { o: "flame", t: "spell/evocation", g: "lorc/fire-ray" },
+  fire: { o: "flame", t: "damage/fire", g: "carl-olsen/flame" },
+  range: { o: "range", t: "attribute/range", g: "lorc/target-arrows" },
+  area: { o: "area", t: "target/sphere", g: "lorc/explosion-rays" },
+  timer: { o: "timer", t: "combat/round", g: "lorc/hourglass" },
+  conc: { o: "spiral", t: "game/concentration", g: "lorc/meditation" },
+  potion: { o: "potion", t: "entity/potion", g: "delapouite/health-potion" },
+  heart: { o: "heart", t: "hp/full", g: "zeromancer/heart-plus" },
+  rage: { o: "fist", t: "class/barbarian", g: "lorc/mailed-fist" },
+  str: { o: "fist", t: "ability/strength", g: "delapouite/biceps" },
+  dex: { o: "dash", t: "ability/dexterity", g: "darkzaitzev/acrobatic" },
+  con: { o: "heart", t: "ability/constitution", g: "lorc/heart-organ" },
+  int: { o: "brain", t: "ability/intelligence", g: "lorc/brain" },
+  wis: { o: "eye", t: "ability/wisdom", g: "delapouite/wisdom" },
+  cha: { o: "crown", t: "ability/charisma", g: "lorc/crown" },
+  blind: { o: "blind", t: "condition/blinded", g: "delapouite/blindfold" },
+  poison: { o: "toxic", t: "condition/poisoned", g: "lorc/poison-bottle" },
+  prone: { o: "prone", t: "condition/prone", g: "skoll/knockout" },
+  scared: { o: "scared", t: "condition/frightened", g: "lorc/terror" },
+  stealth: { o: "mask", t: "skill/stealth", g: "darkzaitzev/hooded-assassin" },
+  percep: { o: "eye2", t: "skill/perception", g: "delapouite/eye-target" },
+  arcana: { o: "sparkle", t: "skill/arcana", g: "lorc/rune-stone" },
+  athl: { o: "fist", t: "skill/athletics", g: "delapouite/weight-lifting-up" },
+  a1: { o: "d20", t: "dice/d20", g: "delapouite/rolling-dices" },
+  a2: { o: "campfire", t: "game/rest", g: "lorc/campfire" },
+  a3: { o: "skull", t: "monster/undead", g: "lorc/skull-crossed-bones" },
+  a4: { o: "candle", t: "hp/empty", g: "lorc/candle-skull" },
+  t1: { o: "user", t: "game/character", g: "delapouite/barbarian" },
+  t2: { o: "swords", t: "game/combat", g: "lorc/crossed-swords" },
+  t3: { o: "sparkle", t: "game/spell", g: "lorc/magic-swirl" },
+  t4: { o: "bag", t: "entity/pack", g: "delapouite/backpack" },
+  t5: { o: "feather", t: "entity/book", g: "lorc/quill-ink" }
+};
+
+function column(s) {
+  const x = k => s.ic(I[k]);
+  return `<div class="stack">
+    <div class="col-h">${s.title}<small>${s.sub}</small></div>
+    <div class="bg-card" style="--c:#ff8a3d">
+      <div class="card-art">${x("fireball")}</div>
+      <div class="card-head"><h3>Огненный шар</h3><div class="card-sub">Заклинание 3 круга, воплощение</div></div>
+      <div class="card-stats"><span class="big-num">8к6</span><span>${x("fire")} огонь</span></div>
+      <div class="card-desc"><p>Яркая вспышка разрывается в выбранной точке. Каждое существо в сфере радиусом 20 футов совершает спасбросок Ловкости.</p></div>
+      <div class="card-meta"><span class="meta-i">${x("range")} 150 фт</span><span class="meta-i">${x("area")} сфера 20 фт</span><span class="meta-i">${x("timer")} мгновенно</span></div>
+      <div class="card-foot"><span class="foot-i">Действие</span><span class="foot-i">Ячейка 3</span></div>
+    </div>
+    <div class="bg-card" style="--c:#e5533d;--rar:#58c35a">
+      <div class="card-art">${x("potion")}</div>
+      <div class="card-head"><h3>Зелье лечения</h3><div class="card-sub">Зелье, обычное</div></div>
+      <div class="card-stats"><span class="big-num">2к4+2</span><span>${x("heart")} хиты</span></div>
+      <div class="card-desc"><p>Красная жидкость мерцает, если её взболтать.</p></div>
+      <div class="card-foot"><span class="foot-i">Бонусное действие</span><span class="foot-i">0,5 фнт</span></div>
+    </div>
+    <div class="bg-card" style="--c:#e5533d;--rar:#e9c77a">
+      <div class="card-art">${x("rage")}</div>
+      <div class="card-head"><h3>Ярость</h3><div class="card-sub">Умение варвара, 1 уровень</div></div>
+      <div class="card-desc"><p>Преимущество на проверки и спасброски Силы, +2 к урону оружием на Силе, сопротивление дробящему, колющему и рубящему.</p></div>
+      <div class="card-foot"><span class="foot-i">Бонусное действие</span><span class="foot-i">3 раза до долгого отдыха</span></div>
+    </div>
+    <div class="abil">
+      ${[["str", "Сила", 16, "+3"], ["dex", "Ловкость", 14, "+2"], ["con", "Телосл.", 15, "+2"], ["int", "Интеллект", 8, "-1"], ["wis", "Мудрость", 12, "+1"], ["cha", "Харизма", 10, "+0"]].map(([k, n, v, m]) => `<div class="ab">${x(k)}<b>${m}</b><small>${n} ${v}</small></div>`).join("")}
+    </div>
+    <div class="rowsk">
+      ${[["athl", "Атлетика", "+5"], ["stealth", "Скрытность", "+2"], ["percep", "Восприятие", "+3"], ["arcana", "Магия", "-1"]].map(([k, n, v]) => `<div>${x(k)}${n}<b>${v}</b></div>`).join("")}
+    </div>
+    <div class="chips2">
+      ${[["blind", "Ослеплён"], ["poison", "Отравлен"], ["prone", "Сбит с ног"], ["scared", "Испуган"]].map(([k, n]) => `<span class="chip2">${x(k)}${n}</span>`).join("")}
+    </div>
+    <div class="ach-grid one">
+      ${[["a1", "Натуральная двадцатка", "Выбросить 20 на d20"], ["a2", "У костра", "Первый короткий отдых"], ["a3", "Гроза нежити", "Победить 10 мертвецов"], ["a4", "На волоске", "Три успеха в спасбросках от смерти"]].map(([k, n, d]) => `<div class="ach on"><span class="ach-medal">${x(k)}</span><span class="ach-t"><b>${n}</b><small>${d}</small></span></div>`).join("")}
+    </div>
+    <div class="tabs2">
+      ${[["t1", "Герой", 1], ["t2", "Бой"], ["t3", "Магия"], ["t4", "Вещи"], ["t5", "Заметки"]].map(([k, n, on]) => `<span class="${on ? "on" : ""}">${x(k)}${n}</span>`).join("")}
+    </div>
+    <div class="sizes">${[14, 18, 24, 32, 48].map(z => `<span class="sz" style="font-size:${z}px;width:${z}px;height:${z}px">${x("fireball").replace('class="', `style="width:${z}px;height:${z}px" class="`)}</span>`).join("")}</div>
+  </div>`;
+}
+
+document.getElementById("cols").innerHTML = SETS.map(column).join("");
+document.getElementById("table").innerHTML = table();
+
+const urls = [...new Set([...document.querySelectorAll("[data-chk]")].map(e => e.dataset.chk))];
+await Promise.all(urls.map(u => fetch(u, { method: "HEAD" }).then(r => { exists[u] = r.ok; }).catch(() => { exists[u] = false; })));
+document.querySelectorAll("[data-chk]").forEach(e => { if (!exists[e.dataset.chk]) e.classList.add("miss"); });
+</script>
+</body>
+</html>

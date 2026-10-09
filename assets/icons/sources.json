@@ -1,0 +1,84 @@
+{
+  "packs": {
+    "own": {
+      "title": "Свои значки листа",
+      "dir": "js/icons.js",
+      "license": "свои",
+      "style": "линия, viewBox 24, stroke currentColor, ширина 1.6",
+      "use": "кнопки и мелочь интерфейса; вызывать icon(\"name\")"
+    },
+    "tw": {
+      "title": "Intrinsical's D&D 5e Icon Set",
+      "dir": "assets/icons/tw-dnd",
+      "url": "https://github.com/intrinsical/tw-dnd",
+      "author": "David Kor Kian Wei",
+      "authorUrl": "https://github.com/intrinsical",
+      "license": "CC BY-SA 4.0",
+      "style": "сплошной силуэт, viewBox 100, без заливки (чёрный по умолчанию), красится через mask или fill",
+      "use": "характеристики, типы урона, классы, термины правил; без человечков и лиц"
+    },
+    "gi": {
+      "title": "game-icons.net",
+      "dir": "assets/icons/game-icons",
+      "url": "https://game-icons.net",
+      "license": "CC BY 3.0 (у авторов из authors с пометкой CC0 атрибуция не обязательна, но пишем)",
+      "style": "сплошной силуэт, viewBox 512, path fill=\"#fff\" зашит, красится через mask",
+      "use": "навыки, состояния, нижняя панель, снаряжение, бой, оружие, достижения; каждого автора вписать в CREDITS",
+      "authors": {
+        "lorc": { "name": "Lorc", "url": "http://lorcblog.blogspot.com" },
+        "delapouite": { "name": "Delapouite", "url": "https://delapouite.com" },
+        "john-colburn": { "name": "John Colburn", "url": "http://ninmunanmu.com" },
+        "felbrigg": { "name": "Felbrigg", "url": "http://blackdogofdoom.blogspot.co.uk" },
+        "john-redman": { "name": "John Redman", "url": "http://www.uniquedicetowers.com" },
+        "carl-olsen": { "name": "Carl Olsen", "url": "https://twitter.com/unstoppableCarl" },
+        "sbed": { "name": "Sbed", "url": "http://opengameart.org/content/95-game-icons" },
+        "willdabeast": { "name": "Willdabeast", "url": "http://wjbstories.blogspot.com" },
+        "viscious-speed": { "name": "Viscious Speed", "url": "http://viscious-speed.deviantart.com", "license": "CC0" },
+        "lord-berandas": { "name": "Lord Berandas", "url": "http://berandas.deviantart.com" },
+        "irongamer": { "name": "Irongamer", "url": "http://ecesisllc.wix.com/home" },
+        "heavenly-dog": { "name": "HeavenlyDog", "url": "http://www.gnomosygoblins.blogspot.com" },
+        "lucasms": { "name": "Lucas" },
+        "faithtoken": { "name": "Faithtoken", "url": "http://fungustoken.deviantart.com" },
+        "skoll": { "name": "Skoll" },
+        "andymeneely": { "name": "Andy Meneely", "url": "http://www.se.rit.edu/~andy/" },
+        "cathelineau": { "name": "Cathelineau" },
+        "kier-heyl": { "name": "Kier Heyl" },
+        "aussiesim": { "name": "Aussiesim" },
+        "sparker": { "name": "Sparker", "url": "http://citizenparker.com" },
+        "zeromancer": { "name": "Zeromancer", "license": "CC0" },
+        "rihlsul": { "name": "Rihlsul" },
+        "quoting": { "name": "Quoting" },
+        "guard13007": { "name": "Guard13007", "url": "https://guard13007.com" },
+        "darkzaitzev": { "name": "DarkZaitzev", "url": "http://darkzaitzev.deviantart.com" },
+        "spencerdub": { "name": "SpencerDub" },
+        "generalace135": { "name": "GeneralAce135" },
+        "zajkonur": { "name": "Zajkonur" },
+        "catsu": { "name": "Catsu" },
+        "starseeker": { "name": "Starseeker" },
+        "pepijn-poolman": { "name": "Pepijn Poolman" },
+        "pierre-leducq": { "name": "Pierre Leducq" },
+        "caro-asercion": { "name": "Caro Asercion" },
+        "seregacthtuf": { "name": "Seregacthtuf" },
+        "various-artists": { "name": "Various artists" }
+      }
+    },
+    "logo": {
+      "title": "Эмблемы в стиле D&D 5e",
+      "dir": "assets/icons/dnd5e-logos",
+      "license": "неизвестна",
+      "style": "тонкие эмблемы, viewBox 100, цвета зашиты в <style>, часть цветные",
+      "use": "не ставить на сайт, пока не выяснен автор; папка не в git"
+    },
+    "sr": {
+      "title": "SVG Repo, образцы владельца",
+      "dir": "assets/icons/svgrepo",
+      "url": "https://www.svgrepo.com",
+      "license": "у каждого файла своя, не выяснена",
+      "style": "разный",
+      "use": "только образцы для перерисовки, на сайт не ставить"
+    }
+  },
+  "local": {
+    "assets/icons/_sources/zips": "исходные архивы: game-icons по тегам и D&D 5e Icons (исходник dnd5e-logos в .ai); не в git"
+  }
+}

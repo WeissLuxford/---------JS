@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Каталог иконок</title>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/app.css">
+<style>
+  body { background: var(--bg); color: var(--text); font-family: var(--font); margin: 0; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 14px 16px 80px; }
+  h1 { font-family: var(--font-head); color: var(--gold-2); font-size: 26px; margin: 4px 0 10px; }
+  .bar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 8px 0 10px; border-bottom: 1px solid var(--line); }
+  .q { width: 100%; box-sizing: border-box; font: inherit; font-size: 18px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--panel); color: var(--text); }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+  .ch { font: inherit; font-size: 14px; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--line); background: rgba(0,0,0,.2); color: var(--text-2); cursor: pointer; }
+  .ch b { color: var(--faint); font-weight: 400; margin-left: 4px; font-size: 12px; }
+  .ch.on { border-color: var(--gold); color: var(--gold-3); background: rgba(201,163,91,.15); }
+  .ch.pk.on { border-color: var(--purple); color: #e3c8ff; background: rgba(192,124,255,.14); }
+  .count { color: var(--dim); font-size: 14px; margin-left: auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin-top: 12px; }
+  .it { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px 6px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.22); color: var(--gold-3); cursor: pointer; min-width: 0; }
+  .it:hover, .it.sel { border-color: var(--gold); background: rgba(201,163,91,.1); }
+  .it .gx, .it img, .it .ic { width: 48px; height: 48px; }
+  .it small { font-size: 11px; color: var(--text-2); text-align: center; line-height: 1.15; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 2.3em; }
+  .it em { font-style: normal; font-size: 10px; color: var(--faint); }
+  .it.face { box-shadow: inset 0 0 0 1px rgba(229,83,61,.35); }
+  .gx { display: inline-block; background: currentColor; -webkit-mask: var(--u) center / contain no-repeat; mask: var(--u) center / contain no-repeat; }
+  .more { display: block; margin: 16px auto; }
+  .info { position: fixed; right: 16px; bottom: 16px; width: min(380px, calc(100vw - 32px)); box-sizing: border-box; background: var(--panel); border: 1px solid var(--line-2); border-radius: 12px; padding: 14px; box-shadow: var(--shadow); z-index: 10; display: none; }
+  .info.on { display: block; }
+  .info .big { display: flex; gap: 14px; align-items: center; color: var(--gold-3); }
+  .info .big .gx, .info .big img, .info .big .ic { width: 84px; height: 84px; flex: none; }
+  .info h3 { margin: 0; font-size: 20px; color: var(--text); }
+  .info p { margin: 6px 0 0; font-size: 14px; color: var(--text-2); word-break: break-all; }
+  .info code { font-size: 12px; color: var(--gold-2); }
+  .info .x { position: absolute; right: 8px; top: 6px; background: none; border: 0; color: var(--dim); font-size: 22px; cursor: pointer; }
+  .sizes { display: flex; gap: 12px; align-items: flex-end; margin-top: 10px; color: var(--gold-3); }
+  .sizes span { display: inline-flex; }
+  .sizes span > * { width: 100%; height: 100%; }
+  .tint { display: flex; gap: 6px; margin-top: 8px; }
+  .tint i { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 1px solid rgba(255,255,255,.3); }
+  @media (max-width: 520px) { .grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); } .it .gx, .it img, .it .ic { width: 40px; height: 40px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Каталог иконок</h1>
+  <div class="bar">
+    <input class="q" id="q" placeholder="Поиск: кинжал, зелье, череп, crown..." autocomplete="off">
+    <div class="row" id="packs"></div>
+    <div class="row" id="themes"></div>
+    <div class="row" id="flags"></div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <button class="ch more" id="more">Показать ещё</button>
+</div>
+<div class="info" id="info"></div>
+<script type="module">
+import { icon } from "../js/icons.js";
+import { prepare, search } from "./icon-search.mjs";
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[c]);
+const cat = prepare(await (await fetch("../assets/icons/catalog.json", { cache: "no-store" })).json());
+const PACKS = { gi: "game-icons", tw: "tw-dnd", own: "наши", logo: "эмблемы", sr: "svgrepo" };
+const st = { q: "", packs: [], theme: "", all: false, dups: false, shown: 240 };
+try { Object.assign(st, JSON.parse(localStorage.getItem("icon-browser") || "{}"), { shown: 240 }); } catch {}
+const save = () => { try { localStorage.setItem("icon-browser", JSON.stringify({ q: st.q, packs: st.packs, theme: st.theme, all: st.all })); } catch {} };
+
+function pic(i) {
+  if (i.pack === "own") return icon(i.id.slice(4));
+  if (i.pack === "logo" || i.pack === "sr") return `<img src="../${esc(i.file)}" alt="" loading="lazy">`;
+  return `<span class="gx" style="--u:url('../${esc(i.file)}')"></span>`;
+}
+
+function bars() {
+  const n = k => cat.icons.filter(i => !i.dup && i.pack === k).length;
+  document.getElementById("packs").innerHTML = Object.entries(PACKS).map(([k, t]) => `<button class="ch pk ${st.packs.includes(k) ? "on" : ""}" data-pack="${k}">${t}<b>${n(k)}</b></button>`).join("");
+  const res = search(cat, st.q, { packs: st.packs, all: st.all, dups: st.dups });
+  const cnt = {};
+  res.forEach(i => i.themes.forEach(t => cnt[t] = (cnt[t] || 0) + 1));
+  document.getElementById("themes").innerHTML = `<button class="ch ${st.theme ? "" : "on"}" data-theme="">все темы</button>` + cat.themes.map(t => `<button class="ch ${st.theme === t.key ? "on" : ""}" data-theme="${t.key}">${esc(t.ru)}<b>${cnt[t.key] || 0}</b></button>`).join("");
+  document.getElementById("flags").innerHTML = `<button class="ch ${st.all ? "on" : ""}" data-flag="all">лица и не фэнтези</button><button class="ch ${st.dups ? "on" : ""}" data-flag="dups">дубли</button><span class="count" id="count"></span>`;
+}
+
+let res = [];
+function draw() {
+  res = search(cat, st.q, { packs: st.packs, theme: st.theme, all: st.all, dups: st.dups });
+  document.getElementById("grid").innerHTML = res.slice(0, st.shown).map((i, n) => `<div class="it ${i.flags.includes("face") ? "face" : ""}" data-n="${n}" title="${esc(i.id)}">${pic(i)}<small>${esc(i.ru || i.name)}</small><em>${esc(PACKS[i.pack])}</em></div>`).join("");
+  document.getElementById("count").textContent = `найдено ${res.length}`;
+  document.getElementById("more").style.display = res.length > st.shown ? "" : "none";
+}
+
+function info(i) {
+  const el = document.getElementById("info");
+  el.innerHTML = `<button class="x" data-close>×</button><div class="big">${pic(i)}<div><h3>${esc(i.ru || i.name)}</h3><p>${esc(i.name)}</p></div></div>
+    <p><code>${esc(i.id)}</code></p><p>${esc(i.file)}</p>
+    <p>Набор: ${esc(cat.packs[i.pack]?.title)}${i.author ? `, автор ${esc(i.author)}` : ""}. Лицензия: ${esc(cat.packs[i.pack]?.license)}</p>
+    <p>Темы: ${esc(i.themes.map(k => cat.themes.find(t => t.key === k)?.ru).join(", ") || "нет")}${i.flags.length ? `. Пометки: ${esc(i.flags.join(", "))}` : ""}${i.dup ? `. Дубль ${esc(i.dup)}` : ""}</p>
+    ${i.tags ? `<p>Теги game-icons: ${esc(i.tags.join(", "))}</p>` : ""}
+    <div class="sizes">${[16, 20, 24, 32, 48].map(z => `<span style="width:${z}px;height:${z}px">${pic(i)}</span>`).join("")}</div>
+    <div class="tint">${["#f6e2ae", "#e5533d", "#58c35a", "#8fd6ff", "#c07cff", "#ff8a3d"].map(c => `<i style="background:${c}" data-tint="${c}"></i>`).join("")}</div>
+    <div class="row"><button class="ch" data-copy="${esc(i.id)}">Копировать id</button><button class="ch" data-copy="${esc(i.file)}">Копировать путь</button></div>`;
+  el.classList.add("on");
+}
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-pack],[data-theme],[data-flag],[data-n],[data-close],[data-copy],[data-tint],#more");
+  if (!t) return;
+  if (t.dataset.pack) { const k = t.dataset.pack; st.packs = st.packs.includes(k) ? st.packs.filter(x => x !== k) : [...st.packs, k]; }
+  else if (t.dataset.theme !== undefined) st.theme = t.dataset.theme;
+  else if (t.dataset.flag) st[t.dataset.flag] = !st[t.dataset.flag];
+  else if (t.dataset.n) { document.querySelectorAll(".it.sel").forEach(x => x.classList.remove("sel")); t.classList.add("sel"); return info(res[+t.dataset.n]); }
+  else if (t.dataset.close !== undefined) return document.getElementById("info").classList.remove("on");
+  else if (t.dataset.copy) { navigator.clipboard?.writeText(t.dataset.copy); t.textContent = "Скопировано"; return; }
+  else if (t.dataset.tint) { document.querySelector("#info .big").style.color = t.dataset.tint; document.querySelector("#info .sizes").style.color = t.dataset.tint; return; }
+  else if (t.id === "more") { st.shown += 240; return draw(); }
+  st.shown = 240; save(); bars(); draw();
+});
+
+let timer;
+const q = document.getElementById("q");
+q.value = st.q;
+q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => { st.q = q.value; st.shown = 240; save(); bars(); draw(); }, 150); });
+bars();
+draw();
+</script>
+</body>
+</html>
