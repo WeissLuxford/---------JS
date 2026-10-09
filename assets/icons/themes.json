@@ -93,7 +93,7 @@
       "key": "clothing",
       "ru": "Одежда",
       "gi": ["clothing", "hat", "boot"],
-      "words": ["cloak", "robe", "boot", "boots", "hat", "hood", "glove", "gloves", "belt", "cape", "dress", "shirt", "tunic", "trousers", "sandal", "shoe", "mask", "scarf", "coat", "monocle", "lorgnette"]
+      "words": ["cloak", "robe", "boot", "boots", "hat", "hood", "glove", "gloves", "belt", "cape", "dress", "shirt", "tunic", "trousers", "sandal", "shoe", "mask", "scarf", "coat", "monocle", "lorgnette", "clothing"]
     },
     {
       "key": "music",

@@ -62,7 +62,7 @@ import { prepare, search } from "./icon-search.mjs";
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[c]);
 const cat = prepare(await (await fetch("../assets/icons/catalog.json", { cache: "no-store" })).json());
-const PACKS = { gi: "game-icons", tw: "tw-dnd", own: "наши", logo: "эмблемы", sr: "svgrepo" };
+const PACKS = { gi: "game-icons", tw: "tw-dnd", np: "noun project", own: "наши", logo: "эмблемы", sr: "svgrepo" };
 const st = { q: "", packs: [], theme: "", all: false, dups: false, shown: 240 };
 try { Object.assign(st, JSON.parse(localStorage.getItem("icon-browser") || "{}"), { shown: 240 }); } catch {}
 const save = () => { try { localStorage.setItem("icon-browser", JSON.stringify({ q: st.q, packs: st.packs, theme: st.theme, all: st.all })); } catch {} };

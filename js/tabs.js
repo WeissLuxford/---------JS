@@ -5,13 +5,13 @@ import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum
 import { NOTE_SECTIONS, SECTION_NAME, NOTE_STATUS, NOTE_ATTITUDE, CLUE_STATE, noteTagsOf, searchNotes, queryStems, highlight, snippetHtml, plainText, richLinks, backlinks, currentSession, pinnedNotes, linkTargets } from "./notes.js";
 
 export const TABS = [
-  { key: "char", name: "Персонаж", short: "Герой", icon: "user" },
-  { key: "combat", name: "Бой", icon: "swords" },
-  { key: "spells", name: "Магия", icon: "book" },
-  { key: "features", name: "Умения", icon: "pact" },
-  { key: "inventory", name: "Снаряжение", short: "Вещи", icon: "bag" },
-  { key: "notes", name: "Заметки", icon: "scroll" },
-  { key: "story", name: "Личность", icon: "feather" }
+  { key: "char", name: "Персонаж", short: "Герой", icon: "tabChar" },
+  { key: "combat", name: "Бой", icon: "tabCombat" },
+  { key: "spells", name: "Магия", icon: "tabSpells" },
+  { key: "features", name: "Умения", icon: "tabFeatures" },
+  { key: "inventory", name: "Снаряжение", short: "Вещи", icon: "tabInventory" },
+  { key: "notes", name: "Заметки", icon: "tabNotes" },
+  { key: "story", name: "Личность", icon: "tabStory" }
 ];
 
 const abShort = k => (ABILITIES.find(a => a.key === k) || {}).short || "";

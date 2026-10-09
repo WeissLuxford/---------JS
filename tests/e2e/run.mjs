@@ -15,10 +15,11 @@ try {
   process.exit(2);
 }
 
+const docker = !process.env.SITE && spawnSync("docker", ["compose", "version"], { encoding: "utf8" }).status === 0;
 let bad = 0;
 let total = 0;
 for (const f of files) {
-  const r = spawnSync(process.execPath, [path.join(dir, f)], { encoding: "utf8", timeout: 240000 });
+  const r = f === "visual.mjs" && docker ? spawnSync("docker", ["compose", "run", "--rm", ...(process.env.VISUAL_UPDATE === "1" ? ["-e", "VISUAL_UPDATE=1"] : []), "visual"], { cwd: path.join(dir, "../.."), encoding: "utf8", timeout: 900000 }) : spawnSync(process.execPath, [path.join(dir, f)], { encoding: "utf8", timeout: 240000 });
   const out = `${r.stdout || ""}${r.stderr || ""}`;
   const pass = (out.match(/^PASS /gm) || []).length;
   const fails = out.split("\n").filter(l => l.startsWith("FAIL "));

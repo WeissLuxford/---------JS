@@ -1,4 +1,4 @@
-export const PACK_ORDER = ["gi", "tw", "own", "logo", "sr"];
+export const PACK_ORDER = ["gi", "tw", "np", "own", "logo", "sr"];
 
 export function norm(s) {
   return String(s || "").toLowerCase().replace(/ё/g, "е");

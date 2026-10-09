@@ -1,0 +1,60 @@
+import { chromium, launchOpts, E2E_OUT } from "./env.mjs";
+const r = [];
+const ok = (n, c, x = "") => r.push(`${c ? "PASS" : "FAIL"} ${n}${x ? " :: " + x : ""}`);
+const sleep = ms => new Promise(res => setTimeout(res, ms));
+const browser = await chromium.launch(launchOpts);
+const ctx = await browser.newContext({ viewport: { width: 430, height: 900 }, serviceWorkers: "block", isMobile: true, hasTouch: true });
+await ctx.route(/gstatic\.com|googleapis\.com|google\.com/, x => x.abort());
+const page = await ctx.newPage();
+const errors = [];
+page.on("pageerror", e => errors.push(e.message));
+await page.addInitScript(() => { localStorage.setItem("dnd.fx", JSON.stringify({ anim: false, sound: false })); localStorage.setItem("dnd.dice3d", "0"); localStorage.setItem("dnd.rollcard", "1"); });
+await page.goto("http://localhost:8765/#/c/kirion-thorndike/combat");
+await page.waitForSelector(".sheet");
+await page.waitForSelector("#ach-toast.in", { timeout: 8000 });
+ok("summary toast shows", (await page.locator("#ach-toast").innerText()).includes("Уже заработано"));
+await page.click("#ach-toast");
+await page.waitForSelector(".modal-back.in .ach-grid");
+ok("tap opens the achievements list", await page.locator(".modal-back.in .ach").count() > 50);
+ok("toast hides after tap", !(await page.locator("#ach-toast").getAttribute("class")).includes("in"));
+await page.keyboard.press("Escape");
+await sleep(500);
+await page.goto("http://localhost:8765/#/");
+await page.waitForSelector("[data-new]");
+await page.click("[data-new]");
+await page.waitForSelector(".modal-back.in [data-blank]");
+await page.click(".modal-back.in [data-blank]");
+await page.waitForSelector(".modal-back.in button:has-text('Создать')");
+await sleep(400);
+await page.click(".modal-back.in button:has-text('Создать')");
+await page.waitForSelector(".sheet");
+await sleep(1500);
+await page.evaluate(() => { const el = document.getElementById("ach-toast"); if (el) el.className = ""; });
+await page.goto(page.url().replace(/\/[a-z]+$/, "") + "/char");
+await page.waitForSelector("[data-roll^='save:']");
+let single = "";
+for (let i = 0; i < 6 && !single; i++) {
+  await page.locator("[data-roll^='save:']").first().click({ timeout: 3000 }).catch(() => {});
+  await sleep(700);
+  if (await page.locator("#roll-card.in").count()) await page.locator("#roll-card.in").click({ timeout: 3000 }).catch(() => {});
+  await sleep(300);
+  const t = await page.locator("#ach-toast.in").count() ? await page.locator("#ach-toast").innerText() : "";
+  if (t && !t.includes("Уже заработано")) single = t;
+}
+ok("a single achievement toast appears", !!single, single);
+if (single) {
+  const name = single.split("\n").pop().trim();
+  await page.click("#ach-toast");
+  await page.waitForSelector(".modal-back.in .ach.focus");
+  await sleep(1200);
+  const box = await page.$eval(".modal-back.in .ach.focus", el => {
+    const b = el.getBoundingClientRect();
+    return { text: el.innerText, top: b.top, bottom: b.bottom, h: innerHeight };
+  });
+  ok("list focuses that achievement", box.text.includes(name), box.text);
+  ok("focused achievement is scrolled into view", box.top >= 0 && box.bottom <= box.h, JSON.stringify(box));
+  await page.screenshot({ path: E2E_OUT + "ach-focus.png" });
+}
+ok("no errors", errors.length === 0, errors.join("|"));
+await browser.close();
+console.log(r.join("\n"));

@@ -8,3 +8,17 @@ services:
       - ./:/usr/share/nginx/html:ro
       - ./tools/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped
+  visual:
+    build:
+      context: ./tools
+      dockerfile: visual.Dockerfile
+    image: dnd-visual
+    profiles: ["tools"]
+    depends_on: [web]
+    environment:
+      SITE: http://web
+      E2E_OUT: /app/tests/visual
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: node tests/e2e/visual.mjs

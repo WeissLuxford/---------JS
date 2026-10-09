@@ -3,3 +3,4 @@ node_modules/
 *.log
 assets/icons/_sources/
 assets/icons/dnd5e-logos/
+tests/visual/dnd-e2e/

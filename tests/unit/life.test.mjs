@@ -52,7 +52,7 @@ test("every condition has its own icon", () => {
     assert.ok(k.icon, k.key);
     assert.ok(ICON_NAMES.includes(k.icon), k.icon);
   }
-  assert.equal(R.DAMAGE.poison.icon, "toxic");
+  assert.equal(R.DAMAGE.poison.icon, "dmgPoison");
 });
 
 test("new icons are drawn, pickable and render without fallback", () => {
@@ -79,7 +79,7 @@ test("names pick fitting new icons", () => {
   const sp = (name, damage = []) => E.spellIcon(c, { name, school: "evocation", damage }).icon;
   assert.equal(sp("Огненные руки", [{ dice: "3d6", type: "fire" }]), "firehand");
   assert.equal(sp("Град", [{ dice: "2d8", type: "bludgeoning" }]), "snowcloud");
-  assert.equal(sp("Огненный шар", [{ dice: "8d6", type: "fire" }]), "flame");
+  assert.equal(sp("Огненный шар", [{ dice: "8d6", type: "fire" }]), "dmgFire");
   assert.equal(sp("Туманное облако"), "fog");
   assert.equal(sp("Усыпление"), "sleep");
   assert.equal(sp("Удержание личности"), "paralyzed");

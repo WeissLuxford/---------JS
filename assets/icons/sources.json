@@ -69,6 +69,17 @@
       "style": "тонкие эмблемы, viewBox 100, цвета зашиты в <style>, часть цветные",
       "use": "не ставить на сайт, пока не выяснен автор; папка не в git"
     },
+    "np": {
+      "title": "Noun Project",
+      "dir": "assets/icons/noun-project",
+      "url": "https://thenounproject.com",
+      "license": "CC BY 3.0",
+      "style": "сплошной силуэт, viewBox 100, без заливки (чёрный по умолчанию); подпись автора из файла убрана, автор в «Благодарностях»",
+      "use": "одежда и то, что принёс владелец; папки по авторам, каждого автора вписать в CREDITS",
+      "authors": {
+        "dungeon-vaultz": { "name": "Dungeon Vaultz", "url": "https://thenounproject.com/creator/dungeonvaultz/" }
+      }
+    },
     "sr": {
       "title": "SVG Repo, образцы владельца",
       "dir": "assets/icons/svgrepo",

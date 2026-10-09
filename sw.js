@@ -1,4 +1,4 @@
-const VERSION = "v41";
+const VERSION = "v42";
 const SHELL = "dnd-shell-" + VERSION;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -36,6 +36,7 @@ const PRECACHE = [
   "js/dice3d.js",
   "js/home.js",
   "js/icons.js",
+  "js/icon-art.js",
   "js/library.js",
   "js/main.js",
   "js/notes.js",

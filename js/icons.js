@@ -1,3 +1,5 @@
+import { ART } from "./icon-art.js";
+
 const P = {
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.5-7 8-7s7 2.5 8 7"/>',
   swords: '<path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/><path d="M14.5 6.5L18 3h3v3l-3.5 3.5"/><path d="M5 14l4 4"/><path d="M7 17l-3 3"/><path d="M3 19l2 2"/>',
@@ -210,9 +212,11 @@ const P = {
   upgrade: '<path d="M6 12.5l6-6 6 6"/><path d="M6 19l6-6 6 6"/><path d="M5 3.5h14"/>'
 };
 
-export const ICON_NAMES = Object.keys(P).filter(k => !/^(back|next|down|dots|plus|minus|close|edit|trash|check|history|download|upload|archive|copy|link|camera|cloud|cloudOff|menu|search|phone|tablet|monitor|signature|info|range|area|timer|\d+)$/.test(k));
+export const ICON_NAMES = Object.keys(P).filter(k => !/^(back|next|down|dots|plus|minus|close|edit|trash|check|history|download|upload|archive|copy|link|camera|cloud|cloudOff|menu|search|phone|tablet|monitor|signature|info|range|area|timer|\d+)$/.test(k)).concat(Object.keys(ART).filter(k => !k.startsWith("tab")));
 
 export function icon(name, cls = "") {
+  const art = ART[name];
+  if (art) return `<svg class="ic art ${cls}" viewBox="0 0 ${art[0]} ${art[0]}" fill="currentColor" aria-hidden="true"><path d="${art[1]}"/></svg>`;
   const body = P[name] || P.sparkle;
   return `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }

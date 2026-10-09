@@ -50,6 +50,10 @@ function build() {
     const [group, file] = rel(f).split("/").slice(-2);
     icons.push({ id: `logo/${group}/${file.slice(0, -4)}`, pack: "logo", file: rel(f), name: file.slice(0, -4).replace(/-/g, " "), group, flags: ["color"], _h: hash(fs.readFileSync(f, "utf8")) });
   }
+  for (const f of walk(path.join(ICONS, "noun-project"))) {
+    const [author, file] = rel(f).split("/").slice(-2);
+    icons.push({ id: `np/${author}/${file.slice(0, -4)}`, pack: "np", file: rel(f), name: file.slice(0, -4).replace(/-/g, " "), author, _h: hash(fs.readFileSync(f, "utf8")) });
+  }
   for (const f of walk(path.join(ICONS, "svgrepo"))) {
     const file = path.basename(f, ".svg");
     icons.push({ id: `sr/${file}`, pack: "sr", file: rel(f), name: file.replace(/-v\d+$/, "").replace(/-/g, " "), _h: hash(fs.readFileSync(f, "utf8")) });
@@ -112,7 +116,7 @@ function stats(c) {
 function themesCmd(c) {
   for (const t of c.themes) {
     const list = c.icons.filter(i => i.themes.includes(t.key) && !i.dup);
-    const per = Object.fromEntries(["gi", "tw", "own", "logo", "sr"].map(p => [p, list.filter(i => i.pack === p).length]));
+    const per = Object.fromEntries(["gi", "tw", "np", "own", "logo", "sr"].map(p => [p, list.filter(i => i.pack === p).length]));
     console.log(`${t.key.padEnd(10)} ${t.ru.padEnd(28)} ${String(list.length).padStart(5)}   ${Object.entries(per).filter(([, n]) => n).map(([p, n]) => `${p} ${n}`).join(", ")}`);
   }
 }
@@ -142,7 +146,7 @@ function credits(c, ids) {
   for (const id of ids) {
     const i = c.icons.find(x => x.id === id);
     if (!i) { console.log(`нет такой иконки: ${id}`); continue; }
-    const key = i.pack === "gi" ? `gi/${i.author}` : i.pack;
+    const key = i.author ? `${i.pack}/${i.author}` : i.pack;
     (need[key] ??= []).push(i.name);
   }
   for (const [k, names] of Object.entries(need)) {
@@ -151,6 +155,41 @@ function credits(c, ids) {
     const who = a ? pack.authors[a] : pack;
     console.log(`${pack.title}${a ? `, ${who?.name || a}` : ""}: ${who?.license || pack.license}${who?.url || pack.url ? `, ${who?.url || pack.url}` : ""}  (${names.join(", ")})`);
   }
+}
+
+function artOf(i) {
+  const svg = fs.readFileSync(path.join(ROOT, i.file), "utf8").replace(/<\?xml[^>]*>|<!--[\s\S]*?-->/g, "");
+  const box = svg.match(/viewBox="0 0 (\d+) (\d+)"/);
+  if (!box || box[1] !== box[2]) throw new Error(`${i.id}: нужен квадратный viewBox`);
+  const odd = svg.match(/<(g|circle|rect|ellipse|polygon|polyline|line|use|image|text)\b/);
+  if (odd) throw new Error(`${i.id}: в файле есть <${odd[1]}>, берём только <path>`);
+  const d = [...svg.matchAll(/<path\b[^>]*\bd="([^"]+)"/g)].map(m => m[1].trim()).filter(x => !/^M0 0h\d+v\d+H0z$/.test(x));
+  if (!d.length) throw new Error(`${i.id}: нет путей`);
+  const vb = Number(box[1]);
+  const k = vb <= 100 ? 2 : 1;
+  const short = d.join(" ").replace(/-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi, n => " " + String(+(+n).toFixed(k)).replace(/^(-?)0\./, "$1."))
+    .replace(/\s*,\s*/g, " ").replace(/\s+/g, " ").replace(/\s*([a-df-z])\s*/gi, "$1").replace(/ -/g, "-").trim();
+  return [vb, short];
+}
+
+function site(c) {
+  const reg = read(path.join(ICONS, "site.json"));
+  const own = new Set(ownIcons().map(o => o.key));
+  const lines = [];
+  const used = [];
+  for (const [theme, items] of Object.entries(reg)) {
+    for (const [key, id] of Object.entries(items)) {
+      if (own.has(key)) throw new Error(`${key}: такой ключ уже есть в js/icons.js`);
+      const i = c.icons.find(x => x.id === id);
+      if (!i || !["tw", "gi", "np"].includes(i.pack)) throw new Error(`${theme}.${key}: нет иконки ${id} в tw, gi или np`);
+      const [vb, d] = artOf(i);
+      lines.push(`  ${key}: [${vb}, "${d}"]`);
+      used.push(id);
+    }
+  }
+  fs.writeFileSync(path.join(ROOT, "js/icon-art.js"), `export const ART = {\n${lines.join(",\n")}\n};\n`);
+  console.log(`js/icon-art.js: ${lines.length} иконок, ${Math.round(fs.statSync(path.join(ROOT, "js/icon-art.js")).size / 1024)} КБ`);
+  credits(c, [...new Set(used)]);
 }
 
 const [cmd = "help", ...rest] = process.argv.slice(2);
@@ -166,11 +205,12 @@ else if (cmd === "show") {
   const c = load();
   for (const id of rest) console.log(JSON.stringify(c.icons.find(i => i.id === id), (k, v) => k.startsWith("_") ? undefined : v, 2));
 } else if (cmd === "credits") credits(load(), rest);
+else if (cmd === "site") site(load());
 else {
   console.log(`node tools/icons.mjs build                     пересобрать assets/icons/catalog.json
 node tools/icons.mjs find <слова> [опции]       поиск по-русски и по-английски
     -t, --theme <ключ>   только тема (список: themes)
-    -p, --pack gi,tw     только наборы: gi, tw, own, logo, sr
+    -p, --pack gi,tw     только наборы: gi, tw, np, own, logo, sr
     -n, --limit <N>      сколько показать (40)
     --all                показать и лица, и не фэнтези
     --dups               показать дубли
@@ -179,5 +219,6 @@ node tools/icons.mjs themes                    темы и сколько в н�
 node tools/icons.mjs stats                     сводка по наборам
 node tools/icons.mjs show <id> ...             всё про иконку
 node tools/icons.mjs credits <id> ...          что вписать в CREDITS
+node tools/icons.mjs site                      иконки сайта из assets/icons/site.json в js/icon-art.js
 Просмотр глазами: http://localhost:8765/tools/icon-browser.html`);
 }

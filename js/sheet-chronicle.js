@@ -172,6 +172,11 @@ export function installChronicle(X) {
       document.body.appendChild(el);
     }
     const a = item.a;
+    el.onclick = () => {
+      if (!el.classList.contains("in") || S.disposed) return;
+      el.className = el.className.replace("in", "").trim();
+      openTrophies("trophies", a ? a.key : "");
+    };
     el.innerHTML = a
       ? `<span class="ach-medal">${icon(a.icon)}</span><span class="ach-t"><small>Достижение</small><b>${esc(a.name)}</b></span>`
       : `<span class="ach-medal">${icon("crown")}</span><span class="ach-t"><small>Достижения</small><b>Уже заработано: ${item.many}</b></span>`;
@@ -188,7 +193,7 @@ export function installChronicle(X) {
 
   function medal(a, at) {
     const hidden = a.secret && !at;
-    return `<div class="ach ${at ? "on" : ""}" title="${esc(hidden ? "Секретное достижение" : a.desc)}">
+    return `<div class="ach ${at ? "on" : ""}" data-ach="${esc(a.key)}" title="${esc(hidden ? "Секретное достижение" : a.desc)}">
       <span class="ach-medal">${icon(hidden ? "lock" : a.icon)}</span>
       <span class="ach-t"><b>${esc(hidden ? "???" : a.name)}</b><small>${esc(hidden ? "Секретное достижение" : a.desc)}</small>${at ? `<em>${esc(dateTime(at))}</em>` : ""}</span>
     </div>`;
@@ -251,7 +256,7 @@ export function installChronicle(X) {
       ${st.since ? `<p class="chr-note">Летопись ведётся с ${esc(dateTime(st.since))}.</p>` : ""}`;
   }
 
-  function openTrophies(tab = "trophies") {
+  function openTrophies(tab = "trophies", focus = "") {
     const body = document.createElement("div");
     let cur = tab;
     const paint = () => {
@@ -261,6 +266,11 @@ export function installChronicle(X) {
     };
     paint();
     openModal({ title: "Достижения и летопись", body, cls: "trophies" });
+    const target = focus && [...body.querySelectorAll(".ach[data-ach]")].filter(x => x.dataset.ach === focus).pop();
+    if (target) {
+      target.classList.add("focus");
+      requestAnimationFrame(() => setTimeout(() => target.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" }), 250));
+    }
     body.addEventListener("click", e => {
       const t = e.target.closest("[data-t]");
       if (t && t.dataset.t !== cur) {

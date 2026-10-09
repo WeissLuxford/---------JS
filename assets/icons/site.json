@@ -1,0 +1,65 @@
+{
+  "damage": {
+    "dmgAcid": "tw/damage/acid",
+    "dmgBludgeoning": "tw/damage/bludgeoning",
+    "dmgCold": "tw/damage/cold",
+    "dmgFire": "tw/damage/fire",
+    "dmgForce": "tw/damage/force",
+    "dmgLightning": "tw/damage/lightning",
+    "dmgNecrotic": "tw/damage/necrotic",
+    "dmgPiercing": "tw/damage/piercing",
+    "dmgPoison": "tw/damage/poison",
+    "dmgPsychic": "gi/lorc/brain",
+    "dmgRadiant": "tw/damage/radiant",
+    "dmgSlashing": "tw/damage/slashing",
+    "dmgThunder": "tw/damage/thunder"
+  },
+  "condition": {
+    "condBlinded": "gi/delapouite/blindfold",
+    "condCharmed": "gi/lorc/charm",
+    "condDeafened": "gi/skoll/hearing-disabled",
+    "condFrightened": "gi/lorc/terror",
+    "condGrappled": "gi/lorc/grab",
+    "condIncapacitated": "gi/lorc/coma",
+    "condInvisible": "gi/delapouite/invisible",
+    "condParalyzed": "gi/delapouite/frozen-body",
+    "condPetrified": "gi/delapouite/stone-bust",
+    "condPoisoned": "gi/lorc/poison-bottle",
+    "condProne": "gi/sbed/falling",
+    "condRestrained": "gi/lorc/manacles",
+    "condStunned": "gi/delapouite/knocked-out-stars",
+    "condUnconscious": "gi/delapouite/night-sleep"
+  },
+  "class": {
+    "clsBarbarian": "tw/class/barbarian",
+    "clsBard": "tw/class/bard",
+    "clsCleric": "tw/class/cleric",
+    "clsDruid": "tw/class/druid",
+    "clsFighter": "tw/class/fighter",
+    "clsMonk": "tw/class/monk",
+    "clsPaladin": "tw/class/paladin",
+    "clsRanger": "tw/class/ranger",
+    "clsRogue": "tw/class/rogue",
+    "clsSorcerer": "tw/class/sorcerer",
+    "clsWarlock": "tw/class/warlock",
+    "clsWizard": "tw/class/wizard"
+  },
+  "clothing": {
+    "clArchmage": "np/dungeon-vaultz/clothing-archmage",
+    "clCaptain": "np/dungeon-vaultz/clothing-captain",
+    "clGuard": "np/dungeon-vaultz/clothing-guard",
+    "clMonk": "np/dungeon-vaultz/clothing-monk",
+    "clPrincess": "np/dungeon-vaultz/clothing-princess",
+    "clRoyal": "np/dungeon-vaultz/clothing-royal-blood",
+    "clWarrior": "np/dungeon-vaultz/clothing-warrior"
+  },
+  "tab": {
+    "tabChar": "gi/lorc/visored-helm",
+    "tabCombat": "gi/lorc/crossed-swords",
+    "tabSpells": "gi/delapouite/spell-book",
+    "tabFeatures": "gi/lorc/magic-palm",
+    "tabInventory": "gi/lorc/knapsack",
+    "tabNotes": "gi/delapouite/scroll-quill",
+    "tabStory": "gi/lorc/drama-masks"
+  }
+}

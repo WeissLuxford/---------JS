@@ -5,12 +5,13 @@ import { chromium, launchOpts, E2E_OUT } from "./env.mjs";
 
 const BASE = fileURLToPath(new URL("../visual/", import.meta.url));
 const UPDATE = process.env.VISUAL_UPDATE === "1";
+const SITE = process.env.SITE || "http://localhost:8765";
 const PIXEL = 48;
 const LIMIT = 0.005;
 const TABS = ["char", "combat", "spells", "features", "inventory", "notes", "story"];
 const SIZES = { phone: { width: 390, height: 844, isMobile: true, hasTouch: true }, desktop: { width: 1280, height: 900 } };
 const FREEZE = `*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }
-  #toasts, .st-pop, .ambient, .fab-quick { visibility: hidden !important; }`;
+  #toasts, #ach-toast, .st-pop, .ambient, .fab-quick { visibility: hidden !important; }`;
 
 const r = [];
 const ok = (n, c, x = "") => r.push(`${c ? "PASS" : "FAIL"} ${n}${x ? " :: " + x : ""}`);
@@ -81,17 +82,17 @@ async function shot(name, page) {
 
 for (const [size, vp] of Object.entries(SIZES)) {
   const { isMobile, hasTouch, ...viewport } = vp;
-  const ctx = await browser.newContext({ viewport, isMobile: !!isMobile, hasTouch: !!hasTouch, serviceWorkers: "block", reducedMotion: "reduce", deviceScaleFactor: 1 });
+  const ctx = await browser.newContext({ viewport, isMobile: !!isMobile, hasTouch: !!hasTouch, serviceWorkers: "block", reducedMotion: "reduce", deviceScaleFactor: 1, locale: "ru-RU", timezoneId: "Europe/Moscow" });
   await ctx.clock.setFixedTime(new Date("2026-10-01T12:00:00"));
   await ctx.route(/gstatic\.com|googleapis\.com|google\.com/, x => x.abort());
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
-  await page.goto("http://localhost:8765/#/");
+  await page.goto(`${SITE}/#/`);
   await page.waitForSelector(".tpl-card");
   await shot(`${size}-home`, page);
   for (const tab of TABS) {
-    await page.goto(`http://localhost:8765/#/c/kirion-thorndike/${tab}`);
+    await page.goto(`${SITE}/#/c/kirion-thorndike/${tab}`);
     await page.waitForSelector(".sheet");
     await sleep(300);
     await shot(`${size}-${tab}`, page);

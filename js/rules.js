@@ -32,19 +32,19 @@ export const SKILLS = [
 ];
 
 export const DAMAGE = {
-  acid: { name: "Кислота", color: "#a6e05a", icon: "drop" },
-  bludgeoning: { name: "Дробящий", color: "#cbbfa8", icon: "hammer" },
-  cold: { name: "Холод", color: "#6fd6ff", icon: "snow" },
-  fire: { name: "Огонь", color: "#ff8a3d", icon: "flame" },
-  force: { name: "Силовое поле", color: "#ea5a73", icon: "force" },
-  lightning: { name: "Электричество", color: "#7f9bff", icon: "bolt" },
-  necrotic: { name: "Некротический", color: "#6fd3a4", icon: "skull" },
-  piercing: { name: "Колющий", color: "#cbbfa8", icon: "dagger" },
-  poison: { name: "Яд", color: "#8fc84a", icon: "toxic" },
-  psychic: { name: "Психический", color: "#e38ae6", icon: "brain" },
-  radiant: { name: "Излучение", color: "#f4d66d", icon: "sun" },
-  slashing: { name: "Рубящий", color: "#cbbfa8", icon: "axe" },
-  thunder: { name: "Звук", color: "#b48cff", icon: "wave" },
+  acid: { name: "Кислота", color: "#a6e05a", icon: "dmgAcid" },
+  bludgeoning: { name: "Дробящий", color: "#cbbfa8", icon: "dmgBludgeoning" },
+  cold: { name: "Холод", color: "#6fd6ff", icon: "dmgCold" },
+  fire: { name: "Огонь", color: "#ff8a3d", icon: "dmgFire" },
+  force: { name: "Силовое поле", color: "#ea5a73", icon: "dmgForce" },
+  lightning: { name: "Электричество", color: "#7f9bff", icon: "dmgLightning" },
+  necrotic: { name: "Некротический", color: "#6fd3a4", icon: "dmgNecrotic" },
+  piercing: { name: "Колющий", color: "#cbbfa8", icon: "dmgPiercing" },
+  poison: { name: "Яд", color: "#8fc84a", icon: "dmgPoison" },
+  psychic: { name: "Психический", color: "#e38ae6", icon: "dmgPsychic" },
+  radiant: { name: "Излучение", color: "#f4d66d", icon: "dmgRadiant" },
+  slashing: { name: "Рубящий", color: "#cbbfa8", icon: "dmgSlashing" },
+  thunder: { name: "Звук", color: "#b48cff", icon: "dmgThunder" },
   healing: { name: "Лечение", color: "#7ee08a", icon: "heart" },
   temp: { name: "Временные хиты", color: "#9fc6ff", icon: "shield" }
 };
@@ -353,20 +353,20 @@ export const FEATURE_SOURCES = {
 };
 
 export const CONDITIONS = [
-  { key: "blinded", icon: "blind", name: "Ослеплён", desc: "Автоматически проваливает проверки, требующие зрения. Атаки по нему с преимуществом, его атаки с помехой." },
-  { key: "charmed", icon: "charmed", name: "Очарован", desc: "Не может атаковать очаровавшего. Очаровавший получает преимущество на социальные проверки против него." },
-  { key: "deafened", icon: "deaf", name: "Оглох", desc: "Автоматически проваливает проверки, требующие слуха." },
-  { key: "frightened", icon: "scared", name: "Испуган", desc: "Помеха на проверки и атаки, пока источник страха в поле зрения. Не может добровольно приблизиться к нему." },
-  { key: "grappled", icon: "hand", name: "Схвачен", desc: "Скорость равна 0." },
-  { key: "incapacitated", icon: "spiral", name: "Недееспособен", desc: "Не может совершать действия и реакции." },
-  { key: "invisible", icon: "invisible", name: "Невидим", desc: "Атаки по нему с помехой, его атаки с преимуществом." },
-  { key: "paralyzed", icon: "paralyzed", name: "Парализован", desc: "Недееспособен, не двигается и не говорит. Проваливает спасброски Силы и Ловкости. Удар вблизи считается критическим." },
-  { key: "petrified", icon: "rock", name: "Окаменел", desc: "Превращён в камень. Недееспособен, сопротивление всем видам урона." },
-  { key: "poisoned", icon: "toxic", name: "Отравлен", desc: "Помеха на броски атаки и проверки характеристик." },
-  { key: "prone", icon: "prone", name: "Сбит с ног", desc: "Может только ползти. Помеха на атаки. Атаки вблизи по нему с преимуществом, издалека с помехой." },
-  { key: "restrained", icon: "chain", name: "Опутан", desc: "Скорость 0. Помеха на атаки и спасброски Ловкости, атаки по нему с преимуществом." },
-  { key: "stunned", icon: "stunned", name: "Ошеломлён", desc: "Недееспособен, не двигается. Проваливает спасброски Силы и Ловкости, атаки по нему с преимуществом." },
-  { key: "unconscious", icon: "sleep", name: "Без сознания", desc: "Недееспособен, роняет всё, падает ничком. Атаки по нему с преимуществом, удар вблизи критический." }
+  { key: "blinded", icon: "condBlinded", name: "Ослеплён", desc: "Автоматически проваливает проверки, требующие зрения. Атаки по нему с преимуществом, его атаки с помехой." },
+  { key: "charmed", icon: "condCharmed", name: "Очарован", desc: "Не может атаковать очаровавшего. Очаровавший получает преимущество на социальные проверки против него." },
+  { key: "deafened", icon: "condDeafened", name: "Оглох", desc: "Автоматически проваливает проверки, требующие слуха." },
+  { key: "frightened", icon: "condFrightened", name: "Испуган", desc: "Помеха на проверки и атаки, пока источник страха в поле зрения. Не может добровольно приблизиться к нему." },
+  { key: "grappled", icon: "condGrappled", name: "Схвачен", desc: "Скорость равна 0." },
+  { key: "incapacitated", icon: "condIncapacitated", name: "Недееспособен", desc: "Не может совершать действия и реакции." },
+  { key: "invisible", icon: "condInvisible", name: "Невидим", desc: "Атаки по нему с помехой, его атаки с преимуществом." },
+  { key: "paralyzed", icon: "condParalyzed", name: "Парализован", desc: "Недееспособен, не двигается и не говорит. Проваливает спасброски Силы и Ловкости. Удар вблизи считается критическим." },
+  { key: "petrified", icon: "condPetrified", name: "Окаменел", desc: "Превращён в камень. Недееспособен, сопротивление всем видам урона." },
+  { key: "poisoned", icon: "condPoisoned", name: "Отравлен", desc: "Помеха на броски атаки и проверки характеристик." },
+  { key: "prone", icon: "condProne", name: "Сбит с ног", desc: "Может только ползти. Помеха на атаки. Атаки вблизи по нему с преимуществом, издалека с помехой." },
+  { key: "restrained", icon: "condRestrained", name: "Опутан", desc: "Скорость 0. Помеха на атаки и спасброски Ловкости, атаки по нему с преимуществом." },
+  { key: "stunned", icon: "condStunned", name: "Ошеломлён", desc: "Недееспособен, не двигается. Проваливает спасброски Силы и Ловкости, атаки по нему с преимуществом." },
+  { key: "unconscious", icon: "condUnconscious", name: "Без сознания", desc: "Недееспособен, роняет всё, падает ничком. Атаки по нему с преимуществом, удар вблизи критический." }
 ];
 
 export const CASTER_TYPES = {
