@@ -98,7 +98,7 @@ export function installNotes(X) {
       cur.collapsed = false;
     });
     if (ok === false) return false;
-    if (!quiet) toast(`${icon("quill")} ${created ? `Начата «${esc(created)}». ` : ""}Записано в журнал`, { kind: "good", timeout: 1800 });
+    if (!quiet && created) toast(`${icon("quill")} Начата «${esc(created)}»`, { kind: "good", timeout: 1800 });
     return true;
   }
 
@@ -184,6 +184,7 @@ export function installNotes(X) {
       if (!text && !ti.value.trim()) return toast("Пустую заметку не сохраняю", { kind: "info", timeout: 1600 });
       if (st.to === "sessions") {
         if (!journalAdd(text, { quiet: keep })) return;
+        if (!keep && S.tab !== "notes") toast(`${icon("quill")} Записано в журнал`, { kind: "good", timeout: 1800 });
       } else {
         const lines = text.split("\n");
         const title = ti.value.trim() || lines[0].replace(/^[-#>*\s]+/, "").slice(0, 80);

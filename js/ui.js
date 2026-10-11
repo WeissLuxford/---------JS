@@ -1,4 +1,5 @@
 import { icon, die, actionMark, ICON_NAMES } from "./icons.js";
+import { mountEditor } from "./editor.js";
 import { DAMAGE, DAMAGE_TYPES, ACTIONS, parseDice, rollDice, diceToString, fmt } from "./rules.js";
 
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
@@ -1234,7 +1235,7 @@ export function fieldHtml(f, v) {
     return `<fieldset class="fld icons"${span} data-k="${esc(f.key)}" data-icons data-name="${esc(id)}"><legend>${esc(f.label)}</legend><label class="search-box icon-q">${icon("search")}<input type="search" data-icon-q placeholder="Найти: меч, огонь, щит, книга" aria-label="Найти иконку"></label><div class="icon-grid">${iconOpts(id, cur, ICON_NAMES.slice(0, 60))}</div></fieldset>`;
   }
   if (f.type === "richtext") {
-    return `<div class="fld rt-field"${span}><label for="${id}">${esc(f.label)}</label><div class="rt-bar" role="toolbar" aria-label="Форматирование">${RT_TOOLS.map(([k, html, t]) => `<button type="button" class="rt-btn" data-rt="${k}" title="${esc(t)}" aria-label="${esc(t)}">${html}</button>`).join("")}<span class="spacer"></span><button type="button" class="rt-btn rt-prev" data-rt-preview aria-pressed="false">Просмотр</button></div><textarea id="${id}" data-k="${esc(f.key)}" rows="${f.rows || 10}" placeholder="${esc(f.placeholder || "")}">${esc(v ?? "")}</textarea><div class="rt-preview note-text" hidden></div>${hint}</div>`;
+    return `<div class="fld rt-field"${span}><label for="${id}">${esc(f.label)}</label><div class="rt-bar" role="toolbar" aria-label="Оформление текста"></div><textarea id="${id}" data-k="${esc(f.key)}" rows="${f.rows || 10}" placeholder="${esc(f.placeholder || "")}">${esc(v ?? "")}</textarea>${hint}</div>`;
   }
   if (f.type === "dicelist") {
     const rows = (Array.isArray(v) ? v : []).map(d => diceRow(d)).join("");
@@ -1244,24 +1245,6 @@ export function fieldHtml(f, v) {
   const list = f.suggest ? `<datalist id="${id}_dl">${f.suggest.map(o => `<option value="${esc(o)}"></option>`).join("")}</datalist>` : "";
   return `<label class="fld"${span} for="${id}"><span>${esc(f.label)}</span><input id="${id}" type="${type}" ${type === "number" ? 'inputmode="decimal" step="any"' : ""} ${list ? `list="${id}_dl"` : ""} ${f.max ? `maxlength="${f.max}"` : ""} data-k="${esc(f.key)}" value="${esc(v ?? "")}" placeholder="${esc(f.placeholder || "")}">${list}${hint}</label>`;
 }
-
-const RT_TOOLS = [
-  ["h", "<b>З</b>", "Заголовок"],
-  ["bold", "<b>Ж</b>", "Жирный"],
-  ["italic", "<i>К</i>", "Курсив"],
-  ["under", "<u>Ч</u>", "Подчёркнутый"],
-  ["strike", "<s>З</s>", "Зачёркнутый"],
-  ["mark", "<mark>М</mark>", "Выделить маркером"],
-  ["list", "•", "Список"],
-  ["num", "1.", "Нумерованный список"],
-  ["todo", "☐", "Список дел"],
-  ["quote", "❝", "Цитата"],
-  ["hr", "―", "Разделитель"],
-  ["link", "[[ ]]", "Ссылка на заметку"]
-];
-
-const RT_WRAP = { bold: "**", italic: "*", under: "__", strike: "~~", mark: "==" };
-const RT_PREFIX = { h: "## ", list: "- ", num: "1. ", quote: "> ", todo: "- [ ] " };
 
 function replaceText(ta, start, end, text, selStart, selEnd) {
   ta.focus();
@@ -1273,44 +1256,6 @@ function replaceText(ta, start, end, text, selStart, selEnd) {
   if (!ok || ta.value.slice(start, start + text.length) !== text) ta.setRangeText(text, start, end, "end");
   ta.setSelectionRange(selStart, selEnd);
   ta.dispatchEvent(new Event("input", { bubbles: true }));
-}
-
-export function applyFormat(ta, kind) {
-  const value = ta.value;
-  const a = ta.selectionStart;
-  const b = ta.selectionEnd;
-  const wrap = RT_WRAP[kind];
-  if (wrap) {
-    const sel = value.slice(a, b);
-    if (sel.startsWith(wrap) && sel.endsWith(wrap) && sel.length >= wrap.length * 2) {
-      const inner = sel.slice(wrap.length, sel.length - wrap.length);
-      return replaceText(ta, a, b, inner, a, a + inner.length);
-    }
-    const text = sel || "текст";
-    return replaceText(ta, a, b, wrap + text + wrap, a + wrap.length, a + wrap.length + text.length);
-  }
-  if (kind === "link") {
-    const sel = value.slice(a, b);
-    const text = `[[${sel}`;
-    return sel ? replaceText(ta, a, b, `[[${sel}]]`, a + sel.length + 4, a + sel.length + 4) : replaceText(ta, a, b, text, a + text.length, a + text.length);
-  }
-  if (kind === "hr") {
-    const before = a > 0 && value[a - 1] !== "\n" ? "\n" : "";
-    const text = `${before}\n---\n\n`;
-    return replaceText(ta, b, b, text, b + text.length, b + text.length);
-  }
-  const prefix = RT_PREFIX[kind];
-  if (!prefix) return;
-  const ls = value.lastIndexOf("\n", a - 1) + 1;
-  let le = value.indexOf("\n", Math.max(a, b - (b > a && value[b - 1] === "\n" ? 1 : 0)));
-  if (le < 0) le = value.length;
-  const lines = value.slice(ls, le).split("\n");
-  const pattern = kind === "num" ? /^\d+[.)]\s/ : null;
-  const has = l => (pattern ? pattern.test(l) : l.startsWith(prefix));
-  const strip = l => (pattern ? l.replace(pattern, "") : l.slice(prefix.length));
-  const all = lines.every(l => !l.trim() || has(l));
-  const out = lines.map((l, i) => (all ? (has(l) ? strip(l) : l) : !l.trim() && lines.length > 1 ? l : (kind === "num" ? `${i + 1}. ` : prefix) + l.replace(/^(#{1,3}\s|-\s\[( |x|х)\]\s|[-*•]\s|>\s?|\d+[.)]\s)/i, ""))).join("\n");
-  replaceText(ta, ls, le, out, ls, ls + out.length);
 }
 
 function diceRow(d = {}) {
@@ -1458,11 +1403,9 @@ export function openForm({ title, fields, value = {}, onSave, onDelete, saveLabe
   form.className = "form-grid";
   form.innerHTML = fields.map(f => fieldHtml(f, getPath(value, f.key))).join("") + extra +
     `<div class="form-actions" style="grid-column: 1 / -1">${onDelete ? `<button type="button" class="btn danger" data-del>${icon("trash")} Удалить</button>` : ""}<span class="spacer"></span><button type="button" class="btn ghost" data-close>Отмена</button><button type="submit" class="btn gold">${esc(saveLabel)}</button></div>`;
-  const m = openModal({ title, body: form, wide: fields.length > 8 || fields.some(f => f.type === "richtext") });
-  fields.filter(f => f.type === "richtext" && f.links).forEach(f => attachLinkSuggest(form.querySelector(`[data-k="${CSS.escape(f.key)}"]`), f.links));
-  form.addEventListener("pointerdown", e => {
-    if (e.target.closest("[data-rt]")) e.preventDefault();
-  });
+  let editors = [];
+  const m = openModal({ title, body: form, wide: fields.length > 8 || fields.some(f => f.type === "richtext"), onClose: () => editors.forEach(x => x.destroy()) });
+  editors = fields.filter(f => f.type === "richtext").map(f => mountEditor(form.querySelector(`[data-k="${CSS.escape(f.key)}"]`), { links: f.links })).filter(Boolean);
   let iconTimer = 0;
   form.addEventListener("input", e => {
     const q = e.target.closest("[data-icon-q]");
@@ -1474,29 +1417,6 @@ export function openForm({ title, fields, value = {}, onSave, onDelete, saveLabe
     if (e.key === "Enter" && e.target.closest("[data-icon-q]")) e.preventDefault();
   });
   form.addEventListener("click", e => {
-    const rt = e.target.closest("[data-rt]");
-    if (rt) {
-      const ta = rt.closest(".rt-field").querySelector("textarea");
-      if (!ta.hidden) applyFormat(ta, rt.dataset.rt);
-      return;
-    }
-    const pv = e.target.closest("[data-rt-preview]");
-    if (pv) {
-      const box = pv.closest(".rt-field");
-      const ta = box.querySelector("textarea");
-      const prev = box.querySelector(".rt-preview");
-      const on = prev.hidden;
-      if (on) {
-        prev.innerHTML = rich(ta.value) || `<p class="empty">Пусто</p>`;
-        prev.style.minHeight = ta.offsetHeight + "px";
-      }
-      prev.hidden = !on;
-      ta.hidden = on;
-      pv.setAttribute("aria-pressed", String(on));
-      pv.classList.toggle("on", on);
-      box.querySelectorAll("[data-rt]").forEach(b => (b.disabled = on));
-      return;
-    }
     if (e.target.closest("[data-dl-add]")) {
       e.target.closest("[data-dl]").querySelector(".dl-rows").insertAdjacentHTML("beforeend", diceRow({ type: "fire" }));
     }

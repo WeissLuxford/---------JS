@@ -605,20 +605,66 @@ function noteBadge(n, sec) {
   return st ? `<span class="badge" style="--c:${st[1]}">${st[0]}</span>` : "";
 }
 
+const ENTRY = /^\s*- \*\*(\d\d:\d\d)\*\*\s?(.*)$/;
+
+function sessionEntries(text) {
+  const parts = [];
+  let free = [];
+  let cur = null;
+  const flushFree = () => {
+    if (free.join("").trim()) parts.push({ free: free.join("\n") });
+    free = [];
+  };
+  for (const l of String(text || "").replace(/\r/g, "").split("\n")) {
+    const m = l.match(ENTRY);
+    if (m) {
+      flushFree();
+      cur = { time: m[1], text: m[2] };
+      parts.push(cur);
+    } else if (cur && /^\s{2,}\S/.test(l)) cur.text += "\n" + l.trim();
+    else {
+      cur = null;
+      free.push(l);
+    }
+  }
+  flushFree();
+  return parts;
+}
+
+export function sessionHtml(text, links) {
+  let html = "";
+  let open = false;
+  for (const p of sessionEntries(text)) {
+    if (p.time) {
+      if (!open) html += `<ol class="tl">`;
+      open = true;
+      html += `<li class="tl-e"><time>${esc(p.time)}</time><div class="tl-t">${rich(p.text, links)}</div></li>`;
+    } else {
+      if (open) html += "</ol>";
+      open = false;
+      html += rich(p.free, links);
+    }
+  }
+  return html + (open ? "</ol>" : "");
+}
+
+const entriesWord = n => (n % 10 === 1 && n % 100 !== 11 ? "запись" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "записи" : "записей");
+
 function noteCard(n, sec, ctx, o = {}) {
   const { ui } = ctx;
   const local = ui.noteOpen || {};
   const shut = n.id in local ? !local[n.id] : !!n.collapsed;
   const stems = o.stems || [];
   const title = n.title || "Без названия";
-  const preview = shut ? (stems.length ? snippetHtml(n.text, stems) : esc(cut(plainText(n.text), 90))) : "";
+  const entries = sec === "sessions" ? sessionEntries(n.text).filter(p => p.time) : [];
+  const preview = shut ? (stems.length ? snippetHtml(n.text, stems) : entries.length ? esc(`${entries.length} ${entriesWord(entries.length)}, последняя в ${entries[entries.length - 1].time}: ${cut(plainText(entries[entries.length - 1].text), 70)}`) : esc(cut(plainText(n.text), 90))) : "";
   const tags = noteTagsOf(n);
   const back = !shut && o.back ? o.back.get(n.id) || [] : [];
   const linkOpts = o.links ? o.links(n.id) : undefined;
-  return `<article data-rid="${esc(n.id)}" data-sec="${sec}" class="note ${shut ? "collapsed" : ""} ${n.pinned ? "pinned" : ""} ${n.status === "done" || n.status === "failed" || n.state === "false" ? "dim" : ""}">
+  return `<article data-rid="${esc(n.id)}" data-sec="${sec}" class="note ${sec === "sessions" ? "session" : ""} ${shut ? "collapsed" : ""} ${n.pinned ? "pinned" : ""} ${n.status === "done" || n.status === "failed" || n.state === "false" ? "dim" : ""}">
     <header><button class="note-toggle" data-act="toggle-note" data-sec="${sec}" data-id="${esc(n.id)}" aria-expanded="${shut ? "false" : "true"}"><span class="note-chev">${icon("down")}</span><span class="note-titles"><h4>${stems.length ? highlight(title, stems) : esc(title)}</h4>${n.subtitle ? `<span class="note-sub">${stems.length ? highlight(n.subtitle, stems) : esc(n.subtitle)}</span>` : ""}${preview ? `<span class="note-prev">${preview}</span>` : ""}</span></button>${o.showSec ? `<span class="badge sec">${esc(SECTION_NAME[sec] || "")}</span>` : ""}${noteBadge(n, sec)}<button class="icon-btn note-pin ${n.pinned ? "on" : ""}" data-act="pin-note" data-sec="${sec}" data-id="${esc(n.id)}" title="${n.pinned ? "Открепить из «Важного»" : "Закрепить в «Важном»"}" aria-pressed="${n.pinned ? "true" : "false"}">${icon("star")}</button><button class="icon-btn" data-act="edit-note" data-sec="${sec}" data-id="${esc(n.id)}" title="Изменить" aria-label="Изменить «${esc(title)}»">${icon("edit")}</button></header>
     ${tags.length ? `<div class="note-tags">${tags.map(t => `<button class="tag ${ui.noteTag === t ? "on" : ""}" data-act="note-tag" data-k="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}
-    ${shut ? "" : `<div class="note-text">${rich(n.text, linkOpts) || `<p class="dim">Пусто</p>`}</div>`}
+    ${shut ? "" : `<div class="note-text">${(sec === "sessions" ? sessionHtml(n.text, linkOpts) : rich(n.text, linkOpts)) || `<p class="dim">Пусто</p>`}</div>`}
     ${back.length ? `<div class="note-back"><span>${icon("link")}Упоминается:</span>${back.map(b => `<button class="tag" data-act="open-note" data-sec="${b.sec}" data-id="${esc(b.id)}">${esc(b.title)}</button>`).join("")}</div>` : ""}
   </article>`;
 }
@@ -737,7 +783,7 @@ function journalBox(c) {
   const cur = currentSession(c);
   return `<div class="journal-add">
     <div class="ja-h">${icon("quill")}<span><b>${cur ? esc(cur.title) : "Новая сессия"}</b><small>${cur ? esc(cur.subtitle || "") : "начнётся с первой записи"}</small></span><span class="spacer"></span><button class="btn ghost sm" data-act="session-new">${icon("plus")}Новая сессия</button></div>
-    <textarea data-journal rows="2" placeholder="Что случилось? [[ : ссылка на человека или место" aria-label="Запись в журнал"></textarea>
+    <textarea data-journal rows="2" placeholder="Что случилось? Набери [[, чтобы сослаться на человека или место" aria-label="Запись в журнал"></textarea>
     <div class="ja-foot"><span class="hint explain">Enter: записать, Shift+Enter: новая строка. Время подставится само; через 12 часов без записей начнётся новая сессия.</span><button class="btn gold sm" data-act="journal-add">${icon("check")}Записать</button></div>
   </div>`;
 }
