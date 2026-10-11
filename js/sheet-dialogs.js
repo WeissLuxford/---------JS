@@ -1,7 +1,7 @@
 import { canInstall } from "./pwa.js";
 import { SKILLS, ABILITIES, mod, compute, normalize, fmt, importCharacter, payCoins, COIN_NAMES, COIN_CP, CONDITIONS, FEATURE_CATS, SCENE_TIMES, SCENE_WEATHER, sceneInfo } from "./rules.js";
 import { icon } from "./icons.js";
-import { esc, $, toast, openModal, confirmDialog, promptNumber, rollLog, fxSettings, playSound, dateTime, timeAgo, download, pickFile, rollCardOn } from "./ui.js";
+import { esc, $, toast, openModal, confirmDialog, promptNumber, rollLog, fxSettings, canVibrate, playSound, dateTime, timeAgo, download, pickFile, rollCardOn } from "./ui.js";
 import { subtitle } from "./tabs.js";
 import { cardFor, itemIcon, spellIcon, featureIcon, attackIcon } from "./entities.js";
 import { listHistory, createChar, getMode, subscribeList, getRecents, newCharId } from "./store.js";
@@ -318,6 +318,7 @@ export function installDialogs(X) {
       ["tips-toggle", "bell", "Подсказки в начале хода", "Напоминания о концентрации, эффектах и спасбросках от смерти", X.tipsOn()],
       ["fx-sound", "bell", "Звуки", "Кубики, монеты, снаряжение, удары и лечение", fxSettings().sound],
       ["fx-anim", "d20", "Анимация кубов", "", fxSettings().anim],
+      ["fx-vibro", "phone", "Вибрация", canVibrate() ? "Короткий толчок на естественной 20 и единице атаки" : "Этот браузер не умеет вибрировать (например, на iPhone)", fxSettings().vibro],
       ["dice3d-toggle", "d20", "3D-кубики", "Кубики катятся по экрану, при преимуществе и помехе два d20", dice3dOn()],
       ["rollcard-toggle", "frame", "Результат броска по центру", "Карточка поверх кубиков, держится до касания. Выключи, чтобы результаты шли уведомлениями внизу", rollCardOn()]
     ];

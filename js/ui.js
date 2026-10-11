@@ -143,10 +143,19 @@ const FX_KEY = "dnd.fx";
 export function fxSettings() {
   try {
     const v = JSON.parse(localStorage.getItem(FX_KEY) || "{}");
-    return { sound: v.sound !== false, anim: v.anim !== false };
+    return { sound: v.sound !== false, anim: v.anim !== false, vibro: v.vibro !== false };
   } catch {
-    return { sound: true, anim: true };
+    return { sound: true, anim: true, vibro: true };
   }
+}
+
+export const canVibrate = () => typeof navigator !== "undefined" && typeof navigator.vibrate === "function";
+
+function buzz(pattern) {
+  if (!canVibrate() || !fxSettings().vibro) return;
+  try {
+    navigator.vibrate(pattern);
+  } catch {}
 }
 
 export function setFx(key, value) {
@@ -459,10 +468,12 @@ function rollFx(el, { finals = [], crit = false, fumble = false, ms = 620, dice 
     totals.forEach(t => (t.textContent = t.dataset.final));
     if (crit) {
       el.classList.add("crit-fx");
+      buzz([45, 70, 45]);
       playSound("crit");
       critBanner("crit", el, special);
     } else if (fumble) {
       el.classList.add("fumble-fx");
+      buzz(180);
       playSound("fumble");
       critBanner("fumble", el, special);
     }

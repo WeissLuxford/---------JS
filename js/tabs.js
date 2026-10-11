@@ -137,7 +137,7 @@ function defenseLines(c) {
 export function tabChar(ctx) {
   const { c, d } = ctx;
   const abColor = k => (ABILITIES.find(a => a.key === k) || {}).color || "var(--gold-2)";
-  const sense = (k, label, calc, v) => { const s = SKILLS.find(x => x.key === k); return `<div style="--ac:${abColor(s.ab)}"><span>${icon(s.icon)}${label}</span><b data-calc="${calc}">${v}</b></div>`; };
+  const sense = (k, calc, v) => { const s = SKILLS.find(x => x.key === k); return `<div style="--ac:${abColor(s.ab)}" data-card="stat:passive-${k}"><span>${icon(s.icon)}${s.name}</span><b data-calc="${calc}">${v}</b></div>`; };
   const abil = ABILITIES.map(a => `
     <div class="abil" data-card="ability:${a.key}">
       <button class="abil-top" data-roll="check:${a.key}" style="--ac:${a.color}">${icon(a.icon, "abil-ic")}<span class="abil-mod" data-calc="mod.${a.key}">${fmt(d.mods[a.key])}</span><span class="abil-name">${a.key === "con" ? "Телосл." : a.name} <b class="abil-num" data-calc="score.${a.key}">${esc(c.abilities[a.key])}</b></span></button>
@@ -194,9 +194,10 @@ export function tabChar(ctx) {
       ${hpPanel(ctx)}
       ${panel("Чувства", `
         <div class="senses">
-          ${sense("perception", "Пассивная Внимательность", "pp", d.passive.perception)}
-          ${sense("insight", "Пассивная Проницательность", "pi", d.passive.insight)}
-          ${sense("investigation", "Пассивный Анализ", "pinv", d.passive.investigation)}
+          <div class="full senses-h">Пассивные проверки</div>
+          ${sense("perception", "pp", d.passive.perception)}
+          ${sense("insight", "pi", d.passive.insight)}
+          ${sense("investigation", "pinv", d.passive.investigation)}
           ${c.senses ? `<div class="full"><span>${esc(c.senses)}</span></div>` : ""}
           ${defenseLines(c)}
         </div>`, { ic: "tw/attribute/vision", cls: "p-senses" })}

@@ -206,8 +206,8 @@ function site(c) {
   fs.writeFileSync(path.join(ICONS, "used.json"), JSON.stringify(ids.map(id => c.icons.find(x => x.id === id).file)) + "\n");
   console.log(`js/icon-art.js: ${lines.length} встроенных, ${ids.length} файлами, ${Math.round(fs.statSync(path.join(ROOT, "js/icon-art.js")).size / 1024)} КБ`);
   credits(c, [...new Set([...used, ...ids])]);
-  iconCredits(c, [...new Set([...used, ...ids])]);
-  pickerIndex(c, reg, ids);
+  const lib = pickerIndex(c, reg, ids);
+  iconCredits(c, [...new Set([...used, ...ids])], lib);
 }
 
 function pickerIndex(c, reg, ids) {
@@ -217,23 +217,28 @@ function pickerIndex(c, reg, ids) {
   for (const i of c.icons) if (i.pack === "own" && i.group !== "ui") out.push([i.id.slice(4), text(i)]);
   for (const [theme, items] of Object.entries(reg)) if (theme !== "tab") for (const [key, id] of Object.entries(items)) out.push([key, text(byId.get(id))]);
   for (const id of ids) out.push([id, text(byId.get(id))]);
+  const seen = new Set(out.map(x => x[0]));
+  const lib = c.icons.filter(i => ["gi", "tw", "np"].includes(i.pack) && !seen.has(i.id) && !(i.flags || []).some(f => f === "face" || f === "offstyle")).map(i => i.id);
+  for (const id of lib) out.push([id, text(byId.get(id))]);
   fs.writeFileSync(path.join(ICONS, "picker.json"), JSON.stringify(out) + "\n");
+  return lib;
 }
 
-function iconCredits(c, ids) {
+function iconCredits(c, ids, lib = []) {
   const src = read(path.join(ICONS, "sources.json")).packs;
   const count = {};
+  const key = i => (i.author ? `${i.pack}/${i.author}` : i.pack);
   for (const id of ids) {
-    const i = c.icons.find(x => x.id === id);
-    const key = i.author ? `${i.pack}/${i.author}` : i.pack;
-    count[key] = (count[key] || 0) + 1;
+    const k = key(c.icons.find(x => x.id === id));
+    count[k] = (count[k] || 0) + 1;
   }
+  for (const id of lib) count[key(c.icons.find(x => x.id === id))] ??= 0;
   const order = k => ["tw", "gi", "np"].indexOf(k.split("/")[0]);
   const items = Object.entries(count).sort((a, b) => order(a[0]) - order(b[0]) || b[1] - a[1]).map(([k, n]) => {
     const [p, a] = k.split("/");
     const pack = src[p];
     const who = a ? pack.authors[a] : pack;
-    const it = { title: pack.title, url: p === "tw" ? "https://github.com/intrinsical/tw-dnd/tree/main/icons" : pack.url, author: who.name || pack.author, license: who.license || pack.license.split(" (")[0], note: `Иконок на сайте: ${n}.` };
+    const it = { title: pack.title, url: p === "tw" ? "https://github.com/intrinsical/tw-dnd/tree/main/icons" : pack.url, author: who.name || pack.author, license: who.license || pack.license.split(" (")[0], note: n ? `Иконок на сайте: ${n}.` : "Иконки можно выбрать в редакторе." };
     const authorUrl = a ? who.url : pack.authorUrl;
     if (authorUrl) it.authorUrl = authorUrl;
     return it;

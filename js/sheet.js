@@ -876,6 +876,10 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         if (v.sound) playSound("crit");
         return toast(v.sound ? "Звуки включены" : "Звуки выключены", { timeout: 1800 });
       }
+      case "fx-vibro": {
+        const v = setFx("vibro", !fxSettings().vibro);
+        return toast(v.vibro ? "Вибрация включена" : "Вибрация выключена", { timeout: 1800 });
+      }
       case "fx-anim": {
         const v = setFx("anim", !fxSettings().anim);
         return toast(v.anim ? "Анимация кубов включена" : "Анимация кубов выключена", { timeout: 1800 });
@@ -1273,6 +1277,10 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       hideHoverCard();
       history.replaceState(history.state, "", here(S.tab));
       renderTab();
+      const body = $("[data-body]", root);
+      body.classList.remove("tab-in");
+      void body.offsetWidth;
+      body.classList.add("tab-in");
       window.scrollTo({ top: S.scroll[S.tab] || 0 });
       return;
     }

@@ -579,6 +579,8 @@ button.medal:hover { border-color: var(--gold-2); }
 .senses > div { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding: 6px; border-radius: 8px; background: rgba(0, 0, 0, .2); }
 .senses span { font-size: 13px; color: var(--dim); }
 .senses b { font-size: 22px; color: var(--ac, var(--gold-2)); }
+.senses > .senses-h { align-items: flex-start; text-align: left; padding: 0 2px; background: none; font-family: var(--font-head); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.senses > div[data-card] { cursor: help; }
 .senses > div[style] > span > .ic { width: 15px; height: 15px; margin-right: 4px; vertical-align: -2px; color: var(--ac, var(--gold)); }
 .senses .full { grid-column: 1 / -1; }
 .senses .full span { font-size: 15px; color: var(--text-2); }
@@ -1991,6 +1993,9 @@ body.hp-dying::before { animation: hp-pulse 1.5s ease-in-out infinite; }
 .tb-portrait.has-issues { border-color: #f29b2b; box-shadow: 0 0 0 2px rgba(242, 155, 43, .3), 0 0 10px rgba(242, 155, 43, .6); }
 .tb-portrait.conc { --ring: #b98cff; border-color: var(--ring); animation: ring-pulse 2.4s ease-in-out infinite; }
 .tb-portrait.low { --ring: #ff5a4a; border-color: var(--ring); animation: ring-pulse 1.6s ease-in-out infinite; }
+.tab-body.tab-in { animation: tab-in .2s ease-out; }
+@keyframes tab-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tab-body.tab-in { animation: none; } }
 @keyframes ring-pulse { 0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 25%, transparent), 0 0 6px color-mix(in srgb, var(--ring) 40%, transparent); } 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 45%, transparent), 0 0 16px color-mix(in srgb, var(--ring) 75%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .tb-portrait.conc, .tb-portrait.low { animation: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 45%, transparent), 0 0 10px color-mix(in srgb, var(--ring) 60%, transparent); } }
 .check-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }

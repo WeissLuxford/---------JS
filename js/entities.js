@@ -374,6 +374,17 @@ export function statModel(c, d, key) {
     CONDITIONS.filter(k => c.conditions[k.key] && ["grappled", "restrained", "paralyzed", "stunned", "unconscious", "petrified"].includes(k.key)).forEach(k => why.push(`${k.name}: скорость 0`));
     return { title: "Скорость", subtitle: "Сколько футов за ход", art: { icon: "gi/lorc/wingfoot", color: "var(--gold-2)" }, stats: `<span class="big-num">${d.speed} фт</span><span>Обычная ${d.baseSpeed} фт</span>`, body: rich(why.length ? why.map(w => "- " + w).join("\n") : "Ничто не замедляет.") };
   }
+  const PASSIVE = {
+    perception: "Мастер сравнивает её со Скрытностью врагов и сложностью спрятанных ловушек и дверей. Если она не ниже, замечаешь без броска.",
+    insight: "Мастер сравнивает её с Обманом собеседника. Если она не ниже, чувствуешь ложь или странное поведение без броска.",
+    investigation: "Замечаешь подсказки, тайники и несостыковки, даже когда не ищешь их специально."
+  };
+  if (key.startsWith("passive-") && PASSIVE[key.slice(8)]) {
+    const k = key.slice(8);
+    const s = SKILLS.find(x => x.key === k);
+    const color = (ABILITIES.find(a => a.key === s.ab) || {}).color || "var(--gold-2)";
+    return { title: s.name, subtitle: "Пассивная проверка, без броска", art: { icon: s.icon, color, fx: "flat" }, stats: `<span class="big-num">${d.passive[k]}</span><span>10 + ${esc(s.name)} ${fmt(d.skills[k])}</span>`, body: rich(PASSIVE[k] + " С преимуществом +5, с помехой −5.") };
+  }
   if (key === "pb") {
     return { title: "Бонус мастерства", subtitle: `${d.level} уровень`, art: { icon: "gi/delapouite/star-medal", color: "var(--gold-2)" }, stats: `<span class="big-num">${fmt(d.pb)}</span><span>+2 на 1-4, +3 на 5-8, +4 на 9-12, +5 на 13-16, +6 на 17-20</span>`, body: rich("Прибавляется к атакам и навыкам, которыми персонаж владеет, к спасброскам с владением и к СЛ заклинаний.") };
   }
