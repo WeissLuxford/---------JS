@@ -1,6 +1,7 @@
 import { uid } from "./rules.js";
 import { icon } from "./icons.js";
 import { esc, toast, openModal, rich, attachLinkSuggest } from "./ui.js";
+import { noteReadHtml } from "./tabs.js";
 import { NOTE_SECTIONS, SECTION_NAME, currentSession, newSession, appendEntry, linkTargets, queryStems, markMatches, searchNotes } from "./notes.js";
 
 const RECENT_KEY = "dnd.notes.recent.";
@@ -18,9 +19,49 @@ export function installNotes(X) {
   const { S, root, id } = X;
   const targets = () => linkTargets(S.c);
 
+  function readNote(sec, nid) {
+    const find = (s, i) => ((S.c && S.c.notes[s]) || []).find(x => x.id === i);
+    if (!find(sec, nid)) return toast("Заметка не найдена: возможно, её удалили", { kind: "bad" });
+    const cur = { sec, id: nid };
+    const m = openModal({ cls: "note-read" });
+    const show = () => {
+      const n = find(cur.sec, cur.id);
+      if (!n) return m.close();
+      m.body.innerHTML = noteReadHtml(S.c, cur.sec, n, { readOnly: X.readOnly() });
+      m.body.scrollTop = 0;
+    };
+    show();
+    m.body.addEventListener("click", e => {
+      const a = e.target.closest("[data-act]");
+      if (!a) return;
+      const act = a.dataset.act;
+      if (act === "open-note") {
+        if (a.dataset.sec === "sessions") {
+          m.close();
+          return openNote(a.dataset.sec, a.dataset.id);
+        }
+        if (!find(a.dataset.sec, a.dataset.id)) return toast("Заметка не найдена: возможно, её удалили", { kind: "bad" });
+        Object.assign(cur, { sec: a.dataset.sec, id: a.dataset.id });
+        return show();
+      }
+      if (act === "pin-note") {
+        togglePin(cur.sec, cur.id);
+        return show();
+      }
+      m.close();
+      if (act === "note-create-link") return createFromLink(a.dataset.name || "");
+      if (act === "edit-note") return X.editNote(cur.sec, find(cur.sec, cur.id));
+      if (act === "note-tag") {
+        Object.assign(S.ui, { notesSection: cur.sec, notesQ: "", noteTag: a.dataset.k });
+        return X.renderTab();
+      }
+    });
+  }
+
   function openNote(sec, nid) {
     const n = ((S.c && S.c.notes[sec]) || []).find(x => x.id === nid);
     if (!n) return toast("Заметка не найдена: возможно, её удалили", { kind: "bad" });
+    if (sec !== "sessions") return readNote(sec, nid);
     Object.assign(S.ui, { notesSection: sec, notesQ: "", noteTag: "", peopleAtt: "all", clueState: "all", ordering: false });
     S.ui.noteOpen[nid] = true;
     if (S.tab !== "notes") {
@@ -199,5 +240,5 @@ export function installNotes(X) {
     if (q) body.querySelectorAll("[data-notes-list] .note-text").forEach(el => markMatches(el, queryStems(q)));
   }
 
-  Object.assign(X, { openNote, journalAdd, startSession, focusJournal, togglePin, createFromLink, quickNote, saveRecent, afterNotesRender });
+  Object.assign(X, { openNote, readNote, journalAdd, startSession, focusJournal, togglePin, createFromLink, quickNote, saveRecent, afterNotesRender });
 }

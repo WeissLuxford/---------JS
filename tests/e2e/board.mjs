@@ -47,8 +47,10 @@ for (const mobile of [false, true]) {
   }
   await page.click(`${M} [data-bd-open]`);
   await sleep(600);
-  ok(tag + " opens note", (await page.locator(".subtab.on").innerText()).includes("Люди"));
-  await page.click("[data-act=board]");
+  ok(tag + " opens note", (await page.locator(".modal-back.in .note-read h2").count()) === 1);
+  await page.click(".modal-back.in .note-read [data-close]");
+  await sleep(300);
+  if (!(await page.locator(`${M} [data-bd-sec=sessions]`).count())) await page.click("[data-act=board]");
   await sleep(500);
   await page.click(`${M} [data-bd-sec=sessions]`);
   await sleep(300);

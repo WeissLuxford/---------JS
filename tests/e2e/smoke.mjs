@@ -143,10 +143,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await page.screenshot({ path: OUT + "d-note-editor.png" });
   await page.click(".modal-back.in button[type=submit]");
   await sleep(300);
-  ok("note saved and formatted", (await page.locator(".note .note-text b").count()) >= 1);
-  await page.click(".note .note-toggle");
-  await sleep(100);
-  ok("note collapses", (await page.locator(".note.collapsed").count()) === 1 && (await page.locator(".note.collapsed .note-prev").innerText()).includes("Лицензия"));
+  ok("note saved as an entry", (await page.locator(".jr-entry .jr-prev").first().innerText()).includes("Лицензия"));
+  await page.click(".jr-entry >> nth=0");
+  await sleep(300);
+  ok("note page formatted", (await page.locator(".modal-back.in .nr-text b").count()) >= 1);
+  await page.click(".modal-back.in [data-close]");
+  await sleep(300);
   await page.screenshot({ path: OUT + "d-notes.png" });
 
   await page.click(".tab[data-tab=char]");

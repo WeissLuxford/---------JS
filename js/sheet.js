@@ -752,7 +752,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       const on = !!nq.value.trim();
       $$(".note-filters, .notes-head, .journal-slot", body).forEach(el => (el.hidden = on));
       X.afterNotesRender();
-      $$(".subtab", body).forEach(el => el.classList.toggle("on", !on && el.dataset.k === S.ui.notesSection));
+      $$(".jr-tab", body).forEach(el => el.classList.toggle("on", !on && el.dataset.k === S.ui.notesSection));
       return true;
     }
     const q = e.target.closest("[data-ui=spell-q]");
@@ -1189,6 +1189,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         if (el.dataset.sec === "sessions") return X.startSession();
         return X.editNote(el.dataset.sec, null);
       case "open-note": return X.openNote(el.dataset.sec, el.dataset.id);
+      case "read-note": return X.readNote(el.dataset.sec, el.dataset.id);
       case "pin-note": return X.togglePin(el.dataset.sec, el.dataset.id);
       case "note-create-link": return X.createFromLink(el.dataset.name || "");
       case "quick-note": return X.quickNote();

@@ -623,6 +623,75 @@ function noteCard(n, sec, ctx, o = {}) {
   </article>`;
 }
 
+const NOTE_GROUPS = {
+  people: { field: "attitude", states: NOTE_ATTITUDE, order: [["ally", "Союзники"], ["neutral", "Нейтральные"], ["hostile", "Враги"], ["", "Пока не ясно"]] },
+  quests: { field: "status", states: NOTE_STATUS, order: [["active", "Активные"], ["", "Без статуса"], ["done", "Выполненные"], ["failed", "Проваленные"]] },
+  clues: { field: "state", states: CLUE_STATE, order: [["confirmed", "Подтверждено"], ["lead", "Зацепки"], ["", "Не проверено"], ["false", "Ложные следы"]] }
+};
+
+export function noteState(n, sec) {
+  const g = NOTE_GROUPS[sec];
+  return g ? g.states[n[g.field]] || null : null;
+}
+
+const secIcon = sec => (NOTE_SECTIONS.find(x => x.key === sec) || {}).icon || "scroll";
+
+function initials(t) {
+  const w = String(t || "").replace(/[^\p{L}\s-]/gu, " ").split(/[\s-]+/).filter(Boolean);
+  return ((w[0] || "?")[0] + (w.length > 1 ? w[w.length - 1][0] : "")).toUpperCase();
+}
+
+export function noteMedal(n, sec, big = false) {
+  const st = noteState(n, sec);
+  const c = st ? st[1] : "var(--gold)";
+  return sec === "people"
+    ? `<span class="jr-medal person ${big ? "big" : ""}" style="--c:${c}">${esc(initials(n.title))}</span>`
+    : `<span class="jr-medal ${big ? "big" : ""}" style="--c:${c}">${icon(secIcon(sec))}</span>`;
+}
+
+function noteEntry(n, sec, o = {}) {
+  const stems = o.stems || [];
+  const title = n.title || "Без названия";
+  const prev = stems.length ? snippetHtml(n.text, stems, 110) : esc(cut(plainText(n.text), 110));
+  const st = noteState(n, sec);
+  const dim = n.status === "done" || n.status === "failed" || n.state === "false";
+  const todo = String(n.text || "").match(/^\s*[-*] \[[ xXхХ]\]/gm) || [];
+  const done = todo.filter(t => /\[[xXхХ]\]/.test(t)).length;
+  const goal = todo.length ? `<span class="jr-goal ${done === todo.length ? "all" : ""}" title="Выполнено целей">${done} из ${todo.length}</span>` : "";
+  return `<button class="jr-entry ${dim ? "dim" : ""}" style="--c:${st ? st[1] : "var(--gold)"}" data-rid="${esc(n.id)}" data-act="read-note" data-sec="${sec}" data-id="${esc(n.id)}">
+    ${noteMedal(n, sec)}
+    <span class="jr-t"><b>${stems.length ? highlight(title, stems) : esc(title)}</b>${n.subtitle ? `<small>${stems.length ? highlight(n.subtitle, stems) : esc(n.subtitle)}</small>` : ""}${prev ? `<span class="jr-prev">${prev}</span>` : ""}</span>
+    <span class="jr-side">${goal}${n.pinned ?`<i class="jr-pin" title="В «Важном»">${icon("star")}</i>` : ""}${o.showSec ? `<span class="badge sec">${esc(SECTION_NAME[sec] || "")}</span>` : ""}${o.showSec && st ? `<span class="badge" style="--c:${st[1]}">${st[0]}</span>` : ""}</span>
+  </button>`;
+}
+
+function groupedEntries(list, sec, ui) {
+  const g = NOTE_GROUPS[sec];
+  if (!g || ui.ordering) return `<div class="jr-list" data-reorder="notes.${sec}">${list.map(n => noteEntry(n, sec)).join("")}</div>`;
+  const keyOf = n => (g.order.some(([k]) => k === (n[g.field] || "")) ? n[g.field] || "" : "");
+  return g.order.map(([k, label]) => {
+    const items = list.filter(n => keyOf(n) === k);
+    if (!items.length) return "";
+    const st = g.states[k];
+    return `<section class="jr-group" style="--c:${st ? st[1] : "var(--dim)"}"><h4 class="jr-gh"><span>${label}</span><small>${items.length}</small></h4><div class="jr-list">${items.map(n => noteEntry(n, sec)).join("")}</div></section>`;
+  }).join("");
+}
+
+export function noteReadHtml(c, sec, n, { readOnly = false } = {}) {
+  const st = noteState(n, sec);
+  const back = backlinks(c).get(n.id) || [];
+  const tags = noteTagsOf(n);
+  const s = NOTE_SECTIONS.find(x => x.key === sec) || {};
+  return `<article class="nr" style="--c:${st ? st[1] : "var(--gold-2)"}">
+    <header class="nr-h">${noteMedal(n, sec, true)}<div class="nr-ti"><span class="nr-sec">${icon(s.icon || "scroll")}${esc(s.name || "")}${st ? ` · <b>${st[0]}</b>` : ""}</span><h2>${esc(n.title || "Без названия")}</h2>${n.subtitle ? `<p class="nr-sub">${esc(n.subtitle)}</p>` : ""}</div></header>
+    <div class="nr-orn" aria-hidden="true"><i></i></div>
+    <div class="nr-text note-text">${rich(n.text, richLinks(c)(n.id)) || `<p class="dim">Пока пусто. Нажми «Изменить», чтобы записать.</p>`}</div>
+    ${tags.length ? `<div class="nr-tags">${tags.map(t => `<button class="tag" data-act="note-tag" data-k="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}
+    ${back.length ? `<div class="nr-back"><span>${icon("link")}Упоминается</span>${back.map(b => `<button class="tag" data-act="open-note" data-sec="${b.sec}" data-id="${esc(b.id)}">${esc(b.title)}</button>`).join("")}</div>` : ""}
+    ${readOnly ? "" : `<footer class="nr-foot"><button class="btn ghost sm ${n.pinned ? "on" : ""}" data-act="pin-note" data-sec="${sec}" data-id="${esc(n.id)}" aria-pressed="${n.pinned ? "true" : "false"}">${icon("star")}${n.pinned ? "В «Важном»" : "В «Важное»"}</button><button class="btn gold sm" data-act="edit-note" data-sec="${sec}" data-id="${esc(n.id)}">${icon("edit")}Изменить</button></footer>`}
+  </article>`;
+}
+
 export function notesList(ctx) {
   const { c, ui } = ctx;
   const s = ui.notesSection || "sessions";
@@ -633,7 +702,7 @@ export function notesList(ctx) {
     const stems = queryStems(q);
     const found = searchNotes(c, q);
     if (!found.length) return `<p class="empty">Ничего не нашлось. Попробуй часть имени или другое слово: поиск понимает формы слов («Бенедикта» найдёт «Бенедикт»).</p>`;
-    return `<p class="hint">Найдено: ${found.length}. Сначала самое подходящее.</p>` + found.map(r => noteCard(r.n, r.sec, ctx, { stems, links, back, showSec: true })).join("");
+    return `<p class="hint">Найдено: ${found.length}. Сначала самое подходящее.</p><div class="jr-list">` + found.map(r => r.sec === "sessions" ? noteCard(r.n, r.sec, ctx, { stems, links, back, showSec: true }) : noteEntry(r.n, r.sec, { stems, showSec: true })).join("") + "</div>";
   }
   let list = (c.notes[s] || []).slice();
   if (!ui.ordering) {
@@ -648,8 +717,6 @@ export function notesList(ctx) {
     if (s === "sessions") list.sort((a, b) => (Number(b.created) || 0) - (Number(a.created) || 0));
     list.sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
   }
-  if (s === "people" && ui.peopleAtt && ui.peopleAtt !== "all") list = list.filter(n => (n.attitude || "") === (ui.peopleAtt === "unknown" ? "" : ui.peopleAtt));
-  if (s === "clues" && ui.clueState && ui.clueState !== "all") list = list.filter(n => (n.state || "") === (ui.clueState === "unknown" ? "" : ui.clueState));
   if (ui.noteTag) list = list.filter(n => noteTagsOf(n).includes(ui.noteTag));
   const hints = {
     sessions: "Журнал пуст. Запиши первое событие в поле выше: сессия создастся сама, с датой и временем.",
@@ -661,7 +728,9 @@ export function notesList(ctx) {
     misc: "Здесь можно хранить что угодно: законы мира, слухи, план города, правила Мастера."
   };
   const empty = (c.notes[s] || []).length ? "Под этот фильтр ничего не подходит" : hints[s] || "Здесь пока пусто";
-  return list.map(n => noteCard(n, s, ctx, { links, back })).join("") || ((c.notes[s] || []).length ? `<p class="empty">${empty}</p>` : emptyState(empty));
+  if (!list.length) return (c.notes[s] || []).length ? `<p class="empty">${empty}</p>` : emptyState(empty);
+  if (s === "sessions") return `<div class="notes single" data-reorder="notes.sessions">${list.map(n => noteCard(n, s, ctx, { links, back })).join("")}</div>`;
+  return groupedEntries(list, s, ui);
 }
 
 function journalBox(c) {
@@ -691,20 +760,17 @@ export function tabNotes(ctx) {
   const s = ui.notesSection || "sessions";
   const searching = !!String(ui.notesQ || "").trim();
   const sec = NOTE_SECTIONS.find(x => x.key === s) || NOTE_SECTIONS[0];
-  const nav = `<div class="subtabs notes-tabs">${NOTE_SECTIONS.map(x => `<button class="subtab ${s === x.key && !searching ? "on" : ""}" data-act="notes-section" data-k="${x.key}">${icon(x.icon)}${x.name}${(c.notes[x.key] || []).length ? `<small>${c.notes[x.key].length}</small>` : ""}</button>`).join("")}</div>`;
+  const nav = `<nav class="jr-tabs" aria-label="Разделы заметок">${NOTE_SECTIONS.map(x => `<button class="jr-tab ${s === x.key && !searching ? "on" : ""}" data-act="notes-section" data-k="${x.key}" aria-pressed="${s === x.key && !searching ? "true" : "false"}">${icon(x.icon)}<span>${x.name}</span>${(c.notes[x.key] || []).length ? `<small>${c.notes[x.key].length}</small>` : ""}</button>`).join("")}<button class="jr-tab board" data-act="board">${icon("web")}<span>Доска связей</span></button></nav>`;
   const recent = (ui.notesRecent || []).filter(Boolean);
   const titles = linkTargets(c).map(t => t.title);
   const options = [...new Set([...recent, ...titles])].slice(0, 60);
   const search = `<label class="search-box notes-search">${icon("search")}<input type="search" data-ui="notes-q" list="notes-q-list" placeholder="Найти в любой заметке: имя, место, слово" value="${esc(ui.notesQ || "")}" aria-label="Поиск по всем заметкам" autocomplete="off"></label><datalist id="notes-q-list">${options.map(o => `<option value="${esc(o)}"></option>`).join("")}</datalist>`;
   const tags = [...new Set((c.notes[s] || []).flatMap(noteTagsOf))].sort((a, b) => a.localeCompare(b, "ru"));
-  const att = s === "people" ? [["all", "Все"], ["ally", "Союзники"], ["neutral", "Нейтральные"], ["hostile", "Враги"], ["unknown", "Неизвестно"]] : [];
-  const cl = s === "clues" ? [["all", "Все"], ["confirmed", "Подтверждено"], ["lead", "Зацепки"], ["false", "Ложные"], ["unknown", "Не знаю"]] : [];
-  const pa = ui.peopleAtt || "all";
-  const cs = ui.clueState || "all";
-  const filters = `<div class="note-filters" ${searching ? "hidden" : ""}>${att.map(([k, l]) => `<button class="chip toggle ${pa === k ? "on" : ""}" data-act="people-att" data-k="${k}" aria-pressed="${pa === k ? "true" : "false"}">${l}</button>`).join("")}${cl.map(([k, l]) => `<button class="chip toggle ${cs === k ? "on" : ""}" data-act="clue-state" data-k="${k}" aria-pressed="${cs === k ? "true" : "false"}">${l}</button>`).join("")}${tags.map(t => `<button class="tag ${ui.noteTag === t ? "on" : ""}" data-act="note-tag" data-k="${esc(t)}" aria-pressed="${ui.noteTag === t ? "true" : "false"}">#${esc(t)}</button>`).join("")}</div>`;
-  const fold = (c.notes[s] || []).length > 1 ? `<button class="btn ghost sm" data-act="fold-notes" data-sec="${s}" data-v="1">${icon("minus")}Свернуть все</button><button class="btn ghost sm" data-act="fold-notes" data-sec="${s}" data-v="0">${icon("plus")}Развернуть все</button>` : "";
+  const filters = tags.length ? `<div class="note-filters" ${searching ? "hidden" : ""}>${tags.map(t => `<button class="tag ${ui.noteTag === t ? "on" : ""}" data-act="note-tag" data-k="${esc(t)}" aria-pressed="${ui.noteTag === t ? "true" : "false"}">#${esc(t)}</button>`).join("")}</div>` : "";
   const journal = s === "sessions" && !searching ? journalBox(c) : "";
-  return pinnedStrip(c) + search + nav + filters + `<div class="journal-slot" ${searching ? "hidden" : ""}>${journal}</div><div class="notes-head" ${searching ? "hidden" : ""}><button class="btn sm board-btn" data-act="board">${icon("web")}Доска связей</button>${fold}<span class="spacer"></span>${orderBtn(ctx)}${s === "sessions" ? "" : addBtn("add-note", sec.add, `data-sec="${s}"`)}</div><div class="notes ${s === "misc" || s === "sessions" ? "single" : ""}" data-notes-list data-reorder="notes.${s}">${notesList(ctx)}</div>`;
+  const count = (c.notes[s] || []).length;
+  const head = `<div class="notes-head" ${searching ? "hidden" : ""}><h3 class="jr-title">${icon(sec.icon)}${esc(sec.name)}${count ? `<small>${count}</small>` : ""}</h3><span class="spacer"></span>${count > 1 ? orderBtn(ctx) : ""}${s === "sessions" ? "" : addBtn("add-note", sec.add, `data-sec="${s}"`)}</div>`;
+  return pinnedStrip(c) + nav + search + `<div class="journal-slot" ${searching ? "hidden" : ""}>${journal}</div>` + head + filters + `<div class="jr-body" data-notes-list>${notesList(ctx)}</div>`;
 }
 
 export const RENDER = { char: tabChar, combat: tabCombat, spells: tabSpells, features: tabFeatures, inventory: tabInventory, notes: tabNotes };

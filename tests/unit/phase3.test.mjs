@@ -117,14 +117,15 @@ test("spells paid with item charges: more charges, more dice", () => {
 });
 
 test("notes search finds across sections and tags filter", async () => {
-  const { notesList } = await import(P + "tabs.js");
+  const { notesList, noteReadHtml } = await import(P + "tabs.js");
   const c = R.normalize({ name: "N", notes: { patron: [{ id: "a", title: "Голос", text: "лицензия на магию", tags: "закон" }], people: [{ id: "b", title: "Рэй", attitude: "ally", text: "", tags: "должник, порт" }], misc: [{ id: "c", title: "Законы", text: "**Лицензия** до 2 круга" }] } });
   const d = R.compute(c);
   const found = notesList({ c, d, ui: { notesQ: "лиценз", notesSection: "people" } });
   assert.ok(found.includes("Голос") && found.includes("Законы") && !found.includes("Рэй"));
   const tagged = notesList({ c, d, ui: { notesSection: "people", noteTag: "порт" } });
-  assert.ok(tagged.includes("Рэй") && tagged.includes("#должник"));
-  assert.ok(!notesList({ c, d, ui: { notesSection: "people", peopleAtt: "hostile" } }).includes("Рэй"));
+  assert.ok(tagged.includes("Рэй") && tagged.includes("Союзники") && !tagged.includes("Враги"));
+  assert.ok(!notesList({ c, d, ui: { notesSection: "people", noteTag: "закон" } }).includes("Рэй"));
+  assert.ok(noteReadHtml(c, "people", c.notes.people[0]).includes("#должник"));
 });
 
 test("inventory sorting and prices", async () => {
