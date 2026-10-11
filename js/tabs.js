@@ -784,7 +784,7 @@ function journalBox(c) {
   return `<div class="journal-add">
     <div class="ja-h">${icon("quill")}<span><b>${cur ? esc(cur.title) : "Новая сессия"}</b><small>${cur ? esc(cur.subtitle || "") : "начнётся с первой записи"}</small></span><span class="spacer"></span><button class="btn ghost sm" data-act="session-new">${icon("plus")}Новая сессия</button></div>
     <textarea data-journal rows="2" placeholder="Что случилось? Набери [[, чтобы сослаться на человека или место" aria-label="Запись в журнал"></textarea>
-    <div class="ja-foot"><span class="hint explain">Enter: записать, Shift+Enter: новая строка. Время подставится само; через 12 часов без записей начнётся новая сессия.</span><button class="btn gold sm" data-act="journal-add">${icon("check")}Записать</button></div>
+    <div class="ja-foot"><span class="hint explain">Enter: записать со временем, Shift+Enter: новая строка.</span><button class="btn ghost sm" data-act="writing-help" data-k="journal">${icon("book")}Как записывать</button><button class="btn gold sm" data-act="journal-add">${icon("check")}Записать</button></div>
   </div>`;
 }
 
@@ -815,7 +815,7 @@ export function tabNotes(ctx) {
   const filters = tags.length ? `<div class="note-filters" ${searching ? "hidden" : ""}>${tags.map(t => `<button class="tag ${ui.noteTag === t ? "on" : ""}" data-act="note-tag" data-k="${esc(t)}" aria-pressed="${ui.noteTag === t ? "true" : "false"}">#${esc(t)}</button>`).join("")}</div>` : "";
   const journal = s === "sessions" && !searching ? journalBox(c) : "";
   const count = (c.notes[s] || []).length;
-  const head = `<div class="notes-head" ${searching ? "hidden" : ""}><h3 class="jr-title">${icon(sec.icon)}${esc(sec.name)}${count ? `<small>${count}</small>` : ""}</h3><span class="spacer"></span>${count > 1 ? orderBtn(ctx) : ""}${s === "sessions" ? "" : addBtn("add-note", sec.add, `data-sec="${s}"`)}</div>`;
+  const head = `<div class="notes-head" ${searching ? "hidden" : ""}><h3 class="jr-title">${icon(sec.icon)}${esc(sec.name)}${count ? `<small>${count}</small>` : ""}</h3><span class="spacer"></span>${s === "sessions" ? "" : `<button class="btn ghost sm" data-act="writing-help">${icon("book")}Как записывать</button>`}${count > 1 ? orderBtn(ctx) : ""}${s === "sessions" ? "" : addBtn("add-note", sec.add, `data-sec="${s}"`)}</div>`;
   return pinnedStrip(c) + nav + search + `<div class="journal-slot" ${searching ? "hidden" : ""}>${journal}</div>` + head + filters + `<div class="jr-body" data-notes-list>${notesList(ctx)}</div>`;
 }
 

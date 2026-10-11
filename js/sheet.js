@@ -1,6 +1,7 @@
 import { compute, normalize, fmt, usesInfo, addDice, swapType, NOTE_KEYS, reorderSubset, presetEffect, xpInfo, ACCENTS } from "./rules.js";
 import { icon, acIcon, hpIcon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, warmSounds, reducedMotion, getPath, setPath, download, timeAgo, rollCardOn, setRollCard, closeRollCard, spendDamageButtons } from "./ui.js";
+import { openWritingHelp } from "./editor.js";
 import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources, classOf } from "./tabs.js";
 import { cardFor, findEntity } from "./entities.js";
 import { describeChanges } from "./changes.js";
@@ -1190,6 +1191,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         return X.editNote(el.dataset.sec, null);
       case "open-note": return X.openNote(el.dataset.sec, el.dataset.id);
       case "read-note": return X.readNote(el.dataset.sec, el.dataset.id);
+      case "writing-help": return openWritingHelp(el.dataset.k || "");
       case "pin-note": return X.togglePin(el.dataset.sec, el.dataset.id);
       case "note-create-link": return X.createFromLink(el.dataset.name || "");
       case "quick-note": return X.quickNote();

@@ -1,4 +1,72 @@
-import { esc, rich } from "./ui.js";
+import { esc, rich, openModal } from "./ui.js";
+import { icon } from "./icons.js";
+
+const k = t => `<kbd>${esc(t)}</kbd>`;
+const btn = t => `<span class="hw-btn">${t}</span>`;
+const demo = (md, links) => `<div class="hw-demo note-text">${rich(md, links ? { link: (a, b) => `<span class="wl">${esc(b || a)}</span>` } : undefined)}</div>`;
+const row = (how, md, links) => `<div class="hw-row"><div class="hw-how">${how}</div>${demo(md, links)}</div>`;
+
+const helpSections = () => [
+  ["start", "С чего начать", `
+    <p>Просто пиши, как в обычном блокноте. Оформление не обязательно: его можно добавить потом или не добавлять вовсе.</p>
+    <ol class="hw-steps"><li>Выдели слово или строку пальцем или мышкой.</li><li>Нажми кнопку на панели над текстом: ${btn("<b>Ж</b>")}, ${btn("Маркер")}, ${btn("Заголовок")} и другие.</li><li>Нажми ту же кнопку ещё раз, чтобы убрать оформление.</li></ol>
+    <p class="hw-tip">Кнопка на панели подсвечивается, когда курсор стоит в оформленном месте: так видно, что уже включено.</p>`],
+  ["text", "Выделить слова", [
+    row(`${btn("<b>Ж</b>")} или ${k("Ctrl")}+${k("B")}<small>Главное: имена, суммы, сроки</small>`, "Барон должен нам **300 золотых**."),
+    row(`${btn("<i>К</i>")} или ${k("Ctrl")}+${k("I")}<small>Мысли, слухи, чужие слова</small>`, "Трактирщик шепнул: *в подвале кто-то есть*."),
+    row(`${btn("<u>Ч</u>")} или ${k("Ctrl")}+${k("U")}<small>Важно не забыть</small>`, "Встреча __на рассвете__ у мельницы."),
+    row(`${btn("<s>З</s>")}<small>Неправда или уже не актуально</small>`, "Убийца: ~~конюх~~ дворецкий."),
+    row(`${btn("<mark>Маркер</mark>")}<small>Самое важное на странице</small>`, "Пароль от ворот: ==Серебряная луна==.")
+  ].join("")],
+  ["blocks", "Заголовки, списки, цитаты", [
+    row(`${btn("Заголовок")} или ${k("#")} ${k("пробел")} в начале строки<small>Делит длинную запись на части</small>`, "## Что известно\nКупец пропал три дня назад."),
+    row(`${btn("Список")} или ${k("-")} ${k("пробел")}<small>Перечислить что угодно</small>`, "- Кинжал с гербом\n- Письмо без подписи\n- Следы сажи"),
+    row(`${btn("Номера")} или ${k("1.")} ${k("пробел")}<small>Когда важен порядок</small>`, "1. Найти купца\n2. Отдать письмо\n3. Получить награду"),
+    row(`${btn("Дела")} или ${k("[]")} ${k("пробел")}<small>Цели задания: нажми на квадратик, чтобы отметить. В «Заданиях» появится счётчик «1 из 3»</small>`, "- [x] Поговорить со стражей\n- [ ] Осмотреть склад\n- [ ] Доложить барону"),
+    row(`${btn("Цитата")} или ${k(">")} ${k("пробел")}<small>Точные слова персонажа</small>`, "> Кто держит строй, тот держит мир."),
+    row(`${btn("Линия")}<small>Отделить одно от другого</small>`, "До битвы\n\n---\n\nПосле битвы")
+  ].join("")],
+  ["links", "Ссылки на людей и места", `
+    <p>Набери ${k("[[")} и начни имя: появится подсказка, выбери нужного человека, место или задание. Получится плашка-ссылка. Или выдели имя и нажми ${btn("[[ Ссылка")}.</p>
+    ${row(`${k("[[")} ${k("Рэй")}`, "Встретили [[Рэй]] в порту.", true)}
+    <ul class="hw-list"><li>При чтении ссылка нажимается и открывает запись.</li><li>На «Доске связей» между ними появится нить.</li><li>Внизу записи о человеке будет видно, где он «Упоминается».</li><li>Если такой записи ещё нет, ссылка станет красноватой: нажми на неё, чтобы создать.</li></ul>
+    <p class="hw-tip">Имена людей и мест, которые уже есть в заметках, подсвечиваются пунктиром сами, даже без ${k("[[")}.</p>`],
+  ["journal", "Журнал сессии", `
+    <ul class="hw-list"><li>Пиши в поле наверху журнала, что сейчас произошло, и нажми ${k("Enter")}: запись встанет в ленту со временем.</li><li>${k("Shift")}+${k("Enter")} переносит строку, не записывая.</li><li>Через 12 часов без записей начнётся новая сессия сама. Или нажми ${btn("Новая сессия")}.</li><li>Записать из любой вкладки: кнопка с пером внизу экрана.</li></ul>
+    <div class="hw-demo note-text"><ol class="tl"><li class="tl-e"><time>21:40</time><div class="tl-t"><p>Пришли в порт, говорили с <span class="wl">Рэй</span></p></div></li><li class="tl-e"><time>21:55</time><div class="tl-t"><p>Нашли письмо с печатью змеи</p></div></li></ol></div>`],
+  ["where", "Куда что записывать", `
+    <dl class="hw-dl">
+      <dt>Журнал</dt><dd>Что происходило на игре, по порядку.</dd>
+      <dt>Люди</dt><dd>Все, кого встретили. Отметь, союзник это или враг: люди сами разложатся по группам.</dd>
+      <dt>Места</dt><dd>Города, таверны, подземелья, тайные ходы.</dd>
+      <dt>Задания</dt><dd>Что поручили и за что заплатят. Цели пиши делами с галочками, статус ставь «Выполнено» или «Провалено».</dd>
+      <dt>Улики</dt><dd>Находки для расследования: подтверждено, зацепка или ложный след.</dd>
+      <dt>Покровитель</dt><dd>Договор, условия, что он просил.</dd>
+      <dt>Прочее</dt><dd>Законы мира, слухи, правила Мастера, всё остальное.</dd>
+    </dl>
+    <p class="hw-tip">${icon("star")} Звёздочка на записи кладёт её в «Важное»: оно видно сверху заметок и во вкладке «Бой». Метки через запятую помогают искать: #долг, #порт.</p>`],
+  ["example", "Пример целой записи", demo("## Пропавший купец\nГильдия платит **200 золотых**, срок ==до полнолуния==.\n- [x] Расспросить жену купца\n- [ ] Найти [[Порт Сильверхолл|склад в порту]]\n- [ ] Вернуть печать гильдии\n> Он ушёл ночью и взял с собой только печать.\n---\n*Похоже, жена что-то скрывает.*", true)]
+];
+
+export function openWritingHelp(start = "") {
+  const HELP = helpSections();
+  const m = openModal({
+    title: "Как записывать",
+    wide: true,
+    cls: "writing-help",
+    body: `<nav class="hw-nav">${HELP.map(([key, t]) => `<button type="button" class="chip" data-hw="${key}">${esc(t)}</button>`).join("")}</nav>
+      ${HELP.map(([key, t, body]) => `<section class="hw-sec" id="hw-${key}"><h3>${esc(t)}</h3>${body}</section>`).join("")}`
+  });
+  m.body.addEventListener("click", e => {
+    const b = e.target.closest("[data-hw]");
+    if (b) m.body.querySelector(`#hw-${b.dataset.hw}`).scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  if (start) requestAnimationFrame(() => {
+    const el = m.body.querySelector(`#hw-${start}`);
+    if (el) el.scrollIntoView({ block: "start" });
+  });
+  return m;
+}
 
 const TOOLS = [
   ["h", `<span class="rt-l">Заголовок</span>`, "Заголовок"],
@@ -7,11 +75,11 @@ const TOOLS = [
   ["under", "<u>Ч</u>", "Подчёркнутый"],
   ["strike", "<s>З</s>", "Зачёркнутый"],
   ["mark", `<mark>Маркер</mark>`, "Выделить маркером"],
-  ["list", `<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="5" r="1.6"/><circle cx="4" cy="10" r="1.6"/><circle cx="4" cy="15" r="1.6"/><path d="M8 5h9M8 10h9M8 15h9"/></svg>`, "Список"],
-  ["num", `<svg viewBox="0 0 20 20" aria-hidden="true"><text x="1" y="7.5">1</text><text x="1" y="17">2</text><path d="M8 5h9M8 14h9"/></svg>`, "Нумерованный список"],
-  ["todo", `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3" width="6" height="6" rx="1.2"/><path d="M3.5 6l1.2 1.3L7 4.6"/><rect x="2" y="11" width="6" height="6" rx="1.2"/><path d="M11 6h7M11 14h7"/></svg>`, "Список дел с галочками"],
-  ["quote", `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4v12M7 6h10M7 10h10M7 14h7"/></svg>`, "Цитата"],
-  ["hr", `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 10h16"/><path d="M8 10l2-2 2 2-2 2z"/></svg>`, "Линия-разделитель"],
+  ["list", `<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="5" r="1.6"/><circle cx="4" cy="10" r="1.6"/><circle cx="4" cy="15" r="1.6"/><path d="M8 5h9M8 10h9M8 15h9"/></svg><span class="rt-l">Список</span>`, "Список"],
+  ["num", `<svg viewBox="0 0 20 20" aria-hidden="true"><text x="1" y="7.5">1</text><text x="1" y="17">2</text><path d="M8 5h9M8 14h9"/></svg><span class="rt-l">Номера</span>`, "Нумерованный список"],
+  ["todo", `<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3" width="6" height="6" rx="1.2"/><path d="M3.5 6l1.2 1.3L7 4.6"/><rect x="2" y="11" width="6" height="6" rx="1.2"/><path d="M11 6h7M11 14h7"/></svg><span class="rt-l">Дела</span>`, "Список дел с галочками"],
+  ["quote", `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 4v12M7 6h10M7 10h10M7 14h7"/></svg><span class="rt-l">Цитата</span>`, "Цитата"],
+  ["hr", `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 10h16"/><path d="M8 10l2-2 2 2-2 2z"/></svg><span class="rt-l">Линия</span>`, "Линия-разделитель"],
   ["link", `<span class="rt-l">[[ Ссылка</span>`, "Ссылка на человека, место или задание"]
 ];
 
@@ -159,7 +227,7 @@ export function mountEditor(ta, { links, placeholder = "" } = {}) {
   ta.hidden = true;
   ta.after(ed);
   const bar = field && field.querySelector(".rt-bar");
-  if (bar) bar.innerHTML = TOOLS.map(([k, html, t]) => `<button type="button" class="rt-btn" data-ed="${k}" title="${esc(t)}" aria-label="${esc(t)}" aria-pressed="false">${html}</button>`).join("");
+  if (bar) bar.innerHTML = TOOLS.map(([k, html, t]) => `<button type="button" class="rt-btn" data-ed="${k}" title="${esc(t)}" aria-label="${esc(t)}" aria-pressed="false">${html}</button>`).join("") + `<button type="button" class="rt-btn rt-help" data-ed-help title="Как оформлять записи, с примерами"><span class="rt-l">? Как писать</span></button>`;
   const sync = () => {
     ta.value = editHtmlToMd(ed);
     ed.classList.toggle("empty", !ed.textContent.trim() && !ed.querySelector(".wl-chip, hr, .rt-todo"));
@@ -433,6 +501,7 @@ export function mountEditor(ta, { links, placeholder = "" } = {}) {
       if (e.target.closest("[data-ed]")) e.preventDefault();
     });
     bar.addEventListener("click", e => {
+      if (e.target.closest("[data-ed-help]")) return openWritingHelp();
       const b = e.target.closest("[data-ed]");
       if (b) run(b.dataset.ed);
     });

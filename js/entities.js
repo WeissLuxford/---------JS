@@ -608,7 +608,7 @@ export function noteFields(section, links) {
   if (section === "clues") f.push({ key: "state", label: "Насколько верно", type: "select", options: [["lead", "Зацепка"], ["confirmed", "Подтверждено"], ["false", "Ложный след"], ["", "Не знаю"]] });
   if (section === "people" || section === "places") f.push({ key: "aliases", label: "Другие имена и прозвища через запятую", span: 3, placeholder: section === "people" ? "Бенедикт, святой отец" : "Собор, Старый храм", hint: "По ним работают ссылки и подсветка в других заметках" });
   f.push({ key: "tags", label: "Метки через запятую", span: 3, placeholder: "Нижний город, гильдия, должник" });
-  f.push({ key: "text", label: "Текст", type: "richtext", rows: 12, span: 3, links, hint: "Выдели слова и нажми кнопку сверху. Быстрее: строка с «- » станет списком, «[] » делом с галочкой, «# » заголовком, «> » цитатой. Набери [[ и выбери человека или место: получится ссылка" });
+  f.push({ key: "text", label: "Текст", type: "richtext", rows: 12, span: 3, links, hint: "Выдели слова и нажми кнопку сверху. [[ ставит ссылку на человека или место. Все приёмы с примерами: «? Как писать»." });
   f.push({ key: "pinned", label: "Закрепить в «Важном» (видно сверху заметок и во вкладке «Бой»)", type: "checkbox", span: 3 });
   f.push({ key: "collapsed", label: "Показывать свёрнутой (только название)", type: "checkbox", span: 3 });
   return f;
