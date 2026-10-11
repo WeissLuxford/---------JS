@@ -1,4 +1,4 @@
-import { icon, svgIcon } from "./icons.js";
+import { icon, iconFile } from "./icons.js";
 import { esc, openModal } from "./ui.js";
 import { NOTE_SECTIONS, SECTION_NAME, NOTE_ATTITUDE, CLUE_STATE, NOTE_STATUS, referencedIds, linkIndex, mentionMatcher, plainText, norm } from "./notes.js";
 
@@ -130,7 +130,7 @@ export function layoutGraph(graph, saved = {}, { width = 1000, height = 700, ite
       const d = Math.max(0.01, Math.hypot(dp.x, dp.y));
       p.x += (dp.x / d) * Math.min(d, t);
       p.y += (dp.y / d) * Math.min(d, t);
-      p.x = Math.max(85, Math.min(width - 85, p.x));
+      p.x = Math.max(100, Math.min(width - 100, p.x));
       p.y = Math.max(40, Math.min(height - 50, p.y));
     }
     t = Math.max(1, t * 0.97);
@@ -157,6 +157,62 @@ function storeSaved(id, v) {
 
 const STATUS_COLOR = sec => (sec === "people" ? NOTE_ATTITUDE : sec === "clues" ? CLUE_STATE : sec === "quests" ? NOTE_STATUS : {});
 const SEC_ICON = Object.fromEntries(NOTE_SECTIONS.map(s => [s.key, s.icon]));
+const NODE_H = 40;
+
+function initials(t) {
+  const w = String(t || "").replace(/[^\p{L}\s-]/gu, " ").split(/[\s-]+/).filter(Boolean);
+  return ((w[0] || "?")[0] + (w.length > 1 ? w[w.length - 1][0] : "")).toUpperCase();
+}
+
+const labelOf = t => (t.length > 22 ? t.slice(0, 21) + "…" : t);
+const nodeW = t => Math.round(Math.max(116, Math.min(220, 50 + labelOf(t).length * 8.3)));
+
+export function edgePath(a, b) {
+  const mx = (a.x + b.x) / 2;
+  const my = (a.y + b.y) / 2 + Math.min(46, Math.hypot(a.x - b.x, a.y - b.y) * 0.12);
+  return `M${a.x.toFixed(1)} ${(a.y - NODE_H / 2).toFixed(1)} Q${mx.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${(b.y - NODE_H / 2).toFixed(1)}`;
+}
+
+export function spreadCards(nodes, pos, { width = 1000, height = 700, gap = 10, rounds = 80 } = {}) {
+  const items = nodes.map(n => ({ p: pos.get(n.id), w: nodeW(n.title) })).filter(x => x.p);
+  for (let r = 0; r < rounds; r++) {
+    let moved = false;
+    for (let i = 0; i < items.length; i++) {
+      for (let j = i + 1; j < items.length; j++) {
+        const a = items[i];
+        const b = items[j];
+        const ox = (a.w + b.w) / 2 + gap - Math.abs(a.p.x - b.p.x);
+        const oy = NODE_H + gap + 12 - Math.abs(a.p.y - b.p.y);
+        if (ox <= 0 || oy <= 0 || (a.p.fixed && b.p.fixed)) continue;
+        moved = true;
+        const share = a.p.fixed ? [0, 1] : b.p.fixed ? [1, 0] : [0.5, 0.5];
+        if (oy < ox) {
+          const s = a.p.y < b.p.y || (a.p.y === b.p.y && i < j) ? -1 : 1;
+          a.p.y += s * oy * share[0];
+          b.p.y -= s * oy * share[1];
+        } else {
+          const s = a.p.x < b.p.x || (a.p.x === b.p.x && i < j) ? -1 : 1;
+          a.p.x += s * ox * share[0];
+          b.p.x -= s * ox * share[1];
+        }
+      }
+    }
+    for (const { p, w } of items) {
+      if (p.fixed) continue;
+      p.x = Math.max(w / 2 + 6, Math.min(width - w / 2 - 6, p.x));
+      p.y = Math.max(NODE_H, Math.min(height - NODE_H, p.y));
+    }
+    if (!moved) break;
+  }
+  return pos;
+}
+
+function iconDefs() {
+  return NOTE_SECTIONS.map(s => {
+    const file = iconFile(s.icon);
+    return file ? `<mask id="bdm-${s.key}" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="-12" y="-12" width="24" height="24"><image href="${file}" x="-12" y="-12" width="24" height="24"/></mask>` : "";
+  }).join("");
+}
 
 export function openBoard({ c, charId, onOpen }) {
   const st = { sections: new Set(DEFAULT_ON), onlyLinked: false, sel: "", q: "", view: { x: 0, y: 0, s: 1 } };
@@ -165,83 +221,109 @@ export function openBoard({ c, charId, onOpen }) {
   let saved = loadSaved(charId);
   let graph;
   let pos;
-  const m = openModal({ title: "Доска расследования", wide: true, cls: "board-modal", body: "" });
+  const m = openModal({ title: "Доска связей", wide: true, cls: "board-modal", body: "" });
   m.body.innerHTML = `<div class="bd-tools">
-      <div class="chips">${NOTE_SECTIONS.map(s => `<button class="chip toggle ${st.sections.has(s.key) ? "on" : ""}" data-bd-sec="${s.key}" style="--c:${BOARD_SECTIONS[s.key]}">${icon(s.icon)}${esc(s.name)}</button>`).join("")}</div>
+      <div class="chips">${NOTE_SECTIONS.map(s => `<button class="chip toggle ${st.sections.has(s.key) ? "on" : ""}" data-bd-sec="${s.key}" style="--c:${BOARD_SECTIONS[s.key]}" aria-pressed="${st.sections.has(s.key) ? "true" : "false"}">${icon(s.icon)}${esc(s.name)}</button>`).join("")}</div>
       <div class="bd-row"><label class="search-box">${icon("search")}<input type="search" data-bd-q placeholder="Найти на доске"></label><label class="fld chk"><input type="checkbox" data-bd-linked><span>Только со связями</span></label></div>
     </div>
-    <div class="bd-wrap"><svg class="bd-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Связи заметок"><g data-bd-view></g></svg>
-      <div class="bd-zoom"><button class="icon-btn" data-bd-zoom="1.25" title="Ближе">${icon("plus")}</button><button class="icon-btn" data-bd-zoom="0.8" title="Дальше">${icon("minus")}</button><button class="icon-btn" data-bd-reset title="Разложить заново">${icon("history")}</button></div>
+    <div class="bd-wrap"><svg class="bd-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Связи заметок"><defs>${iconDefs()}</defs><g data-bd-view></g></svg>
+      <div class="bd-zoom"><button class="icon-btn" data-bd-zoom="1.25" title="Ближе" aria-label="Ближе">${icon("plus")}</button><button class="icon-btn" data-bd-zoom="0.8" title="Дальше" aria-label="Дальше">${icon("minus")}</button><button class="icon-btn" data-bd-reset title="Разложить заново" aria-label="Разложить заново">${icon("history")}</button></div>
       <div class="bd-empty" data-bd-empty hidden></div>
     </div>
     <div class="bd-card" data-bd-card hidden></div>
-    <p class="hint bd-hint">Нити тянутся по ссылкам [[Имя]] и упоминаниям имён в заметках, а также через журнал: если двое упомянуты в одной записи, между ними тоже нить. Узлы можно двигать, место запомнится на этом устройстве.</p>`;
+    <p class="hint explain bd-hint">Нити тянутся по ссылкам [[Имя]] и упоминаниям имён, а через журнал: если двое упомянуты в одной записи, между ними тоже нить. Карточки можно двигать, место запомнится на этом устройстве.</p>`;
   const svg = m.body.querySelector(".bd-svg");
   const rect = svg.getBoundingClientRect();
   if (rect.width > 0 && rect.width < 700) {
-    W = Math.max(420, Math.round(rect.width * 1.2));
-    H = Math.max(420, Math.round((W * rect.height) / rect.width));
+    W = Math.max(420, Math.round(rect.width * 1.18));
+    H = Math.max(520, Math.round((W * rect.height) / rect.width));
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   }
-  const clampSaved = v => Object.fromEntries(Object.entries(v).filter(([, p]) => p && Number.isFinite(p.x) && Number.isFinite(p.y)).map(([k, p]) => [k, { x: Math.max(85, Math.min(W - 85, p.x)), y: Math.max(40, Math.min(H - 50, p.y)) }]));
+  const clampSaved = v => Object.fromEntries(Object.entries(v).filter(([, p]) => p && Number.isFinite(p.x) && Number.isFinite(p.y)).map(([k, p]) => [k, { x: Math.max(100, Math.min(W - 100, p.x)), y: Math.max(40, Math.min(H - 50, p.y)) }]));
   const view = m.body.querySelector("[data-bd-view]");
   const card = m.body.querySelector("[data-bd-card]");
   const emptyEl = m.body.querySelector("[data-bd-empty]");
   const neighbors = id => new Set(graph.edges.filter(e => e.a === id || e.b === id).map(e => (e.a === id ? e.b : e.a)));
-  const applyView = () => view.setAttribute("transform", `translate(${st.view.x} ${st.view.y}) scale(${st.view.s})`);
+  let frame = 0;
+  let pending = null;
+  const later = fn => {
+    pending = fn;
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      const f = pending;
+      pending = null;
+      if (f) f();
+    });
+  };
+  const applyView = () => view.setAttribute("transform", `translate(${st.view.x.toFixed(1)} ${st.view.y.toFixed(1)}) scale(${st.view.s.toFixed(3)})`);
+  const nodeSvg = (n, cls) => {
+    const p = pos.get(n.id);
+    const ring = (STATUS_COLOR(n.sec)[n.status] || [])[1] || BOARD_SECTIONS[n.sec];
+    const w = nodeW(n.title);
+    const x0 = -w / 2;
+    const y0 = -NODE_H / 2;
+    const mx = x0 + 21;
+    const medal = n.sec === "people"
+      ? `<text class="bd-ini" x="${mx}" y="5" text-anchor="middle" style="fill:${ring}">${esc(initials(n.title))}</text>`
+      : `<g transform="translate(${mx} 0) scale(.78)"><rect x="-12" y="-12" width="24" height="24" fill="${ring}" mask="url(#bdm-${n.sec})"/></g>`;
+    return `<g class="bd-node ${cls}" data-node="${esc(n.id)}" transform="translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})" tabindex="0" role="button" aria-label="${esc(SECTION_NAME[n.sec])}: ${esc(n.title)}">
+      <rect class="bd-sh" x="${x0 + 3}" y="${y0 + 5}" width="${w}" height="${NODE_H}" rx="7"/>
+      <rect class="bd-paper" x="${x0}" y="${y0}" width="${w}" height="${NODE_H}" rx="7" style="--ring:${ring}"/>
+      <circle class="bd-medal" cx="${mx}" cy="0" r="14" style="--ring:${ring}"/>
+      ${medal}
+      <text class="bd-label" x="${x0 + 41}" y="5">${esc(labelOf(n.title))}</text>
+      <circle class="bd-tack" cx="0" cy="${y0 + 1}" r="5.5"/><circle class="bd-tack-hi" cx="-1.6" cy="${y0 - 0.6}" r="1.7"/>
+    </g>`;
+  };
+  let nodeEls = new Map();
+  let edgeEls = [];
   const draw = () => {
     const near = st.sel ? neighbors(st.sel) : null;
     const q = norm(st.q.trim());
     const hit = q ? new Set(graph.nodes.filter(n => norm(n.title).includes(q) || norm(n.subtitle).includes(q)).map(n => n.id)) : null;
     const dim = id => (st.sel ? id !== st.sel && !near.has(id) : hit ? !hit.has(id) : false);
-    const edgesSvg = graph.edges.map(e => {
+    const edgesSvg = graph.edges.map((e, i) => {
       const a = pos.get(e.a);
       const b = pos.get(e.b);
       if (!a || !b) return "";
-      const mx = (a.x + b.x) / 2;
-      const my = (a.y + b.y) / 2 + Math.min(40, Math.hypot(a.x - b.x, a.y - b.y) * 0.08);
       const on = st.sel && (e.a === st.sel || e.b === st.sel);
-      return `<path class="bd-edge ${on ? "on" : ""} ${st.sel && !on ? "dim" : ""}" d="M${a.x.toFixed(1)} ${a.y.toFixed(1)} Q${mx.toFixed(1)} ${my.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}" stroke-width="${Math.min(5, 1.4 + e.w * 0.6).toFixed(1)}"><title>${esc(e.via.length ? "Через: " + e.via.join(", ") : "Ссылка в заметке")}</title></path>`;
+      return `<path class="bd-edge ${on ? "on" : ""} ${st.sel && !on ? "dim" : ""}" data-edge="${i}" d="${edgePath(a, b)}" stroke-width="${Math.min(5, 1.6 + e.w * 0.6).toFixed(1)}"><title>${esc(e.via.length ? "Через: " + e.via.join(", ") : "Ссылка в заметке")}</title></path>`;
     }).join("");
-    const nodesSvg = graph.nodes.map(n => {
-      const p = pos.get(n.id);
-      const col = BOARD_SECTIONS[n.sec];
-      const ring = (STATUS_COLOR(n.sec)[n.status] || [])[1] || col;
-      const r = Math.min(30, 17 + n.degree * 2);
-      const label = n.title.length > 22 ? n.title.slice(0, 21) + "…" : n.title;
-      return `<g class="bd-node ${dim(n.id) ? "dim" : ""} ${st.sel === n.id ? "sel" : ""} ${hit && hit.has(n.id) ? "hit" : ""} ${n.status === "false" ? "false" : ""}" data-node="${esc(n.id)}" transform="translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})" tabindex="0" role="button" aria-label="${esc(SECTION_NAME[n.sec])}: ${esc(n.title)}">
-        <circle class="bd-pin" r="${r}" style="--c:${col};--ring:${ring}"></circle>
-        <circle class="bd-tack" cy="${-r + 3}" r="3.5"></circle>
-        ${svgIcon(SEC_ICON[n.sec], col, -11, -11, 22)}
-        <text class="bd-label" y="${r + 15}" text-anchor="middle">${esc(label)}</text>
-      </g>`;
-    }).join("");
+    const order = st.sel ? [...graph.nodes.filter(n => n.id !== st.sel), ...graph.nodes.filter(n => n.id === st.sel)] : graph.nodes;
+    const nodesSvg = order.map(n => nodeSvg(n, `${dim(n.id) ? "dim" : ""} ${st.sel === n.id ? "sel" : ""} ${hit && hit.has(n.id) ? "hit" : ""} ${n.status === "false" ? "false" : ""}`)).join("");
     view.innerHTML = `<g class="bd-edges">${edgesSvg}</g><g class="bd-nodes">${nodesSvg}</g>`;
+    nodeEls = new Map([...view.querySelectorAll("[data-node]")].map(el => [el.dataset.node, el]));
+    edgeEls = [...view.querySelectorAll("[data-edge]")].map(el => ({ el, e: graph.edges[Number(el.dataset.edge)] }));
     applyView();
     emptyEl.hidden = graph.nodes.length > 0 && graph.edges.length > 0;
     emptyEl.innerHTML = !graph.nodes.length ? `${icon("web")}<p>Здесь пока пусто. Добавь людей, места, задания и улики в «Заметках»: они появятся на доске.</p>` : `<p>Связей пока нет. Пиши [[Имя]] в заметках или просто упоминай людей и места в журнале: нити появятся сами.</p>`;
-    if (graph.nodes.length && !graph.edges.length) emptyEl.classList.add("soft");
-    else emptyEl.classList.remove("soft");
+    emptyEl.classList.toggle("soft", graph.nodes.length > 0 && !graph.edges.length);
     showCard();
+  };
+  const moveNode = id => {
+    const p = pos.get(id);
+    const el = nodeEls.get(id);
+    if (el) el.setAttribute("transform", `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`);
+    for (const { el: path, e } of edgeEls) if (e.a === id || e.b === id) path.setAttribute("d", edgePath(pos.get(e.a), pos.get(e.b)));
   };
   const showCard = () => {
     const n = graph.nodes.find(x => x.id === st.sel);
     card.hidden = !n;
     if (!n) return;
     const near = [...neighbors(n.id)].map(id => graph.nodes.find(x => x.id === id)).filter(Boolean);
-    const stc = (STATUS_COLOR(n.sec)[n.status] || [])[0];
-    card.innerHTML = `<div class="bd-card-h"><span class="badge" style="--c:${BOARD_SECTIONS[n.sec]}">${esc(SECTION_NAME[n.sec])}</span>${stc ? `<span class="badge">${esc(stc)}</span>` : ""}<b>${esc(n.title)}</b>${n.subtitle ? `<small>${esc(n.subtitle)}</small>` : ""}</div>
+    const stc = STATUS_COLOR(n.sec)[n.status];
+    card.style.setProperty("--c", (stc || [])[1] || BOARD_SECTIONS[n.sec]);
+    card.innerHTML = `<div class="bd-card-h"><span class="bd-card-sec">${icon(SEC_ICON[n.sec])}${esc(SECTION_NAME[n.sec])}${stc ? ` · <b>${esc(stc[0])}</b>` : ""}</span><h3>${esc(n.title)}</h3>${n.subtitle ? `<small>${esc(n.subtitle)}</small>` : ""}</div>
       <p>${esc(plainText(n.text).slice(0, 220) || "Пусто")}</p>
       ${near.length ? `<div class="bd-near">${icon("link")}${near.map(x => `<button class="tag" data-bd-go="${esc(x.id)}">${esc(x.title)}</button>`).join("")}</div>` : ""}
-      <div class="form-actions"><button class="btn ghost sm" data-bd-unsel>Снять выделение</button><button class="btn gold sm" data-bd-open>${icon("scroll")}Открыть заметку</button></div>`;
+      <div class="form-actions"><button class="btn ghost sm" data-bd-unsel>Снять выделение</button><button class="btn gold sm" data-bd-open>${icon("scroll")}Открыть</button></div>`;
   };
   const rebuild = (relayout = false) => {
     graph = buildGraph(c, { sections: [...st.sections], onlyLinked: st.onlyLinked });
     if (relayout || !pos) pos = layoutGraph(graph, clampSaved(saved), { width: W, height: H });
-    else {
-      const fresh = layoutGraph(graph, Object.fromEntries([...pos].map(([id, p]) => [id, { x: p.x, y: p.y }])), { width: W, height: H, iterations: 120 });
-      pos = fresh;
-    }
+    else pos = layoutGraph(graph, Object.fromEntries([...pos].map(([id, p]) => [id, { x: p.x, y: p.y }])), { width: W, height: H, iterations: 120 });
+    spreadCards(graph.nodes, pos, { width: W, height: H });
     if (st.sel && !graph.nodes.some(n => n.id === st.sel)) st.sel = "";
     draw();
   };
@@ -264,7 +346,10 @@ export function openBoard({ c, charId, onOpen }) {
       drag = { type: "pinch", d: Math.hypot(a.sx - b.sx, a.sy - b.sy), s: st.view.s, cx: (a.sx + b.sx) / 2, cy: (a.sy + b.sy) / 2, vx: st.view.x, vy: st.view.y };
       return;
     }
-    drag = node ? { type: "node", id: node.dataset.node, moved: false, start: p } : { type: "pan", sx: p.sx, sy: p.sy, vx: st.view.x, vy: st.view.y, moved: false };
+    if (node) {
+      const q = pos.get(node.dataset.node);
+      drag = { type: "node", id: node.dataset.node, moved: false, start: p, dx: q.x - p.x, dy: q.y - p.y };
+    } else drag = { type: "pan", sx: p.sx, sy: p.sy, vx: st.view.x, vy: st.view.y, moved: false };
   });
   svg.addEventListener("pointermove", e => {
     if (!drag || !pointers.has(e.pointerId)) return;
@@ -277,28 +362,34 @@ export function openBoard({ c, charId, onOpen }) {
       st.view.x = drag.cx - ((drag.cx - drag.vx) * s) / drag.s;
       st.view.y = drag.cy - ((drag.cy - drag.vy) * s) / drag.s;
       st.view.s = s;
-      return applyView();
+      return later(applyView);
     }
     if (drag.type === "node") {
       if (!drag.moved && Math.hypot(p.x - drag.start.x, p.y - drag.start.y) < 4) return;
+      if (!drag.moved) svg.classList.add("moving");
       drag.moved = true;
       const q = pos.get(drag.id);
-      q.x = p.x;
-      q.y = p.y;
+      q.x = p.x + drag.dx;
+      q.y = p.y + drag.dy;
       q.fixed = true;
-      return draw();
+      const id = drag.id;
+      return later(() => moveNode(id));
     }
     if (drag.type === "pan") {
       const dx = p.sx - drag.sx;
       const dy = p.sy - drag.sy;
-      if (Math.hypot(dx, dy) > 3) drag.moved = true;
+      if (!drag.moved && Math.hypot(dx, dy) > 3) {
+        drag.moved = true;
+        svg.classList.add("moving");
+      }
       st.view.x = drag.vx + dx;
       st.view.y = drag.vy + dy;
-      applyView();
+      later(applyView);
     }
   });
   const end = e => {
     pointers.delete(e.pointerId);
+    svg.classList.remove("moving");
     if (!drag) return;
     if (drag.type === "pinch") {
       if (!pointers.size) drag = null;
@@ -307,13 +398,14 @@ export function openBoard({ c, charId, onOpen }) {
     if (drag.type === "node") {
       if (drag.moved) {
         const q = pos.get(drag.id);
+        moveNode(drag.id);
         saved = { ...saved, [drag.id]: { x: Math.round(q.x), y: Math.round(q.y) } };
         storeSaved(charId, saved);
       } else {
         st.sel = st.sel === drag.id ? "" : drag.id;
         draw();
       }
-    } else if (drag.type === "pan" && !drag.moved) {
+    } else if (drag.type === "pan" && !drag.moved && st.sel) {
       st.sel = "";
       draw();
     }
@@ -328,7 +420,7 @@ export function openBoard({ c, charId, onOpen }) {
     st.view.x = p.sx - (p.sx - st.view.x) * (s / st.view.s);
     st.view.y = p.sy - (p.sy - st.view.y) * (s / st.view.s);
     st.view.s = s;
-    applyView();
+    later(applyView);
   }, { passive: false });
   svg.addEventListener("keydown", e => {
     const node = e.target.closest && e.target.closest("[data-node]");
@@ -345,6 +437,7 @@ export function openBoard({ c, charId, onOpen }) {
       if (st.sections.has(k)) st.sections.delete(k);
       else st.sections.add(k);
       sec.classList.toggle("on", st.sections.has(k));
+      sec.setAttribute("aria-pressed", String(st.sections.has(k)));
       return rebuild();
     }
     const z = e.target.closest("[data-bd-zoom]");
@@ -373,14 +466,12 @@ export function openBoard({ c, charId, onOpen }) {
     }
     if (e.target.closest("[data-bd-open]")) {
       const n = graph.nodes.find(x => x.id === st.sel);
-      if (!n) return;
-      m.close();
-      onOpen(n.sec, n.id);
+      if (n) onOpen(n.sec, n.id);
     }
   });
   m.body.querySelector("[data-bd-q]").addEventListener("input", e => {
     st.q = e.target.value;
-    draw();
+    later(draw);
   });
   m.body.querySelector("[data-bd-linked]").addEventListener("change", e => {
     st.onlyLinked = e.target.checked;

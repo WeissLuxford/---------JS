@@ -262,15 +262,6 @@ export function slotMark(color = "#8fd6ff") {
 
 export const PORTRAIT_PLACEHOLDER = `<svg class="ph" viewBox="0 0 100 120" aria-hidden="true"><defs><radialGradient id="phg" cx=".5" cy=".35" r=".7"><stop offset="0" stop-color="#3a2d22"/><stop offset="1" stop-color="#140f0b"/></radialGradient></defs><rect width="100" height="120" fill="url(#phg)"/><path d="M30 26c-6 8-5 18 6 22M70 26c6 8 5 18-6 22" fill="none" stroke="#7a6243" stroke-width="3" stroke-linecap="round"/><circle cx="50" cy="52" r="17" fill="#2a2018" stroke="#7a6243" stroke-width="2"/><path d="M18 118c3-24 16-36 32-36s29 12 32 36" fill="#2a2018" stroke="#7a6243" stroke-width="2"/></svg>`;
 
-export function svgIcon(name, color, x, y, size) {
-  const file = iconFile(name);
-  if (file) {
-    const id = "im-" + name.replace(/[^a-z0-9]/g, "-");
-    return `<mask id="${id}" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="${x}" y="${y}" width="${size}" height="${size}"><image href="${file}" x="${x}" y="${y}" width="${size}" height="${size}"/></mask><rect class="bd-ic" x="${x}" y="${y}" width="${size}" height="${size}" fill="${color}" mask="url(#${id})"/>`;
-  }
-  return `<svg class="bd-ic" x="${x}" y="${y}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${icon(name).replace(/^<svg[^>]*>|<\/svg>$/g, "")}</svg>`;
-}
-
 export function acIcon(ac) {
   return ac >= 18 ? "acFull" : ac >= 13 ? "acHalf" : "acLow";
 }
