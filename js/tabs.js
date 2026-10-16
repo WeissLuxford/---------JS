@@ -2,7 +2,7 @@ import { COINS, ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDIT
 import { icon, actionMark, acIcon, hpIcon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, pips, rich, artFx } from "./ui.js";
 import { DOLL_SLOTS, dollLayout, SILHOUETTE } from "./doll.js";
-import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum, purseGp, PROF_KINDS, classOf, featureColor, itemGlows } from "./entities.js";
+import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum, purseGp, PROF_KINDS, classOf, featureColor, itemGlows, fxOf } from "./entities.js";
 import { NOTE_SECTIONS, SECTION_NAME, NOTE_STATUS, NOTE_ATTITUDE, CLUE_STATE, noteTagsOf, searchNotes, queryStems, highlight, snippetHtml, plainText, richLinks, backlinks, currentSession, pinnedNotes, linkTargets } from "./notes.js";
 
 export const TABS = [
@@ -255,7 +255,7 @@ function spellRow(ctx, sp) {
   const hit = sp.attack
     ? `<button class="chip hit" data-roll="sattack:${esc(sp.id)}">${abMark(c.spellAbility)}${cast.beams > 1 ? `<small>${cast.beams}×</small>` : ""}${fmt(spellAtk(d, sp))}</button>`
     : sp.save ? `<span class="chip dc">СЛ ${spellDc(d, sp)} ${abShort(sp.save)}</span>` : `<span></span>`;
-  return combatRow({ rid: sp.id, open: "spell:" + sp.id, name: sp.name, sub: [Number(sp.level) ? `${sp.level} круг` : "заговор", sp.range].filter(Boolean).join(" · "), color: ic.color, ic: ic.icon, fx: "hot", hit, dmg: first ? dmgChip("sdmg:" + sp.id, cast.beams, first.dice, first.type) : "" });
+  return combatRow({ rid: sp.id, open: "spell:" + sp.id, name: sp.name, sub: [Number(sp.level) ? `${sp.level} круг` : "заговор", sp.range].filter(Boolean).join(" · "), color: ic.color, ic: ic.icon, fx: fxOf(sp), hit, dmg: first ? dmgChip("sdmg:" + sp.id, cast.beams, first.dice, first.type) : "" });
 }
 
 const nameKey = s => String(s || "").trim().toLowerCase().replace(/ё/g, "е");
@@ -428,7 +428,7 @@ function spellTile(ctx, sp) {
   const flags = [sp.concentration ? `<i class="flag" title="Концентрация">К</i>` : "", sp.ritual ? `<i class="flag" title="Ритуал">Р</i>` : "", unprep ? `<i class="flag off" title="Не подготовлено">н/п</i>` : "", sp.cost === "item" ? `<i class="flag green" title="Тратит заряды предмета">${icon("gi/lorc/candle-light")}</i>` : ""].join("");
   const search = [sp.name, sp.nameEn, sp.source].filter(Boolean).join(" ").toLowerCase();
   return `<button class="tile ${unprep ? "unprep" : ""}" data-rid="${esc(sp.id)}" data-open="spell:${esc(sp.id)}" data-card="spell:${esc(sp.id)}" data-search="${esc(search)}" style="--c:${ic.color}">
-    <span class="tile-ic fx"${(f => f ? ` style="--fx:url(#${f})"` : "")(artFx("hot", ic.color, .35))}>${icon(ic.icon)}</span>
+    <span class="tile-ic fx"${(f => f ? ` style="--fx:url(#${f})"` : "")(artFx(fxOf(sp), ic.color, .35))}>${icon(ic.icon)}</span>
     <span class="tile-main"><span class="tile-name">${esc(sp.name)}</span><span class="tile-sub">${actionMark(a.shape, a.color)}<span class="tile-sub-t">${esc(sp.castTime || a.name)}${dmg ? ` · <span class="tile-dmg">${esc(dmg)}</span>` : ""}</span></span></span>
     <span class="tile-side">${flags}${u ? pips(u.max, u.left, "#e9a54a") : ""}</span>
   </button>`;
@@ -487,7 +487,7 @@ function featureTile(ctx, f) {
   const u = usesInfo(d, f);
   const color = featureColor(c, f);
   const search = [f.name, f.nameEn, f.effect].filter(Boolean).join(" ").toLowerCase();
-  const fx = artFx("hot", color, .35);
+  const fx = artFx(fxOf(f, "feature"), color, .35);
   return `<button class="tile" data-rid="${esc(f.id)}" data-open="feature:${esc(f.id)}" data-card="feature:${esc(f.id)}" data-search="${esc(search)}" style="--c:${color}">
     <span class="tile-ic fx"${fx ? ` style="--fx:url(#${fx})"` : ""}>${icon(featureIcon(f))}</span>
     <span class="tile-main"><span class="tile-name">${esc(f.name)}</span><span class="tile-sub">${actionMark(a.shape, a.color)}<span class="tile-sub-t">${esc(a.name)}${f.effect ? ` · ${esc(f.effect)}` : ""}</span></span></span>

@@ -126,6 +126,26 @@ export function featureColor(c, f) {
   return FEAT_COLORS[f.category] || FEAT_COLORS.other;
 }
 
+const HEAL_RE = /астрал|astral|воскреш|возрожд|оживлен|умирающ|нетленн|преграда жизни|клон|revivify|resurrect|raise dead|spare the dying|gentle repose|life ward|clone/i;
+const DARK_RE = /труп|зомби|скелет|тьм|тень|тене|теней|теневой|тёмн|темн|мрак|сумрак|смерт|мёртв|мертв|нежит|проклят|порч|сглаз|ужас|кошмар|вампир|адск|дьявол|демон|инферн|некро|darkness|shadow|death|undead|curse|hex|vampir|infernal|fiend|necro/i;
+const DARK_NAMES = new Set(["голод хадара", "hunger of hadar", "щупальца хадара", "arms of hadar", "благословение тёмного", "удача тёмного", "мистическое зрение", "голос в голове", "наследие мефистофеля", "дьявольская живучесть", "ледяная кровь"]);
+
+const NOT_DARK = new Set(["защита от смерти", "снятие проклятия", "death ward", "remove curse"]);
+
+export function isDark(e, kind = "spell") {
+  if (!e) return false;
+  if (NOT_DARK.has(String(e.name || "").toLowerCase()) || NOT_DARK.has(String(e.nameEn || "").toLowerCase())) return false;
+  const name = String(e.name || "").toLowerCase().replace(/ё/g, "е");
+  const en = String(e.nameEn || "").toLowerCase();
+  if (DARK_NAMES.has(String(e.name || "").toLowerCase()) || DARK_NAMES.has(en)) return true;
+  if (kind === "feature" && e.category === "gift") return true;
+  if ((e.damage || []).some(d => d.type === "necrotic")) return true;
+  if (e.school === "necromancy" && !HEAL_RE.test(name) && !HEAL_RE.test(en)) return true;
+  return DARK_RE.test(name) || DARK_RE.test(en);
+}
+
+export const fxOf = (e, kind = "spell") => (isDark(e, kind) ? "dark" : "hot");
+
 const GLOW_RARITY = ["rare", "veryRare", "legendary", "artifact"];
 export const itemGlows = it => GLOW_RARITY.includes(it.rarity);
 
@@ -223,7 +243,7 @@ export function spellModel(c, d, sp, slotLevel, extra = 0) {
   return {
     title: sp.name,
     subtitle: spellLevelText(sp) + (sp.nameEn ? ` · ${sp.nameEn}` : ""),
-    art: { ...spellIcon(c, sp), fx: "hot" },
+    art: { ...spellIcon(c, sp), fx: fxOf(sp) },
     badges: [sp.source ? { text: sp.source } : null, castLvlNote ? { text: castLvlNote, color: "#c07cff" } : null],
     dice: lines,
     body,
@@ -246,7 +266,7 @@ export function featureModel(c, d, f) {
   return {
     title: f.name,
     subtitle: (FEATURE_SINGULAR[f.category] || "Умение") + (f.nameEn ? ` · ${f.nameEn}` : ""),
-    art: { icon: featureIcon(f), color: featureColor(c, f), fx: "hot" },
+    art: { icon: featureIcon(f), color: featureColor(c, f), fx: fxOf(f, "feature") },
     badges: [],
     dice: lines,
     body: rich(f.description),

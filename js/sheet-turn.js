@@ -2,7 +2,7 @@ import { DAMAGE, fmt, usesInfo, uid, presetEffect, cleanEffect, EFFECT_PRESETS, 
 import { icon, actionMark } from "./icons.js";
 import { esc, $, toast, openModal, openForm } from "./ui.js";
 import { combatSources, icBox } from "./tabs.js";
-import { itemIcon, spellIcon, featureIcon, attackIcon, effectFields } from "./entities.js";
+import { itemIcon, spellIcon, featureIcon, attackIcon, effectFields, fxOf } from "./entities.js";
 import { clone } from "./sheet-util.js";
 export function installTurn(X) {
   const { S, id } = X;
@@ -29,7 +29,7 @@ export function installTurn(X) {
     c.spells.filter(sp => (sp.action || "action") === kind).forEach(sp => {
       const ready = X.spellReady(sp);
       const ic = spellIcon(c, sp);
-      row("spell:" + sp.id, ic.icon, ic.color, sp.name, [Number(sp.level) ? `${sp.level} круг` : "заговор", ready === false ? "нечем заплатить" : ready].filter(Boolean).join(" · "), ready === false, "hot");
+      row("spell:" + sp.id, ic.icon, ic.color, sp.name, [Number(sp.level) ? `${sp.level} круг` : "заговор", ready === false ? "нечем заплатить" : ready].filter(Boolean).join(" · "), ready === false, fxOf(sp));
     });
     flushGroup("Заклинания");
     c.features.filter(f => f.action === kind).forEach(f => {
