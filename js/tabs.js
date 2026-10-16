@@ -559,14 +559,17 @@ export function invFilterPass(it, f) {
 
 const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many);
 
+const GLOW_RARITY = ["rare", "veryRare", "legendary", "artifact"];
+const glows = it => GLOW_RARITY.includes(it.rarity);
+
 function invSlot(it, tree, open) {
   const r = RARITY[it.rarity] || RARITY.common;
   const search = [it.name, it.nameEn].filter(Boolean).join(" ").toLowerCase();
   const box = it.isContainer;
   const isOpen = box && open && open.includes(it.id);
   const act = box ? `data-act="box-toggle" data-id="${esc(it.id)}" aria-expanded="${isOpen ? "true" : "false"}"` : `data-open="item:${esc(it.id)}"`;
-  return `<button class="slot ${it.equipped ? "eq" : ""} ${box ? "box" : ""} ${isOpen ? "open" : ""} ${it.stored ? "stored" : ""} ${isMagicItem(it) ? "magic" : ""}" data-rid="${esc(it.id)}" ${act} data-card="item:${esc(it.id)}" data-search="${esc(search)}" data-drag="${esc(it.id)}" data-dz="item:${esc(it.id)}" style="--c:${r.color}">
-      <span class="slot-ic${r.fx === "flat" ? " flat" : ""}"${(f => f ? ` style="--fx:url(#${f})"` : "")(r.fx === "hot" ? artFx("hot", r.color, .45) : "")}>${icon(itemIcon(it))}</span>
+  return `<button class="slot ${it.equipped ? "eq" : ""} ${box ? "box" : ""} ${isOpen ? "open" : ""} ${it.stored ? "stored" : ""} ${isMagicItem(it) ? "magic" : ""} ${glows(it) ? "glow" : ""}" data-rid="${esc(it.id)}" ${act} data-card="item:${esc(it.id)}" data-search="${esc(search)}" data-drag="${esc(it.id)}" data-dz="item:${esc(it.id)}" style="--c:${r.color}">
+      <span class="slot-ic${glows(it) ? "" : " flat"}"${(f => f ? ` style="--fx:url(#${f})"` : "")(r.fx === "hot" ? artFx("hot", r.color, .45) : "")}>${icon(itemIcon(it))}</span>
       ${Number(it.qty) > 1 ? `<span class="slot-qty">${it.qty}</span>` : ""}
       ${it.attuned ? `<span class="slot-att" title="Настроено">${icon("sparkle")}</span>` : ""}
       ${box && tree[it.id] && tree[it.id].count ? `<span class="slot-box" title="Внутри">${tree[it.id].count}</span>` : ""}
@@ -603,7 +606,7 @@ function dollCell(c, slot, it, { two = false } = {}) {
   const r = RARITY[it.rarity] || RARITY.common;
   const search = [it.name, it.nameEn].filter(Boolean).join(" ").toLowerCase();
   const fx = r.fx === "hot" ? artFx("hot", r.color, .45) : "";
-  return `<button class="dslot ${two ? "two" : ""} ${r.fx === "flat" ? "" : "magic"}" data-act="doll-slot" data-slot="${slot}" data-drag="${esc(it.id)}" data-dz="slot:${slot}" data-card="item:${esc(it.id)}" data-search="${esc(search)}" style="--c:${r.color}"><span class="dslot-ic${r.fx === "flat" ? " flat" : ""}"${fx ? ` style="--fx:url(#${fx})"` : ""}>${icon(itemIcon(it))}</span>${it.attuned ? `<span class="slot-att" title="Настроено">${icon("sparkle")}</span>` : ""}<span class="dslot-n">${esc(it.name)}</span>${two ? `<small class="dslot-two">Двуручное</small>` : ""}</button>`;
+  return `<button class="dslot ${two ? "two" : ""} ${r.fx === "flat" ? "" : "magic"} ${glows(it) ? "glow" : ""}" data-act="doll-slot" data-slot="${slot}" data-drag="${esc(it.id)}" data-dz="slot:${slot}" data-card="item:${esc(it.id)}" data-search="${esc(search)}" style="--c:${r.color}"><span class="dslot-ic${glows(it) ? "" : " flat"}"${fx ? ` style="--fx:url(#${fx})"` : ""}>${icon(itemIcon(it))}</span>${it.attuned ? `<span class="slot-att" title="Настроено">${icon("sparkle")}</span>` : ""}<span class="dslot-n">${esc(it.name)}</span>${two ? `<small class="dslot-two">Двуручное</small>` : ""}</button>`;
 }
 
 export function artStyle(p) {

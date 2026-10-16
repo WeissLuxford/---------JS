@@ -1,5 +1,6 @@
-const VERSION = "v51";
-const SHELL = "dnd-shell-" + VERSION;
+const VERSION = "v52";
+const BUILD = "963e961961";
+const SHELL = "dnd-shell-" + VERSION + "-" + BUILD;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
   "./",
@@ -10,6 +11,14 @@ const PRECACHE = [
   "icon-512.png",
   "apple-touch-icon.png",
   "css/app.css",
+  "assets/fonts/alegreya-sc-500-cyr.woff2",
+  "assets/fonts/alegreya-sc-500-lat.woff2",
+  "assets/fonts/alegreya-sc-700-cyr.woff2",
+  "assets/fonts/alegreya-sc-700-lat.woff2",
+  "assets/fonts/eb-garamond-cyr.woff2",
+  "assets/fonts/eb-garamond-italic-cyr.woff2",
+  "assets/fonts/eb-garamond-italic-lat.woff2",
+  "assets/fonts/eb-garamond-lat.woff2",
   "js/access.js",
   "js/achievements.js",
   "js/admin.js",
@@ -73,7 +82,6 @@ const PRECACHE = [
   "assets/icons/picker.json"
 ];
 const CDN_HOSTS = ["www.gstatic.com", "fonts.googleapis.com", "fonts.gstatic.com"];
-const NETWORK_WAIT = 3500;
 
 self.addEventListener("install", event => {
   event.waitUntil(
@@ -103,12 +111,9 @@ function fromNetwork(request, cacheName, opaque = false, fresh = false) {
   });
 }
 
-function networkFirst(event, request) {
-  const net = fromNetwork(request, SHELL, false, true);
-  event.waitUntil(net.then(() => null, () => null));
-  const cached = () => caches.match(request, { ignoreSearch: true }).then(hit => hit || (request.mode === "navigate" ? caches.match("index.html") : null));
-  const timer = new Promise(res => setTimeout(res, NETWORK_WAIT)).then(cached);
-  return Promise.race([net.catch(cached), timer.then(hit => hit || net)]).then(res => res || net.catch(() => new Response("", { status: 504, statusText: "offline" })));
+function fromShell(request) {
+  const key = request.mode === "navigate" ? "index.html" : request;
+  return caches.match(key, { ignoreSearch: true }).then(hit => hit || fromNetwork(request, SHELL, false, true).catch(() => (request.mode === "navigate" ? caches.match("index.html") : null)).then(res => res || new Response("", { status: 504, statusText: "offline" })));
 }
 
 function cacheFirst(request) {
@@ -125,7 +130,7 @@ self.addEventListener("fetch", event => {
       event.respondWith(caches.match(request).then(hit => hit || fromNetwork(request, SHELL)));
       return;
     }
-    event.respondWith(networkFirst(event, request));
+    event.respondWith(fromShell(request));
     return;
   }
   if (!CDN_HOSTS.includes(url.hostname)) return;

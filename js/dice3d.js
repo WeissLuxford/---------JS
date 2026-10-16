@@ -86,6 +86,14 @@ export function dice3dReady() {
   return !!box && !busy;
 }
 
+export function dice3dWait(ms = 2500) {
+  if (!enabled() || failed) return null;
+  if (box) return Promise.resolve(!busy);
+  const p = loading || preloadDice3d();
+  if (!p) return null;
+  return Promise.race([p, new Promise(ok => setTimeout(ok, ms))]).then(() => !!box && !busy);
+}
+
 export function preloadDice3d() {
   if (!enabled() || loading || box || typeof document === "undefined" || !document.body) return loading;
   const net = navigator.connection;
@@ -105,6 +113,12 @@ export function preloadDice3d() {
         lightIntensity: 1.1
       });
       await b.init();
+      try {
+        await Promise.race([b.roll(["1d20"]), new Promise(ok => setTimeout(ok, 6000))]);
+      } catch {}
+      try {
+        b.clear();
+      } catch {}
       box = b;
       return b;
     })

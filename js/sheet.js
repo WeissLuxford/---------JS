@@ -1471,7 +1471,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     }, 380);
   };
   document.addEventListener("pointerdown", warmSounds, { once: true });
-  const dicePreload = setTimeout(() => preloadDice3d(), 1500);
+  const dicePreload = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(() => preloadDice3d(), { timeout: 900 }) : preloadDice3d()), 250);
   const armShake = () => {
     offShake();
     offShake = shakeOn() ? watchShake(onShake) : () => {};

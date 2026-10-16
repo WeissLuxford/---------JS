@@ -66,6 +66,15 @@ function registerWorker() {
     if (window.caches) caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
     return;
   }
+  const hadWorker = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadWorker) return;
+    const reload = () => location.reload();
+    if (document.hidden) return reload();
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) reload();
+    });
+  });
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
 }
 

@@ -4,7 +4,7 @@ import { esc, $, toast, promptNumber, showD20, showBeams, showDamage, landDice, 
 import { turnBar } from "./tabs.js";
 import { findEntity, spellAtk } from "./entities.js";
 import { abName } from "./sheet-util.js";
-import { throw3d, dice3dReady, dice3dBusy } from "./dice3d.js";
+import { throw3d, dice3dReady, dice3dBusy, dice3dWait } from "./dice3d.js";
 export function installRolls(X) {
   const { S, root, id } = X;
 
@@ -41,7 +41,11 @@ export function installRolls(X) {
   }
 
   const twoDice = mode => mode === "adv" || mode === "dis";
-  const roll3d = n => (dice3dReady() ? throw3d(n) : null);
+  const roll3d = n => {
+    if (dice3dReady()) return throw3d(n);
+    const wait = dice3dWait();
+    return wait ? wait.then(ok => (ok ? throw3d(n) : null)) : null;
+  };
   const dropped = (r, mode) => (r.b == null ? -1 : mode === "adv" ? (r.a >= r.b ? 1 : 0) : r.a <= r.b ? 1 : 0);
   const landD20 = (r, mode, text = String(r.total), special = "attack") => landDice({ text, kind: !special ? "" : r.nat20 ? "crit" : r.nat1 ? "fumble" : "", discard: dropped(r, mode) });
 
