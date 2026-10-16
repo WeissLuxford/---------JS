@@ -30,6 +30,7 @@ const KIND_RE = [
   ["ring", /кольц|перстен|\bring\b/i]
 ];
 
+const HELD_RE = /палочк|жезл|посох|скипетр|сфера|фокусировк|святой символ|священный символ|тотем|ветвь омелы|wand|rod|staff|orb|arcane focus|holy symbol|totem/i;
 const SHIELD_RE = /(^|[^а-яё])щит|\bshield\b/i;
 const TWO_RE = /двуруч|two-handed/i;
 const LIGHT_RE = /лёгкое|легкое|\blight\b/i;
@@ -61,8 +62,10 @@ export function slotKind(it) {
   if (Number(it.acBase) > 0) return "body";
   if (isShield(it)) return "off";
   if (isWeapon(it)) return "main";
+  if (it.type === "wand") return "held";
   const t = text(it);
   for (const [k, re] of KIND_RE) if (re.test(t)) return k;
+  if (HELD_RE.test(t)) return "held";
   if (it.type === "armor") return "body";
   return "";
 }
@@ -70,8 +73,8 @@ export function slotKind(it) {
 export function fitsSlot(it, slot) {
   const k = slotKind(it);
   if (slot === "ring1" || slot === "ring2") return k === "ring";
-  if (slot === "main" || slot === "main2") return k === "main";
-  if (slot === "off" || slot === "off2") return k === "off" || (k === "main" && !isTwoHanded(it));
+  if (slot === "main" || slot === "main2") return k === "main" || k === "held";
+  if (slot === "off" || slot === "off2") return k === "off" || k === "held" || (k === "main" && !isTwoHanded(it));
   return k === slot;
 }
 
@@ -98,6 +101,7 @@ export function dollLayout(c) {
     let ok = false;
     if (k === "ring") ok = place(it, "ring1") || place(it, "ring2");
     else if (k === "main") ok = place(it, "main") || (!isTwoHanded(it) && place(it, "off"));
+    else if (k === "held") ok = place(it, "off") || place(it, "main");
     else if (k) ok = place(it, k);
     if (!ok) extra.push(it);
   });

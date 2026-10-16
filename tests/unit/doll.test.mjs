@@ -17,6 +17,13 @@ test("slot kinds are guessed from type and name", () => {
   assert.equal(slotKind({ name: "Очки ночного видения" }), "eyes");
   assert.equal(slotKind({ name: "Шлем" }), "head");
   assert.equal(slotKind({ name: "Книга теней" }), "");
+  assert.equal(slotKind({ name: "Палочка холода", type: "wand" }), "held");
+  assert.equal(slotKind({ name: "Святой символ" }), "held");
+  assert.ok(fitsSlot({ name: "Палочка холода", type: "wand" }, "off") && fitsSlot({ name: "Палочка холода", type: "wand" }, "main2"));
+  assert.ok(!fitsSlot({ name: "Палочка холода", type: "wand" }, "ring1"));
+  const w = dollLayout(char([{ id: "d", name: "Кинжал", type: "weapon", equipped: true }, { id: "w", name: "Палочка холода", type: "wand", equipped: true }]));
+  assert.equal(w.cells.main.id, "d");
+  assert.equal(w.cells.off.id, "w");
 });
 
 test("two-handed weapons come from properties or the SRD table", () => {
