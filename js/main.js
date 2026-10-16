@@ -1,7 +1,8 @@
 import { initStore, createIfMissing, getMode, validId } from "./store.js";
 import { mountHome } from "./home.js";
 import { mountSheet } from "./sheet.js";
-import { closeAllModals, whenHistoryIdle, onModalEntry } from "./ui.js";
+import { closeAllModals, whenHistoryIdle, onModalEntry, applyLite } from "./ui.js";
+applyLite();
 import "./pwa.js";
 
 const root = document.getElementById("app");

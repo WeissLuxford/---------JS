@@ -139,6 +139,36 @@ export function toast(html, { kind = "", timeout = 3200 } = {}) {
   return close;
 }
 
+const LITE_KEY = "dnd.lite";
+
+export function weakDevice() {
+  if (typeof navigator === "undefined" || navigator.webdriver) return false;
+  const mem = Number(navigator.deviceMemory) || 0;
+  const cores = Number(navigator.hardwareConcurrency) || 0;
+  return (mem > 0 && mem <= 4) || (cores > 0 && cores <= 4);
+}
+
+export function liteOn() {
+  try {
+    const v = localStorage.getItem(LITE_KEY);
+    if (v === "1") return true;
+    if (v === "0") return false;
+  } catch {}
+  return weakDevice();
+}
+
+export function applyLite() {
+  if (typeof document !== "undefined") document.documentElement.classList.toggle("lite", liteOn());
+}
+
+export function setLite(on) {
+  try {
+    localStorage.setItem(LITE_KEY, on ? "1" : "0");
+  } catch {}
+  applyLite();
+  return on;
+}
+
 const FX_KEY = "dnd.fx";
 
 export function fxSettings() {

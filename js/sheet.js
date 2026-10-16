@@ -1,6 +1,6 @@
 import { compute, normalize, fmt, usesInfo, addDice, swapType, NOTE_KEYS, reorderSubset, presetEffect, xpInfo, ACCENTS } from "./rules.js";
 import { icon, acIcon, hpIcon, PORTRAIT_PLACEHOLDER } from "./icons.js";
-import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, warmSounds, reducedMotion, getPath, setPath, download, timeAgo, rollCardOn, setRollCard, closeRollCard, spendDamageButtons } from "./ui.js";
+import { setLite, liteOn, esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, warmSounds, reducedMotion, getPath, setPath, download, timeAgo, rollCardOn, setRollCard, closeRollCard, spendDamageButtons } from "./ui.js";
 import { openWritingHelp } from "./editor.js";
 import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources, classOf } from "./tabs.js";
 import { cardFor, findEntity, fmtNum, purseGp } from "./entities.js";
@@ -1096,6 +1096,10 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
           localStorage.setItem("dnd.tips", on ? "1" : "0");
         } catch {}
         return toast(on ? "Подсказки в начале хода включены" : "Подсказки в начале хода выключены", { timeout: 1800 });
+      }
+      case "lite-toggle": {
+        const on = setLite(!liteOn());
+        return toast(on ? "Лёгкая графика включена" : "Лёгкая графика выключена", { timeout: 1800 });
       }
       case "explain-toggle": {
         const on = setExplain(!explainOn());
