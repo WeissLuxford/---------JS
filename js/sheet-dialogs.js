@@ -1,9 +1,9 @@
 import { canInstall } from "./pwa.js";
-import { SKILLS, ABILITIES, mod, compute, normalize, fmt, importCharacter, payCoins, COIN_NAMES, COIN_CP, CONDITIONS, FEATURE_CATS, SCENE_TIMES, SCENE_WEATHER, sceneInfo } from "./rules.js";
+import { SKILLS, ABILITIES, mod, compute, normalize, fmt, importCharacter, payCoins, COIN_NAMES, COIN_CP, COINS, coinsText, coinsTotalCp, CONDITIONS, RARITY, FEATURE_CATS, SCENE_TIMES, SCENE_WEATHER, sceneInfo } from "./rules.js";
 import { icon } from "./icons.js";
-import { esc, $, toast, openModal, confirmDialog, promptNumber, rollLog, fxSettings, canVibrate, playSound, dateTime, timeAgo, download, pickFile, rollCardOn } from "./ui.js";
+import { esc, $, toast, openModal, confirmDialog, rollLog, fxSettings, canVibrate, playSound, dateTime, timeAgo, download, pickFile, rollCardOn } from "./ui.js";
 import { subtitle } from "./tabs.js";
-import { cardFor, itemIcon, spellIcon, featureIcon, attackIcon } from "./entities.js";
+import { cardFor, itemIcon, spellIcon, featureIcon, attackIcon, fmtNum } from "./entities.js";
 import { listHistory, createChar, getMode, subscribeList, getRecents, newCharId } from "./store.js";
 import { describeChanges } from "./changes.js";
 import { skinFor } from "./achievements.js";
@@ -16,21 +16,77 @@ import { wakeOn, wakeSupported } from "./wake.js";
 import { shakeOn, shakeSupported } from "./shake.js";
 import { dice3dOn } from "./dice3d.js";
 import { sheetIssues } from "./checks.js";
+import { DOLL_SLOTS, dollLayout, slotCandidates, equipTo, unequip, isTwoHanded } from "./doll.js";
 import { listBackups, saveBackup, readBackup, backupFile, backupName } from "./backup.js";
 export function installDialogs(X) {
   const { S, root, id, navigate } = X;
 
-  async function coinDialog(pay) {
-    const res = await promptNumber(pay ? "Заплатить" : "Получить", {
-      label: `В кошельке: ${Object.entries(COIN_NAMES).filter(([k]) => Number(S.c.coins[k])).map(([k, n]) => `${S.c.coins[k]} ${n}`).join(", ") || "пусто"}`,
-      value: "",
-      select: { label: "Монеты", options: [["gp", "Золотые (ЗМ)"], ["sp", "Серебряные (СМ)"], ["cp", "Медные (ММ)"], ["pp", "Платиновые (ПМ)"], ["ep", "Электрум (ЭМ)"]], value: S.ui.lastCoin || "gp" },
-      buttons: [{ label: pay ? "Заплатить" : "Получить", value: pay ? "pay" : "get", cls: pay ? "danger" : "heal" }]
+  function coinPreview(pay, n, unit) {
+    const now = S.c.coins;
+    if (!n) return { text: `В кошельке: ${coinsText(now)}`, ok: false };
+    if (!pay) {
+      if (!Number.isInteger(n)) return { text: "Получить можно только целое число монет", bad: true };
+      return { text: `Станет: <b>${esc(coinsText({ ...now, [unit]: (Number(now[unit]) || 0) + n }))}</b>`, ok: true };
+    }
+    const next = payCoins(now, n, unit);
+    if (!next) return { text: `Не хватает: всего в кошельке ${fmtNum(coinsTotalCp(now) / 100)} ЗМ`, bad: true };
+    const give = {}, back = {};
+    COINS.forEach(k => {
+      const d = (Number(now[k.key]) || 0) - next[k.key];
+      if (d > 0) give[k.key] = d;
+      if (d < 0) back[k.key] = -d;
     });
+    const lines = [`Отдашь: <b>${esc(coinsText(give))}</b>`];
+    if (Object.keys(back).length) lines.push(`Сдача: <b>${esc(coinsText(back))}</b>`);
+    lines.push(`Останется: <b>${esc(coinsText(next))}</b>`);
+    return { text: lines.join("<br>"), ok: true };
+  }
+
+  function coinAsk(pay) {
+    return new Promise(resolve => {
+      let unit = S.ui.lastCoin || "gp";
+      let answered = false;
+      const m = openModal({
+        title: pay ? "Заплатить" : "Получить",
+        cls: "small coin-modal",
+        body: `<label class="fld"><span>Сколько</span><input type="number" inputmode="decimal" min="0" step="any" class="num-big" value=""></label>
+          <div class="coin-pick" role="radiogroup" aria-label="Какими монетами">${COINS.map(k => `<button type="button" class="coin-opt" role="radio" data-coin="${k.key}" style="--c:${k.color}">${icon("coin")}<b>${esc(k.short)}</b><small>${esc(k.name)}</small></button>`).join("")}</div>
+          <p class="coin-prev" data-prev></p>
+          <p class="hint explain">${pay ? "Если нужных монет нет, кошелёк сам разменяет крупные и вернёт сдачу." : "Монеты просто добавятся в кошелёк."}</p>
+          <div class="form-actions"><button class="btn ${pay ? "danger" : "heal"}" data-i="0">${pay ? "Заплатить" : "Получить"}</button></div>`,
+        onClose: () => !answered && resolve(null)
+      });
+      const input = m.body.querySelector("input");
+      const prev = m.body.querySelector("[data-prev]");
+      const draw = () => {
+        m.body.querySelectorAll("[data-coin]").forEach(b => {
+          b.classList.toggle("on", b.dataset.coin === unit);
+          b.setAttribute("aria-checked", b.dataset.coin === unit ? "true" : "false");
+        });
+        const p = coinPreview(pay, Math.abs(Number(input.value) || 0), unit);
+        prev.innerHTML = p.text;
+        prev.classList.toggle("bad", !!p.bad);
+      };
+      const done = () => {
+        answered = true;
+        m.close();
+        resolve({ value: Math.abs(Number(input.value) || 0), type: unit });
+      };
+      m.body.querySelectorAll("[data-coin]").forEach(b => (b.onclick = () => { unit = b.dataset.coin; draw(); input.focus(); }));
+      m.body.querySelector("[data-i]").onclick = done;
+      input.addEventListener("input", draw);
+      input.addEventListener("keydown", e => { if (e.key === "Enter") done(); });
+      draw();
+      setTimeout(() => input.focus(), 50);
+    });
+  }
+
+  async function coinDialog(pay) {
+    const res = await coinAsk(pay);
     if (!res || !res.value || S.disposed) return;
     const unit = res.type || "gp";
     S.ui.lastCoin = unit;
-    const n = Math.abs(res.value);
+    const n = res.value;
     if (pay) {
       const next = payCoins(S.c.coins, n, unit);
       if (!next) return toast(`Не хватает денег: нужно ${n} ${COIN_NAMES[unit]}`, { kind: "bad" });
@@ -41,7 +97,55 @@ export function installDialogs(X) {
       X.mutate(c => { c.coins[unit] = (Number(c.coins[unit]) || 0) + n; });
     }
     playSound("coins");
-    toast(`${icon("coin")} ${pay ? "Заплачено" : "Получено"} ${n} ${COIN_NAMES[unit]}. В кошельке: ${Object.entries(COIN_NAMES).filter(([k]) => Number(S.c.coins[k])).map(([k, nm]) => `${S.c.coins[k]} ${nm}`).join(", ") || "пусто"}`, { kind: "good", timeout: 4000 });
+    toast(`${icon("coin")} ${pay ? "Заплачено" : "Получено"} ${n} ${COIN_NAMES[unit]}. В кошельке: ${esc(coinsText(S.c.coins))}`, { kind: "good", timeout: 4000 });
+  }
+
+  function dollPicker(slot) {
+    const s = DOLL_SLOTS[slot];
+    if (!s || !S.c) return;
+    const L = dollLayout(S.c);
+    const cur = L.cells[slot];
+    const where = it => {
+      const at = Object.entries(L.cells).find(([, x]) => x.id === it.id);
+      if (at) return DOLL_SLOTS[at[0]].set === 2 ? `сменное: ${DOLL_SLOTS[at[0]].name.toLowerCase()}` : `надето: ${DOLL_SLOTS[at[0]].name.toLowerCase()}`;
+      if (it.equipped) return "надето";
+      const box = it.container && S.c.items.find(b => b.id === it.container);
+      return box ? `в «${box.name}»` : "при себе";
+    };
+    const row = it => {
+      const r = RARITY[it.rarity] || RARITY.common;
+      const sub = [where(it), isTwoHanded(it) ? "двуручное" : "", it.requiresAttunement ? (it.attuned ? "настроено" : "нужна настройка") : ""].filter(Boolean).join(" · ");
+      return `<button class="am-row" data-pick="${esc(it.id)}" style="--c:${r.color}">${icon(itemIcon(it))}<span><b>${esc(it.name)}</b><small>${esc(sub)}</small></span></button>`;
+    };
+    const { fit, rest } = slotCandidates(S.c, slot);
+    const others = fit.filter(it => !cur || it.id !== cur.id);
+    const restList = rest.filter(it => !cur || it.id !== cur.id);
+    const m = openModal({
+      title: s.set === 2 ? `Сменное: ${s.name.toLowerCase()}` : s.name,
+      cls: "small doll-pick",
+      body: `${cur ? `<div class="doll-cur">${row(cur)}<div class="form-actions"><button class="btn ghost" data-x="open">${icon("edit")}Открыть</button><button class="btn danger" data-x="off">${icon("minus")}Снять</button></div></div>` : ""}
+        <p class="atk-group">${cur ? "Заменить на" : "Что надеть"}</p>
+        <div class="lib-list">${others.map(row).join("") || `<p class="hint">Подходящих вещей нет. Добавь предмет в снаряжение или выбери из остальных.</p>`}</div>
+        ${restList.length ? `<details class="doll-rest"><summary>Остальные вещи</summary><div class="lib-list">${restList.map(row).join("")}</div></details>` : ""}`
+    });
+    m.body.querySelectorAll("[data-pick]").forEach(b => (b.onclick = () => {
+      const it = S.c.items.find(x => x.id === b.dataset.pick);
+      m.close();
+      if (!it) return;
+      X.withUndo(`Надето: ${it.name}`, () => X.mutate(c => { equipTo(c, it.id, slot); }));
+      playSound("equip");
+    }));
+    const x = m.body.querySelector("[data-x=off]");
+    if (x) x.onclick = () => {
+      m.close();
+      X.withUndo(`Снято: ${cur.name}`, () => X.mutate(c => { unequip(c, cur.id); }));
+      playSound("unequip");
+    };
+    const o = m.body.querySelector("[data-x=open]");
+    if (o) o.onclick = () => {
+      m.close();
+      X.openEntity("item:" + cur.id);
+    };
   }
 
   function searchAll() {
@@ -445,5 +549,5 @@ export function installDialogs(X) {
     });
   }
 
-  Object.assign(X, { backupDialog, sceneDialog, coinDialog, searchAll, switchChar, shortRest, longRest, restSummary, historyDialog, rollLogDialog, importDialog, menu, fileItems, spellAbilityDialog, sheetCheckDialog });
+  Object.assign(X, { dollPicker, backupDialog, sceneDialog, coinDialog, searchAll, switchChar, shortRest, longRest, restSummary, historyDialog, rollLogDialog, importDialog, menu, fileItems, spellAbilityDialog, sheetCheckDialog });
 }

@@ -30,7 +30,6 @@ const browser = await chromium.launch(launchOpts);
   await page.reload();
   await page.waitForSelector(".sheet");
   await page.selectOption("[data-ui=inv-sort]", "added");
-  await page.click("[data-act=inv-eq-first]").catch(() => {});
   const persisted = await names();
   ok("order persisted", persisted.slice(0, 3).join(",") === after.slice(0, 3).join(",") || persisted.includes(after[0]), persisted.slice(0, 3).join(","));
   await page.click(".tab[data-tab=spells]");

@@ -13,7 +13,7 @@ const M = ".modal-back.in";
 await page.goto("http://localhost:8765/#/c/kirion-thorndike/inventory");
 await page.waitForSelector(".sheet");
 await sleep(800);
-await page.locator("[data-open^='item:']", { hasText: "Кинжал" }).first().click();
+await page.locator("[data-open^='item:']", { hasText: "Фонарь с колпаком" }).first().click();
 await page.waitForSelector(`${M} [data-x=edit]`);
 await page.click(`${M} [data-x=edit]`);
 await page.waitForSelector(`${M} [data-icon-q]`);
@@ -36,7 +36,7 @@ ok("empty result says so", (await page.locator(`${M} .icon-none`).count()) === 1
 await page.screenshot({ path: E2E_OUT + "iconpick.png" });
 await page.locator(`${M} button[type=submit]`).last().evaluate(b => b.click());
 await sleep(500);
-const html = await page.locator("[data-open^='item:']", { hasText: "Кинжал" }).first().innerHTML();
+const html = await page.locator("[data-open^='item:']", { hasText: "Фонарь с колпаком" }).first().innerHTML();
 ok("item shows the picked icon", html.includes(pick.split("/").pop()), pick);
 ok("no errors", errors.length === 0, errors.join("|"));
 await browser.close();

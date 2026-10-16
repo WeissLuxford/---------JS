@@ -3,7 +3,9 @@ import { icon, acIcon, hpIcon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, $, $$, toast, openModal, confirmDialog, promptNumber, enableHoverCards, hideHoverCard, enableLongPress, enableReorder, openDiceRoller, fxSettings, setFx, playSound, warmSounds, reducedMotion, getPath, setPath, download, timeAgo, rollCardOn, setRollCard, closeRollCard, spendDamageButtons } from "./ui.js";
 import { openWritingHelp } from "./editor.js";
 import { TABS, RENDER, subtitle, hpState, notesList, noteTags, combatSources, classOf } from "./tabs.js";
-import { cardFor, findEntity } from "./entities.js";
+import { cardFor, findEntity, fmtNum, purseGp } from "./entities.js";
+import { swapSets, dropItem } from "./doll.js";
+import { enableItemDrag } from "./drag.js";
 import { describeChanges } from "./changes.js";
 import { subscribeChar, saveChanges, addHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError, watchProposals, watchMyProposal, saveProposal, deleteProposal } from "./store.js";
 import { cloudDiff, rebase, applyCloud } from "./cloud.js";
@@ -37,7 +39,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     d: null,
     base: null,
     tab: TABS.some(t => t.key === initialTab) ? initialTab : "char",
-    ui: { ...loadUiPrefs(), turn: loadTurn(id), ammoSpent: loadJson("dnd.ammo." + id), invFilter: "all", notesSection: "sessions", clueState: "all", notesRecent: loadRecent(id), spellFilter: "all", spellQ: "", noteOpen: {}, notesQ: "", noteTag: "", peopleAtt: "all" },
+    ui: { ...loadUiPrefs(), turn: loadTurn(id), ammoSpent: loadJson("dnd.ammo." + id), invFilter: "all", notesSection: "sessions", clueState: "all", notesRecent: loadRecent(id), spellFilter: "all", spellQ: "", invQ: "", openBoxes: [], noteOpen: {}, notesQ: "", noteTag: "", peopleAtt: "all" },
     scroll: {},
     saveTimer: null,
     retry: 0,
@@ -453,6 +455,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     if (S.tab === "notes") X.afterNotesRender();
     if (readOnly()) $$("input:not([data-ui]), textarea, select:not([data-ui])", body).forEach(el => (el.disabled = true));
     if (S.tab === "spells" && S.ui.spellQ) filterSpells(S.ui.spellQ);
+    if (S.tab === "inventory" && S.ui.invQ) filterSpells(S.ui.invQ);
     updateCalcs();
   }
 
@@ -483,6 +486,8 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       case "weight": return String(Math.round(d.weight * 10) / 10).replace(".", ",");
       case "carry": return String(d.carry);
       case "attuned": return String(d.attuned);
+      case "attune": return `${d.attuned}/3`;
+      case "purse": return fmtNum(purseGp(c.coins));
       case "name": return c.name;
       case "sub": return subtitle(c);
       case "hd": return `${d.hitDice.left}/${d.hitDice.total}`;
@@ -716,15 +721,23 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     if (!body) return;
     const needle = q.trim().toLowerCase();
     let shown = 0;
-    $$(".spell-lists .panel", body).forEach(p => {
+    $$(".spell-lists .panel, .inv-lists .panel", body).forEach(p => {
       let any = 0;
-      $$(".tile[data-search]", p).forEach(t => {
+      $$("[data-search]", p).forEach(t => {
         const ok = !needle || t.dataset.search.includes(needle);
+        if (t.classList.contains("dslot")) {
+          t.classList.toggle("dim", !ok);
+          if (ok) any++;
+          return;
+        }
         t.hidden = !ok;
         if (ok) any++;
       });
       p.hidden = !any;
       shown += any;
+    });
+    $$(".inv-lists .box-pop", body).forEach(pop => {
+      pop.hidden = needle ? !$$("[data-search]", pop).some(t => !t.hidden) : !(S.ui.openBoxes || []).includes(pop.dataset.box);
     });
     const empty = $("[data-search-empty]", body);
     if (empty) empty.hidden = !(needle && !shown);
@@ -756,9 +769,9 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       $$(".jr-tab", body).forEach(el => el.classList.toggle("on", !on && el.dataset.k === S.ui.notesSection));
       return true;
     }
-    const q = e.target.closest("[data-ui=spell-q]");
+    const q = e.target.closest("[data-ui=spell-q], [data-ui=inv-q]");
     if (!q || !root.contains(q)) return false;
-    S.ui.spellQ = q.value;
+    S.ui[q.dataset.ui === "inv-q" ? "invQ" : "spellQ"] = q.value;
     filterSpells(q.value);
     return true;
   };
@@ -815,7 +828,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     return m;
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-armor", "edit-abilities", "edit-prof", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "note-create-link", "feature-library", "box-stored", "spell-ability"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-armor", "edit-abilities", "edit-prof", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "note-create-link", "feature-library", "box-stored", "spell-ability", "doll-slot", "doll-swap"]);
 
   const UNDO = {
     "hp-quick": el => (Number(el.dataset.n) < 0 ? `Урон ${-Number(el.dataset.n)}` : `Лечение ${el.dataset.n}`),
@@ -1138,6 +1151,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         if (S.ui.ordering) {
           S.ui.notesQ = "";
           S.ui.spellQ = "";
+          S.ui.invQ = "";
           S.ui.spellFilter = "all";
           S.ui.noteTag = "";
           S.ui.peopleAtt = "all";
@@ -1185,7 +1199,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       case "spell-library": return X.openLibrary(null, "spells");
       case "feature-library": return X.openLibrary(null, "features");
       case "add-feature": return X.editEntity("feature", null, el.dataset.cat);
-      case "add-item": return X.editEntity("item", null, S.ui.invFilter && !["all", "equipped", "other"].includes(S.ui.invFilter) ? S.ui.invFilter : "gear");
+      case "add-item": return X.editEntity("item", null, { magic: "artifact", weapon: "weapon", armor: "armor", consumable: "consumable", tool: "tool" }[S.ui.invFilter] || "gear");
       case "add-note":
         if (el.dataset.sec === "sessions") return X.startSession();
         return X.editNote(el.dataset.sec, null);
@@ -1203,6 +1217,29 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       }
       case "clue-state": S.ui.clueState = el.dataset.k; return renderTab();
       case "board": return import("./board.js").then(({ openBoard }) => openBoard({ c: S.c, charId: id, onOpen: X.openNote }));
+      case "help-card": {
+        hideHoverCard();
+        const html = cardFor(S.c, S.d, el.dataset.card);
+        return html && openModal({ body: html, cls: "entity info-card" });
+      }
+      case "box-toggle": {
+        const bid = el.dataset.id;
+        const open = S.ui.openBoxes || (S.ui.openBoxes = []);
+        const i = open.indexOf(bid);
+        if (i >= 0) open.splice(i, 1);
+        else open.push(bid);
+        const pop = $(`.box-pop[data-box="${CSS.escape(bid)}"]`, root);
+        if (!pop) return renderTab();
+        pop.hidden = i >= 0;
+        $$(`.slot.box[data-id="${CSS.escape(bid)}"]`, root).forEach(s => {
+          s.classList.toggle("open", i < 0);
+          s.setAttribute("aria-expanded", i < 0 ? "true" : "false");
+        });
+        if (i < 0) playSound("equip");
+        return;
+      }
+      case "doll-slot": return X.dollPicker(el.dataset.slot);
+      case "doll-swap": return X.withUndo("Смена оружия", () => mutate(ch => { swapSets(ch); }));
       case "box-stored": return mutate(ch => { const b = ch.items.find(x => x.id === el.dataset.id); if (b) b.stored = !b.stored; });
       case "edit-note": {
         const n = (c.notes[el.dataset.sec] || []).find(x => x.id === el.dataset.id);
@@ -1381,8 +1418,28 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     }, { render: false });
     if (ok === false) renderTab();
   });
+  const offDrag = enableItemDrag(root, {
+    canDrag: () => !!S.c && !S.disposed && S.tab === "inventory" && !S.ui.ordering && !readOnly(),
+    onDrop: (src, t) => {
+      const id = src.dataset.drag;
+      const [kind, rest = ""] = String(t.dataset.dz).split(":");
+      const target = kind === "slot" ? { kind, slot: rest } : kind === "bag" ? { kind, box: rest } : kind === "item" ? { kind, id: rest } : kind === "extra" ? { kind } : null;
+      const it = S.c.items.find(x => x.id === id);
+      if (!it || !target) return;
+      const res = dropItem(structuredClone(S.c), id, target);
+      if (res === "nofit") {
+        toast(`${icon("close")} Сюда не наденешь: ${esc(it.name)}`, { kind: "bad" });
+        return;
+      }
+      if (res !== "ok") return;
+      const into = target.kind === "bag" ? target.box : target.kind === "item" && (S.c.items.find(x => x.id === target.id) || {}).isContainer ? target.id : "";
+      if (into && !(S.ui.openBoxes || []).includes(into)) (S.ui.openBoxes = S.ui.openBoxes || []).push(into);
+      X.withUndo(`Перенесено: ${it.name}`, () => mutate(ch => { dropItem(ch, id, target); }));
+      playSound(target.kind === "slot" || target.kind === "extra" ? "equip" : "unequip");
+    }
+  });
   const offLong = enableLongPress(root, (ref, el) => {
-    if (!S.c || S.disposed || S.ui.ordering) return;
+    if (!S.c || S.disposed || S.ui.ordering || root.classList.contains("item-dragging")) return;
     hideHoverCard();
     if (el.closest("[data-open]")) return X.openEntity(el.closest("[data-open]").dataset.open);
     const html = cardFor(S.c, S.d, ref);
@@ -1430,6 +1487,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     offProps();
     offHover();
     offLong();
+    offDrag();
     offOrder();
     X.offProfile();
     X.hideUndo();

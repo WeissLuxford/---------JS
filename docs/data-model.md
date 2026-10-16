@@ -9,6 +9,7 @@
 | `name` | строка до 120 | имя |
 | `archived` | bool | в архиве |
 | `portrait` | data URL до ~300 КБ | портрет 520×624 (webp или jpeg) |
+| `fullArt` | data URL до ~220 КБ | персонаж во весь рост для куклы на вкладке «Вещи» (профиль: «Портрет и доска»), в историю не пишется |
 | `boardAt` | число, мс | когда загружена доска персонажа, 0 если нет; сама картинка лежит отдельно, при импорте и копии сбрасывается |
 | `info` | объект | `race, subrace, cls, subclass, level, background, alignment, age, xp, setting, patron, pactBoon, player` |
 | `abilities` | `{str,dex,con,int,wis,cha}` | значения 1..30 |
@@ -37,6 +38,7 @@
 | `coins` | `{cp, sp, ep, gp, pp}` | |
 | `personality` | `{appearance, traits, ideals, bonds, flaws, backstory, allies}` | |
 | `items[].isContainer, capacity, weightless, stored, container` | контейнеры | `container` = id контейнера или пусто (при себе); циклы и ссылки на не-контейнеры чистит `normalize()`; без явного `isContainer` контейнер угадывается по названию (`CONTAINER_PRESETS`) |
+| `items[].slot` | место на кукле | `head, eyes, cloak, body, hands, feet, neck, wrists, ring1, ring2, main, off, main2, off2` или пусто (место угадывается по типу и названию, `js/doll.js`); `main2/off2` это сменный комплект, такие вещи всегда `equipped: false` |
 | `notes` | `{sessions[], people[], places[], quests[], clues[], patron[], misc[]}` | заметки; старая строка `misc` превращается в одну заметку `nt-misc-legacy`. Заметка: `{id, title, subtitle, text, tags, collapsed, pinned, created}`; у людей `attitude` и `aliases`, у мест `aliases`, у заданий `status`, у улик `state` (lead/confirmed/false), у сессий `date`, `touched`. В тексте `[[Название]]` или `[[Название|подпись]]` ссылается на заметку по названию или другому имени; чистит `cleanNote()` |
 | `stats` | летопись удачи | счётчики, которые ведёт `js/sheet-chronicle.js` (только у владельца и админа, не у приглашённых и зрителей): `since`, `rolls`, `sum`, `faces{1..20}`, `crit`, `fumble`, серии `run20`, `run1`, `streakLow/High`, `bestLow/High`, день `day`, `dayRolls`, `daySum`, `dayCrit`, `dayFumble`, `bestDayCrit`+`bestDay`, `worstDayFumble`+`worstDay`, урон `dmgRolls`, `dmgTotal`, `dmgMax`, `taken`, `takenMax`, `healed`, `downs`, `downDay`, `deaths`, `revived`, `stabilized`, `phoenix`, `casts`, `cantrips`, `maxCast`, `emptied`, `broken`, `longRests`, `shortRests`, `rounds`, `combats`, `insp`, `hd`, `concLost`, `levelUps`, `paidGp`. «Отменить» их не откатывает |
 | `achievements` | `{ключ: время}` | полученные достижения, список и проверки в `js/achievements.js` (`ACHIEVEMENTS`) |

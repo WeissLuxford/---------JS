@@ -112,6 +112,7 @@ export function installProfile(X) {
       return `<div class="portrait-big">${avatar(S.c.portrait)}</div>
         ${ro ? "" : `<div class="form-actions">${S.c.portrait ? `<button class="btn danger" data-rm>${icon("trash")}Убрать</button><span class="spacer"></span><button class="btn" data-crop>${icon("target")}Изменить кадр</button>` : `<span class="spacer"></span>`}<button class="btn gold" data-up>${icon("upload")}Загрузить картинку</button></div>
         <p class="hint">После выбора картинки можно подвинуть и приблизить нужную часть. Портрет сохранится вместе с персонажем.</p>`}
+        <div class="pb-full"><h4>${icon("gi/lorc/battle-gear")}Во весь рост</h4>${S.c.fullArt ? `<div class="pb-full-img"><img src="${esc(S.c.fullArt)}" alt=""></div>` : ro ? `<p class="empty">Картинки нет</p>` : ""}${ro ? "" : `<p class="hint">Персонаж целиком, от головы до ног. Встанет на вкладке «Вещи» за ячейками снаряжения, как в BG3.</p><div class="form-actions">${S.c.fullArt ? `<button class="btn danger" data-full-rm>${icon("trash")}Убрать</button><span class="spacer"></span>` : ""}<button class="btn${S.c.fullArt ? "" : " gold"}" data-full-up>${icon("upload")}${S.c.fullArt ? "Заменить" : "Загрузить"}</button></div>`}</div>
         <div class="pb-board"><h4>${icon("gi/delapouite/wood-frame")}Доска персонажа</h4>${ro ? "" : `<p class="hint">Большая картинка с артом и описанием, как у готовых персонажей. Видна всем, кто может открыть лист, и открывается с карточки на главной.</p>`}<div class="form-actions">${boardBtns}</div></div>`;
     }
 
@@ -223,6 +224,24 @@ export function installProfile(X) {
         } catch {
           toast("Не получилось удалить доску", { kind: "bad" });
         }
+        return;
+      }
+      if (t.closest("[data-full-up]")) {
+        const file = await pickFile("image/*");
+        if (!file) return;
+        try {
+          const data = await compressImage(file, { max: 1100, limit: 220000 });
+          if (!data) return toast("Картинка слишком большая", { kind: "bad" });
+          if (!S.disposed && X.mutate(c => { c.fullArt = data; }, { render: false })) redraw();
+          X.renderTab();
+        } catch {
+          toast("Не получилось прочитать картинку", { kind: "bad" });
+        }
+        return;
+      }
+      if (t.closest("[data-full-rm]")) {
+        if (X.mutate(c => { c.fullArt = ""; }, { render: false })) redraw();
+        X.renderTab();
         return;
       }
       const setPortrait = data => {

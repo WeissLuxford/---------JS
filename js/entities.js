@@ -399,6 +399,22 @@ export function statModel(c, d, key) {
   if (key === "inspiration") {
     return { title: "Вдохновение", subtitle: c.inspiration ? "Есть" : "Нет", art: { icon: "gi/lorc/sunbeams", color: "#f4d66d" }, body: rich("Мастер даёт вдохновение за хорошую игру. Его можно потратить, чтобы получить преимущество на один бросок d20.\n\nНажми, когда оно есть: следующий бросок пойдёт с преимуществом. Нажми, когда его нет: отметить, что Мастер дал вдохновение.") };
   }
+  if (key === "weight") {
+    const L = d.load || { light: 0, heavy: 0, max: d.carry };
+    const heavy = (c.items || []).filter(it => !it.stored && (Number(it.weight) || 0) * (Number(it.qty) || 1) > 0).sort((a, b) => (Number(b.weight) || 0) * (Number(b.qty) || 1) - (Number(a.weight) || 0) * (Number(a.qty) || 1)).slice(0, 3);
+    const top = heavy.map(it => `- ${esc(it.name)}: ${fmtNum((Number(it.weight) || 0) * (Number(it.qty) || 1))} фнт`).join("\n");
+    return { title: "Вес", subtitle: `${fmtNum(d.weight)} из ${L.max} фнт`, art: { icon: "gi/delapouite/weight", color: d.weight > L.max ? "#e5533d" : "#e9c77a" }, body: rich(`Унести можно Сила × 15 = **${L.max} фнт**. Вещи в оставленных контейнерах не считаются.\n\nПо варианту правил с обременением: больше ${L.light} фнт скорость −10 фт, больше ${L.heavy} фнт скорость −20 фт и помеха на броски Сил, Лов, Тел.${top ? `\n\n**Тяжелее всего:**\n${top}` : ""}`), footer: [{ mark: actionMark("ring", "#e9c77a"), text: "Считается сам" }] };
+  }
+  if (key === "doll") {
+    return { title: "Надето", subtitle: "Как в BG3", art: { icon: "gi/lorc/battle-gear", color: "#e9c77a" }, body: rich("- Нажми на ячейку, чтобы надеть, заменить или снять вещь.\n- Двуручное оружие занимает обе руки.\n- Сменное оружие не считается в бою, пока не поменяешь комплекты кнопкой между ними.\n- Колец и амулетов правила не ограничивают: лишние окажутся в «Ещё надето». Настроиться можно только на 3 магических предмета.\n- Картинку персонажа во весь рост можно поставить в профиле, «Портрет и доска».") };
+  }
+  if (key === "attune") {
+    const list = (c.items || []).filter(it => it.attuned).map(it => `- ${esc(it.name)}`).join("\n");
+    return { title: "Настройка", subtitle: `${d.attuned} из 3`, art: { icon: "tw/attribute/attunement", color: "#b46bff" }, body: rich(`Некоторые магические предметы работают, только когда ты на них настроен. Настройка занимает короткий отдых, одновременно не больше 3 предметов.${list ? `\n\n**Настроено:**\n${list}` : ""}`) };
+  }
+  if (key === "purse") {
+    return { title: "Казна", subtitle: `${fmtNum(purseGp(c.coins))} зм всего`, art: { icon: "gi/lorc/shiny-purse", color: "#e9c77a" }, body: rich("Все монеты в пересчёте на золото: 1 пм = 10 зм, 1 эм = ½ зм, 10 см = 1 зм, 100 мм = 1 зм.\n\n«Заплатить» само разменяет монеты, если не хватает мелких.") };
+  }
   if (key === "exhaustion") {
     const ex = Number(c.exhaustion) || 0;
     return { title: "Истощение", subtitle: `Уровень ${ex}`, art: { icon: "gi/delapouite/tired-eye", color: "#e5533d", fx: "halo" }, body: rich(EXHAUSTION.slice(1).map((t, i) => `- ${i + 1 <= ex ? "**" : ""}${i + 1}: ${t}${i + 1 <= ex ? "**" : ""}`).join("\n") + "\n\nЭффекты складываются. Длинный отдых снимает 1 уровень."), footer: [{ mark: actionMark("ring", "#e5533d"), text: "Влияет на броски, скорость и хиты сам" }] };
@@ -430,6 +446,11 @@ export function cardFor(c, d, ref, opts) {
 export function itemIcon(it) {
   if (it.icon) return it.icon;
   return guessIcon(it.name, ITEM_WORDS) || (ITEM_TYPES[it.type] || ITEM_TYPES.misc).icon;
+}
+
+export function purseGp(coins) {
+  const k = coins || {};
+  return Math.round(((Number(k.pp) || 0) * 10 + (Number(k.gp) || 0) + (Number(k.ep) || 0) * 0.5 + (Number(k.sp) || 0) * 0.1 + (Number(k.cp) || 0) * 0.01) * 100) / 100;
 }
 
 export function fmtNum(n) {
@@ -514,6 +535,7 @@ export const EDITORS = {
       { key: "weight", label: "Вес одного, фнт", type: "number" },
       { key: "value", label: "Цена", placeholder: "25 зм" },
       { key: "equipped", label: "Экипировано", type: "checkbox" },
+      { key: "slot", label: "Куда надето", type: "select", options: [["", "Само по типу"], ["head", "Голова"], ["eyes", "Глаза"], ["cloak", "Плащ"], ["body", "Доспех"], ["hands", "Перчатки"], ["feet", "Обувь"], ["neck", "Амулет"], ["wrists", "Наручи"], ["ring1", "Кольцо 1"], ["ring2", "Кольцо 2"], ["main", "Правая рука"], ["off", "Левая рука"], ["main2", "Сменное: правая рука"], ["off2", "Сменное: левая рука"]] },
       { key: "requiresAttunement", label: "Требует настройки", type: "checkbox" },
       { key: "attuned", label: "Настроено", type: "checkbox" },
       { key: "action", label: "Применение", type: "select", options: [["", "Нет"], ...actionOpts] },

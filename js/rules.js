@@ -118,7 +118,19 @@ export function xpInfo(c) {
 }
 
 export const COIN_CP = { pp: 1000, gp: 100, ep: 50, sp: 10, cp: 1 };
+export const ITEM_SLOTS = ["head", "eyes", "cloak", "body", "hands", "feet", "neck", "wrists", "ring1", "ring2", "main", "off", "main2", "off2", "extra"];
 export const COIN_NAMES = { pp: "ПМ", gp: "ЗМ", ep: "ЭМ", sp: "СМ", cp: "ММ" };
+export const COINS = [
+  { key: "pp", short: "ПМ", name: "Платина", rate: "1 = 10 ЗМ", color: "#d7e3ef" },
+  { key: "gp", short: "ЗМ", name: "Золото", rate: "основная", color: "#e9c77a" },
+  { key: "ep", short: "ЭМ", name: "Электрум", rate: "2 = 1 ЗМ", color: "#bfd0d6" },
+  { key: "sp", short: "СМ", name: "Серебро", rate: "10 = 1 ЗМ", color: "#c9c9c9" },
+  { key: "cp", short: "ММ", name: "Медь", rate: "100 = 1 ЗМ", color: "#c7864f" }
+];
+
+export function coinsText(coins) {
+  return COINS.filter(k => Number(coins[k.key])).map(k => `${Number(coins[k.key])} ${k.short}`).join(", ") || "пусто";
+}
 
 export function coinsTotalCp(coins) {
   return Object.entries(COIN_CP).reduce((sum, [k, v]) => sum + Math.max(0, Math.floor(Number(coins[k]) || 0)) * v, 0);
@@ -534,6 +546,7 @@ export function newCharacter(name = "Новый персонаж") {
     name,
     archived: false,
     portrait: "",
+    fullArt: "",
     boardAt: 0,
     info: {
       race: "", subrace: "", cls: "", subclass: "", level: 1, background: "",
@@ -695,6 +708,7 @@ export function normalize(c) {
   }
   out.name = String(out.name ?? "").slice(0, 120);
   out.portrait = typeof out.portrait === "string" && out.portrait.startsWith("data:image/") ? out.portrait : "";
+  out.fullArt = typeof out.fullArt === "string" && out.fullArt.startsWith("data:image/") ? out.fullArt : "";
   out.boardAt = Math.max(0, num(out.boardAt));
   for (const k of ABILITY_KEYS) out.abilities[k] = Math.max(1, Math.min(30, Math.round(num(out.abilities[k], 10))));
   out.info.level = clampLevel(out.info.level);
@@ -746,6 +760,10 @@ export function normalize(c) {
     if ("range" in x) x.range = String(x.range ?? "").slice(0, 60);
     if ("ammoId" in x) x.ammoId = String(x.ammoId ?? "").slice(0, 60);
     if ("combat" in x) x.combat = ["yes", "no"].includes(x.combat) ? x.combat : "";
+    if ("slot" in x) {
+      x.slot = ITEM_SLOTS.includes(x.slot) ? x.slot : "";
+      if (x.slot === "main2" || x.slot === "off2") x.equipped = false;
+    }
     return x;
   });
   out.spells = out.spells.map(sp => ("combat" in sp ? { ...sp, combat: ["yes", "no"].includes(sp.combat) ? sp.combat : "" } : sp));

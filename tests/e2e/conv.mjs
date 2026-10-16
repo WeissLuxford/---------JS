@@ -33,7 +33,8 @@ ok("three-quarters replaces", (await page.locator(".combat-strip [data-calc=ac]"
 await page.click(".tab[data-tab=inventory]");
 await page.click("[data-act=coin-pay]");
 await page.fill(".modal-back.in .num-big", "3");
-await page.selectOption(".modal-back.in [data-sel]", "sp");
+await page.click(".modal-back.in [data-coin=sp]");
+ok("pay preview shows change", (await page.locator(".modal-back.in [data-prev]").innerText()).includes("Останется"));
 await page.click(".modal-back.in [data-i='0']");
 await sleep(200);
 ok("paid 3 sp", (await page.inputValue("input[data-path='coins.sp']")) === "5");

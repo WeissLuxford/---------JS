@@ -15,7 +15,11 @@ const add = async name => {
   await sleep(300);
 };
 const open = async name => {
-  await page.click(`[data-open^='item:']:has-text('${name}')`);
+  const box = page.locator(`.slot.box[data-act=box-toggle]:has-text('${name}')`).last();
+  if (await box.count()) {
+    if ((await box.getAttribute("aria-expanded")) !== "true") await box.click();
+    await page.locator(`.box-pop:not([hidden]) > .box-pop-h [data-open^='item:']:has-text('${name}')`).last().click();
+  } else await page.click(`[data-open^='item:']:has-text('${name}')`);
   await page.waitForSelector(".modal-back.in");
 };
 await page.goto("http://localhost:8765/#/c/kirion-thorndike/inventory");
@@ -48,7 +52,7 @@ await open("Факел");
 ok("torches sit in the backpack", /В «Рюкзак»/.test(await page.locator(".modal-back.in").innerText()));
 await page.keyboard.press("Escape");
 await sleep(300);
-const count = () => page.evaluate(() => document.querySelectorAll("[data-open^='item:']").length);
+const count = () => page.evaluate(() => document.querySelectorAll(".inv-lists .slot[data-rid]").length);
 await open("Факел");
 await page.click(".modal-back.in [data-x=drop]");
 await sleep(400);
@@ -70,9 +74,11 @@ const before = await count();
 await open("Рюкзак");
 await page.click(".modal-back.in [data-x=drop]");
 await page.waitForSelector(".modal-back.in [data-drop=all]");
+const dropText = await page.locator(".modal-back.in", { hasText: "Внутри" }).last().innerText();
+const inside = Number((dropText.match(/Внутри (\d+)/) || [0, 0])[1]);
 await page.click(".modal-back.in [data-drop=all]");
 await sleep(400);
-ok("dropping with contents removes all of it", (await count()) === before - 7 && (await page.locator(".box-sec", { hasText: "Рюкзак" }).count()) === 0, `${before} -> ${await count()}`);
+ok("dropping with contents removes all of it", inside > 0 && (await count()) === before - inside - 1 && (await page.locator(".box-sec", { hasText: "Рюкзак" }).count()) === 0, `${before} -> ${await count()}, inside ${inside}`);
 await page.click("[data-sync]");
 await page.click(".st-pop [data-undo]");
 await sleep(400);

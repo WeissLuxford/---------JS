@@ -1,8 +1,9 @@
-import { ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, containerTree, fmt, usesInfo, spellCast, effectSummary, spellInCombat, itemInCombat, featureInCombat, xpInfo, ammoFor, sceneInfo } from "./rules.js";
+import { COINS, ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, containerTree, fmt, usesInfo, spellCast, effectSummary, spellInCombat, itemInCombat, featureInCombat, xpInfo, ammoFor, sceneInfo } from "./rules.js";
 import { icon, actionMark, acIcon, hpIcon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, pips, rich, artFx } from "./ui.js";
 import { CLASSES } from "./classes.js";
-import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum, PROF_KINDS } from "./entities.js";
+import { DOLL_SLOTS, dollLayout, SILHOUETTE } from "./doll.js";
+import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum, purseGp, PROF_KINDS } from "./entities.js";
 import { NOTE_SECTIONS, SECTION_NAME, NOTE_STATUS, NOTE_ATTITUDE, CLUE_STATE, noteTagsOf, searchNotes, queryStems, highlight, snippetHtml, plainText, richLinks, backlinks, currentSession, pinnedNotes, linkTargets } from "./notes.js";
 
 export const TABS = [
@@ -23,6 +24,10 @@ function panel(title, body, { ic, actions = "", cls = "" } = {}) {
 export function orderBtn(ctx) {
   const on = !!(ctx.ui && ctx.ui.ordering);
   return `<button class="btn ${on ? "gold" : "ghost"} sm order-btn" data-act="toggle-order" aria-pressed="${on ? "true" : "false"}">${icon(on ? "check" : "menu")}${on ? "Готово" : "Порядок"}</button>`;
+}
+
+export function helpBtn(ref, label = "Как это работает") {
+  return `<button class="help-q" data-act="help-card" data-card="${esc(ref)}" title="${esc(label)}" aria-label="${esc(label)}">?</button>`;
 }
 
 function addBtn(act, label, extra = "") {
@@ -537,63 +542,142 @@ export function sortItems(items, sort, equippedFirst) {
   return list.map(x => x.it);
 }
 
-const INV_FILTERS = [["all", "Все"], ["equipped", "Надето"], ["artifact", "Артефакты"], ["weapon", "Оружие"], ["armor", "Броня"], ["consumable", "Расходники"], ["other", "Прочее"]];
+const INV_FILTERS = [["all", "Все"], ["magic", "Магические"], ["weapon", "Оружие"], ["armor", "Броня"], ["consumable", "Расходники"], ["tool", "Инструменты"], ["other", "Прочее"]];
+const INV_MAIN = ["weapon", "ammo", "armor", "consumable", "tool"];
 
-export function tabInventory(ctx) {
-  const { c, d, ui } = ctx;
-  const f = ui.invFilter || "all";
-  const filtered = c.items.filter(it => {
-    if (f === "all") return true;
-    if (f === "equipped") return it.equipped;
-    if (f === "other") return !["artifact", "weapon", "armor", "consumable"].includes(it.type);
-    return it.type === f;
-  });
-  const items = ui.ordering ? filtered : sortItems(filtered, ui.invSort || "added", ui.invEqFirst !== false);
-  const pct = Math.min(100, (d.weight / Math.max(1, d.carry)) * 100);
-  const tree = containerTree(c);
-  const boxes = c.items.filter(it => it.isContainer);
-  const grouped = !ui.ordering && f === "all" && boxes.length > 0;
-  const L = d.load || { light: 0, heavy: 0, max: d.carry };
-  const loadState = d.weight > L.max ? ["over", `Перегруз: больше ${L.max} фнт ты не унесёшь`] : ["ok", `В пределах нормы: до ${L.max} фнт (Сила × 15)`];
-  const variant = d.weight > L.heavy ? "сильно обременён: скорость −20 фт, помеха на проверки, атаки и спасброски Сил, Лов, Тел" : d.weight > L.light ? "обременён: скорость −10 фт" : "";
-  const mark = (v, label) => `<span class="wmark" style="left:${Math.min(100, (v / Math.max(1, L.max)) * 100)}%" title="${esc(label)}"></span>`;
-  const coins = [["pp", "ПМ", "#d7e3ef"], ["gp", "ЗМ", "#e9c77a"], ["ep", "ЭМ", "#bfd0d6"], ["sp", "СМ", "#c9c9c9"], ["cp", "ММ", "#c7864f"]].map(([k, l, col]) => `
-    <label class="coin" style="--c:${col}">${icon("coin")}<input type="number" inputmode="numeric" min="0" data-path="coins.${k}" data-num value="${esc(c.coins[k])}"><span>${l}</span></label>`).join("");
-  const slot = it => {
-    const r = RARITY[it.rarity] || RARITY.common;
-    return `<button class="slot ${it.equipped ? "eq" : ""} ${it.isContainer ? "box" : ""}" data-rid="${esc(it.id)}" data-open="item:${esc(it.id)}" data-card="item:${esc(it.id)}" style="--c:${r.color}">
+export function isMagicItem(it) {
+  return it.type === "artifact" || it.type === "wand" || (!!it.rarity && it.rarity !== "common") || !!it.requiresAttunement;
+}
+
+export function invFilterPass(it, f) {
+  if (f === "magic") return isMagicItem(it);
+  if (f === "weapon") return it.type === "weapon" || it.type === "ammo";
+  if (f === "other") return !INV_MAIN.includes(it.type) && !isMagicItem(it);
+  if (INV_MAIN.includes(f)) return it.type === f;
+  return true;
+}
+
+const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many);
+
+function invSlot(it, tree, open) {
+  const r = RARITY[it.rarity] || RARITY.common;
+  const search = [it.name, it.nameEn].filter(Boolean).join(" ").toLowerCase();
+  const box = it.isContainer;
+  const isOpen = box && open && open.includes(it.id);
+  const act = box ? `data-act="box-toggle" data-id="${esc(it.id)}" aria-expanded="${isOpen ? "true" : "false"}"` : `data-open="item:${esc(it.id)}"`;
+  return `<button class="slot ${it.equipped ? "eq" : ""} ${box ? "box" : ""} ${isOpen ? "open" : ""} ${it.stored ? "stored" : ""} ${isMagicItem(it) ? "magic" : ""}" data-rid="${esc(it.id)}" ${act} data-card="item:${esc(it.id)}" data-search="${esc(search)}" data-drag="${esc(it.id)}" data-dz="item:${esc(it.id)}" style="--c:${r.color}">
       <span class="slot-ic${r.fx === "flat" ? " flat" : ""}"${(f => f ? ` style="--fx:url(#${f})"` : "")(r.fx === "hot" ? artFx("hot", r.color, .45) : "")}>${icon(itemIcon(it))}</span>
       ${Number(it.qty) > 1 ? `<span class="slot-qty">${it.qty}</span>` : ""}
       ${it.attuned ? `<span class="slot-att" title="Настроено">${icon("sparkle")}</span>` : ""}
-      ${it.isContainer && tree[it.id] && tree[it.id].count ? `<span class="slot-box" title="Внутри">${tree[it.id].count}</span>` : ""}
+      ${box && tree[it.id] && tree[it.id].count ? `<span class="slot-box" title="Внутри">${tree[it.id].count}</span>` : ""}
       <span class="slot-name">${esc(it.name)}</span>
     </button>`;
-  };
-  const grid = grouped ? items.filter(it => !it.container).map(slot).join("") : items.map(slot).join("");
-  const boxSections = grouped ? boxes.map(b => {
-    const t = tree[b.id] || { inside: 0, capacity: 0, count: 0, parent: "" };
-    const inside = items.filter(it => it.container === b.id);
-    const parent = t.parent ? c.items.find(x => x.id === t.parent) : null;
-    const cpct = t.capacity ? Math.min(100, (t.inside / t.capacity) * 100) : 0;
-    return `<section class="box-sec ${b.stored ? "stored" : ""}" data-box="${esc(b.id)}">
-      <header><button class="box-h" data-open="item:${esc(b.id)}">${icon(itemIcon(b))}<span><b>${esc(b.name)}</b><small>${t.count ? `${t.count} ${t.count === 1 ? "вещь" : t.count < 5 ? "вещи" : "вещей"}` : "пусто"}${parent ? ` · в «${esc(parent.name)}»` : ""}${b.stored ? " · не при мне" : ""}${b.weightless ? " · вес внутри не считается" : ""}</small></span></button>
+}
+
+function boxPop(ctx, b, list, tree, depth = 0) {
+  const { c, ui } = ctx;
+  const open = ui.openBoxes || [];
+  const t = tree[b.id] || { inside: 0, capacity: 0, count: 0 };
+  const inside = list.filter(it => it.container === b.id);
+  const cpct = t.capacity ? Math.min(100, (t.inside / t.capacity) * 100) : 0;
+  const sub = [t.count ? `${t.count} ${plural(t.count, "вещь", "вещи", "вещей")}` : "пусто", b.stored ? "не при мне" : "", b.weightless ? "вес внутри не считается" : ""].filter(Boolean).join(" · ");
+  return `<div class="box-pop box-sec ${b.stored ? "stored" : ""}" data-box="${esc(b.id)}"${open.includes(b.id) ? "" : " hidden"}>
+      <header class="box-pop-h"><button class="box-h" data-open="item:${esc(b.id)}" data-card="item:${esc(b.id)}"><span><b>${esc(b.name)}</b><small>${esc(sub)}</small></span></button>
       <span class="box-w">${fmtNum(t.inside)}${t.capacity ? ` / ${t.capacity}` : ""} фнт</span>
-      <button class="btn ghost sm" data-act="box-stored" data-id="${esc(b.id)}" title="${b.stored ? "Взять с собой" : "Оставить: вес не считается"}">${icon(b.stored ? "bag" : "door")}${b.stored ? "Взять" : "Оставить"}</button></header>
+      <button class="btn ghost sm" data-act="box-stored" data-id="${esc(b.id)}" title="${b.stored ? "Взять с собой" : "Оставить: вес не считается"}">${icon(b.stored ? "bag" : "door")}${b.stored ? "Взять" : "Оставить"}</button>
+      <button class="icon-btn" data-act="box-toggle" data-id="${esc(b.id)}" title="Закрыть" aria-label="Закрыть">${icon("close")}</button></header>
       ${t.capacity ? `<div class="wbar thin ${t.inside > t.capacity ? "over" : ""}"><i style="width:${cpct}%"></i></div>` : ""}
-      <div class="inv-grid">${inside.map(slot).join("") || `<p class="hint box-empty">Пусто. Открой контейнер и нажми «Сложить набор» или переложи сюда вещи кнопкой «Переложить».</p>`}</div>
-    </section>`;
-  }).join("") : "";
+      ${slotGrid(ctx, inside, list, tree, { drop: "bag:" + b.id, empty: `<p class="hint box-empty">Пусто. Перетащи сюда вещи.</p>`, depth: depth + 1 })}
+    </div>`;
+}
+
+function slotGrid(ctx, show, list, tree, { drop = "", empty = "", depth = 0, cls = "" } = {}) {
+  const open = ctx.ui.openBoxes || [];
+  const cells = show.map(it => invSlot(it, tree, open) + (it.isContainer && depth < 4 ? boxPop(ctx, it, list, tree, depth) : "")).join("");
+  return `<div class="inv-grid ${cls}" data-reorder="items"${drop !== null ? ` data-dz="${esc(drop)}"` : ""}>${cells || empty}</div>`;
+}
+
+function dollCell(c, slot, it, { two = false } = {}) {
+  const s = DOLL_SLOTS[slot];
+  if (!it) return `<button class="dslot empty" data-act="doll-slot" data-slot="${slot}" data-dz="slot:${slot}" title="${esc(s.name)}: пусто"><span class="dslot-ic">${icon(s.icon)}</span><span class="dslot-n">${esc(s.name)}</span></button>`;
+  const r = RARITY[it.rarity] || RARITY.common;
+  const search = [it.name, it.nameEn].filter(Boolean).join(" ").toLowerCase();
+  const fx = r.fx === "hot" ? artFx("hot", r.color, .45) : "";
+  return `<button class="dslot ${two ? "two" : ""} ${r.fx === "flat" ? "" : "magic"}" data-act="doll-slot" data-slot="${slot}" data-drag="${esc(it.id)}" data-dz="slot:${slot}" data-card="item:${esc(it.id)}" data-search="${esc(search)}" style="--c:${r.color}"><span class="dslot-ic${r.fx === "flat" ? " flat" : ""}"${fx ? ` style="--fx:url(#${fx})"` : ""}>${icon(itemIcon(it))}</span>${it.attuned ? `<span class="slot-att" title="Настроено">${icon("sparkle")}</span>` : ""}<span class="dslot-n">${esc(it.name)}</span>${two ? `<small class="dslot-two">Двуручное</small>` : ""}</button>`;
+}
+
+function dollPanel(ctx, tree) {
+  const { c, d } = ctx;
+  const L = dollLayout(c);
+  const col = side => Object.keys(DOLL_SLOTS).filter(k => DOLL_SLOTS[k].side === side).map(k => dollCell(c, k, L.cells[k])).join("");
+  const hands = (m, o) => L.two[m] ? dollCell(c, m, L.cells[m], { two: true }) : dollCell(c, m, L.cells[m]) + dollCell(c, o, L.cells[o]);
+  const hasSwap = !!(L.cells.main2 || L.cells.off2);
+  const extra = `<div class="doll-extra${L.extra.length ? "" : " empty"}"><p class="inv-h">${icon("plus")}Ещё надето</p>${slotGrid(ctx, L.extra, ctx.c.items, tree, { drop: "extra", empty: `<p class="hint box-empty">Перетащи сюда, чтобы носить без ячейки</p>` })}</div>`;
+  const body = `
+    <div class="doll${c.fullArt ? " has-art" : ""}">
+      ${c.fullArt ? `<img class="doll-art" src="${esc(c.fullArt)}" alt="">` : ""}
+      <div class="doll-col">${col("left")}</div>
+      <div class="doll-mid">${c.fullArt ? "" : SILHOUETTE}<div class="doll-ac" data-card="stat:ac">${icon(acIcon(d.ac))}<b data-calc="ac">${d.ac}</b><small>КД</small></div></div>
+      <div class="doll-col">${col("right")}</div>
+    </div>
+    <div class="doll-arms">
+      <div class="doll-set on"><span class="doll-set-h">Основное</span><div class="doll-hands">${hands("main", "off")}</div></div>
+      <button class="doll-swap" data-act="doll-swap" title="Поменять основное и сменное оружие" aria-label="Поменять основное и сменное оружие"${hasSwap || L.cells.main || L.cells.off ? "" : " disabled"}>${icon("tw/util/trade")}</button>
+      <div class="doll-set"><span class="doll-set-h">Сменное</span><div class="doll-hands">${hands("main2", "off2")}</div></div>
+    </div>
+    ${extra}`;
+  return panel("Надето", body, { ic: "gi/lorc/battle-gear", cls: "inv-worn doll-panel", actions: helpBtn("stat:doll") });
+}
+
+function invHead(ctx) {
+  const { c, d } = ctx;
+  const L = d.load || { light: 0, heavy: 0, max: d.carry };
+  const pct = Math.min(100, (d.weight / Math.max(1, d.carry)) * 100);
+  const loadState = d.weight > L.max ? ["over", `Перегруз: больше ${L.max} фнт не унести`] : d.weight > L.heavy ? ["heavy", "Очень тяжело"] : d.weight > L.light ? ["mid", "Тяжеловато"] : ["ok", "Налегке"];
+  const mark = (v, label) => `<span class="wmark" style="left:${Math.min(100, (v / Math.max(1, L.max)) * 100)}%" title="${esc(label)}"></span>`;
+  const coins = COINS.map(k => `
+    <label class="coin ${Number(c.coins[k.key]) ? "" : "zero"}" style="--c:${k.color}" title="${esc(k.name)}: ${esc(k.rate)}">${icon("coin")}<input type="number" inputmode="numeric" min="0" data-path="coins.${k.key}" data-num value="${esc(c.coins[k.key])}" aria-label="${esc(k.name)}"><span class="coin-n">${esc(k.name)}</span><small class="coin-r">${esc(k.rate)}</small></label>`).join("");
   return `
-    ${panel("Кошель и вес", `
-      <div class="coins">${coins}</div>
-      <div class="coin-acts"><button class="btn ghost sm" data-act="coin-pay">${icon("minus")}Заплатить</button><button class="btn ghost sm" data-act="coin-get">${icon("plus")}Получить</button></div>
-      <div class="weight"><span>Вес: <b data-calc="weight">${fmtNum(d.weight)}</b> / <span data-calc="carry">${d.carry}</span> фнт</span><div class="wbar ${d.weight > d.carry ? "over" : ""}" data-wbar><i style="width:${pct}%"></i>${mark(L.light, `${L.light} фнт: обременён`)}${mark(L.heavy, `${L.heavy} фнт: сильно обременён`)}</div><span class="load-t load-${loadState[0]}">${esc(loadState[1])}</span>${variant && d.weight <= L.max ? `<span class="load-v">По варианту правил с обременением (если Мастер его использует): ${esc(variant)}</span>` : ""}<span>Настройка: <b data-calc="attuned">${d.attuned}</b> / 3</span></div>`, { ic: "gi/delapouite/two-coins" })}
-    ${panel("Предметы", `
-      <div class="chips filter">${INV_FILTERS.map(([k, l]) => `<button class="chip toggle ${f === k ? "on" : ""}" data-act="inv-filter" data-k="${k}">${l}</button>`).join("")}</div>
-      <div class="inv-sort"><label class="fld compact"><span>Сортировка</span><select data-ui="inv-sort">${INV_SORTS.map(([k, l]) => `<option value="${k}" ${(ui.invSort || "added") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label><button class="chip toggle ${ui.invEqFirst !== false ? "on" : ""}" data-act="inv-eq-first" aria-pressed="${ui.invEqFirst !== false ? "true" : "false"}">Надетое сначала</button></div>
-      ${grouped ? `<p class="inv-h">${icon("user")}При себе</p>` : ""}
-      <div class="inv-grid" data-reorder="items">${grid || (grouped ? `<p class="hint">Всё разложено по контейнерам.</p>` : emptyState("Пусто, даже паук заскучал"))}</div>
-      ${boxSections}`, { ic: "gi/delapouite/backpack", actions: orderBtn(ctx) + `<button class="btn ghost sm" data-act="gear-table">${icon("book")}Библиотека</button>` + addBtn("add-item", "Предмет") })}`;
+    <div class="spell-head inv-head">
+      ${statMedal(`Вес из ${d.carry} фнт`, fmtNum(d.weight), { calc: "weight", ic: "gi/delapouite/weight", card: "stat:weight" })}
+      ${statMedal("Настройка", `${d.attuned}/3`, { calc: "attune", ic: "tw/attribute/attunement", card: "stat:attune" })}
+      ${statMedal("Казна, зм", fmtNum(purseGp(c.coins)), { calc: "purse", ic: "gi/lorc/shiny-purse", card: "stat:purse" })}
+    </div>
+    <div class="inv-load">
+      <div class="wbar ${d.weight > d.carry ? "over" : ""}" data-wbar><i style="width:${pct}%"></i>${mark(L.light, `${L.light} фнт: обременён`)}${mark(L.heavy, `${L.heavy} фнт: сильно обременён`)}</div>
+      <span class="load-t load-${loadState[0]}">${esc(loadState[1])}</span>
+    </div>
+    <div class="coins">${coins}</div>
+    <div class="coin-acts"><button class="btn ghost sm" data-act="coin-pay">${icon("minus")}Заплатить</button><button class="btn ghost sm" data-act="coin-get">${icon("plus")}Получить</button></div>`;
+}
+
+export function tabInventory(ctx) {
+  const { c, ui } = ctx;
+  const f = ui.invFilter || "all";
+  const doll = f === "all" && !ui.ordering;
+  const sorted = ui.ordering ? c.items.slice() : sortItems(c.items, ui.invSort || "added", false);
+  const items = sorted.filter(it => invFilterPass(it, f));
+  const tree = containerTree(c);
+  const boxIds = new Set(c.items.filter(it => it.isContainer).map(it => it.id));
+  const top = f === "all" ? items.filter(it => !it.container || !boxIds.has(it.container)) : items;
+  const worn = top.filter(it => it.equipped);
+  const onDoll = new Set(doll ? Object.values(dollLayout(c).cells).map(it => it.id) : []);
+  const carried = top.filter(it => !it.equipped && !onDoll.has(it.id));
+  const filters = `<div class="chips filter">${INV_FILTERS.map(([k, l]) => `<button class="chip toggle ${f === k ? "on" : ""}" data-act="inv-filter" data-k="${k}" aria-pressed="${f === k ? "true" : "false"}">${l}</button>`).join("")}</div>`;
+  const sortSel = `<label class="search-box sort-box" title="Сортировка"><select data-ui="inv-sort" aria-label="Сортировка">${INV_SORTS.map(([k, l]) => `<option value="${k}" ${(ui.invSort || "added") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>`;
+  const search = c.items.length > 5 ? `<label class="search-box">${icon("search")}<input type="search" data-ui="inv-q" placeholder="Найти предмет" value="${esc(ui.invQ || "")}" aria-label="Найти предмет"></label>` : "";
+  const tools = c.items.length && !ui.ordering ? `<div class="spell-tools inv-tools">${search}${sortSel}${filters}</div>` : "";
+  const bagGrid = f === "all" ? slotGrid(ctx, carried, items, tree, { drop: "bag:", empty: `<p class="hint box-empty">Перетащи сюда, чтобы снять</p>` }) : slotGrid(ctx, carried, items, tree, { drop: "bag:", depth: 9 });
+  const lists = [
+    doll ? dollPanel(ctx, tree) : worn.length ? panel("Надето", slotGrid(ctx, worn, items, tree, { drop: null, depth: 9 }), { ic: "gi/lorc/battle-gear", cls: "inv-worn" }) : "",
+    carried.length || doll ? panel("При себе", bagGrid, { ic: "gi/delapouite/backpack", cls: "inv-carried" }) : ""
+  ].join("");
+  const none = !c.items.length ? emptyState("Пусто, даже паук заскучал") : !lists ? `<p class="empty">Под этот фильтр ничего не подходит</p>` : "";
+  return `
+    ${panel("Снаряжение", invHead(ctx), { ic: "gi/delapouite/two-coins", actions: orderBtn(ctx) + `<button class="btn ghost sm" data-act="gear-table">${icon("book")}Библиотека</button>` + addBtn("add-item", "Предмет") })}
+    ${tools}
+    <div class="inv-lists">${lists}${none}</div>
+    <p class="empty" data-search-empty hidden>Ничего не нашлось</p>`;
 }
 
 export const noteTags = noteTagsOf;

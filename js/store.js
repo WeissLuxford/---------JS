@@ -593,6 +593,7 @@ async function pruneCloudHistory(id) {
 export async function addHistory(id, data, reason, { prune = false } = {}) {
   const body = stripId(data);
   delete body.portrait;
+  delete body.fullArt;
   delete body.updatedBy;
   const entry = { at: Date.now(), reason: reason || "", by: who(), data: body };
   try {
