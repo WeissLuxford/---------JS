@@ -39,7 +39,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     d: null,
     base: null,
     tab: TABS.some(t => t.key === initialTab) ? initialTab : "char",
-    ui: { ...loadUiPrefs(), turn: loadTurn(id), ammoSpent: loadJson("dnd.ammo." + id), invFilter: "all", notesSection: "sessions", clueState: "all", notesRecent: loadRecent(id), spellFilter: "all", spellQ: "", invQ: "", openBoxes: [], noteOpen: {}, notesQ: "", noteTag: "", peopleAtt: "all" },
+    ui: { ...loadUiPrefs(), turn: loadTurn(id), ammoSpent: loadJson("dnd.ammo." + id), invFilter: "all", notesSection: "sessions", clueState: "all", notesRecent: loadRecent(id), spellFilter: "all", spellQ: "", invQ: "", featQ: "", featFilter: "all", openBoxes: [], noteOpen: {}, notesQ: "", noteTag: "", peopleAtt: "all" },
     scroll: {},
     saveTimer: null,
     retry: 0,
@@ -331,7 +331,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
           <button class="icon-btn tb-search" data-act="search-all" title="Поиск по листу" aria-label="Поиск по листу">${icon("search")}</button>
           <button class="icon-btn" data-act="menu" title="Меню">${icon("dots")}</button>
         </header>
-        <nav class="tabs" role="tablist">${TABS.map(t => `<button class="tab ${S.tab === t.key ? "on" : ""}" data-tab="${t.key}" role="tab">${icon(t.icon)}<span class="tab-l">${t.name}</span><span class="tab-s">${t.short || t.name}</span></button>`).join("")}</nav>
+        <nav class="tabs" role="tablist" style="--n:${TABS.length};--i:${Math.max(0, TABS.findIndex(t => t.key === S.tab))}"><span class="tab-gem" aria-hidden="true"><svg viewBox="0 0 100 100"><defs><linearGradient id="gemGold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe3a0"/><stop offset=".55" stop-color="#d9a94e"/><stop offset="1" stop-color="#8a5f22"/></linearGradient></defs><polygon class="g-out" points="50,3 91,26.5 91,73.5 50,97 9,73.5 9,26.5" fill="url(#gemGold)"/><polygon class="g-in" points="50,24 77,70 23,70"/><path class="g-line" d="M50,3 50,24 M91,26.5 77,70 M91,73.5 77,70 M50,97 77,70 M50,97 23,70 M9,73.5 23,70 M9,26.5 23,70 M9,26.5 50,24 M91,26.5 50,24"/></svg></span>${TABS.map(t => `<button class="tab ${S.tab === t.key ? "on" : ""}" data-tab="${t.key}" role="tab">${icon(t.icon)}<span class="tab-l">${t.name}</span><span class="tab-s">${t.short || t.name}</span></button>`).join("")}</nav>
         ${roBar()}
         <div data-proposals>${proposalBar()}</div>
         ${c.archived ? `<div class="archived-bar">${icon("archive")} Персонаж в архиве <button class="btn sm" data-act="unarchive">Вернуть</button></div>` : ""}
@@ -455,11 +455,25 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     body.classList.toggle("ordering", !!S.ui.ordering);
     if (S.ui.ordering) $$("[data-reorder] > [data-rid]", body).forEach(el => el.insertAdjacentHTML("afterbegin", `<span class="drag-h" aria-hidden="true">⠿</span>`));
     $$(".tab", root).forEach(b => b.classList.toggle("on", b.dataset.tab === S.tab));
+    const nav = $(".tabs", root);
+    if (nav) {
+      const i = Math.max(0, TABS.findIndex(t => t.key === S.tab));
+      const prev = Number(nav.style.getPropertyValue("--i")) || 0;
+      if (i !== prev) {
+        S.gemRot = (S.gemRot || 0) + (i - prev) * 120;
+        nav.classList.add("rolling");
+        clearTimeout(S.gemTimer);
+        S.gemTimer = setTimeout(() => nav.classList.remove("rolling"), 380);
+      }
+      nav.style.setProperty("--i", i);
+      nav.style.setProperty("--rot", S.gemRot + "deg");
+    }
     $$("textarea.autogrow", body).forEach(grow);
     if (S.tab === "notes") X.afterNotesRender();
     if (readOnly()) $$("input:not([data-ui]), textarea, select:not([data-ui])", body).forEach(el => (el.disabled = true));
     if (S.tab === "spells" && S.ui.spellQ) filterSpells(S.ui.spellQ);
     if (S.tab === "inventory" && S.ui.invQ) filterSpells(S.ui.invQ);
+    if (S.tab === "features" && S.ui.featQ) filterSpells(S.ui.featQ);
     updateCalcs();
   }
 
@@ -725,7 +739,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     if (!body) return;
     const needle = q.trim().toLowerCase();
     let shown = 0;
-    $$(".spell-lists .panel, .inv-lists .panel", body).forEach(p => {
+    $$(".spell-lists .panel, .inv-lists .panel, .feat-lists .panel", body).forEach(p => {
       let any = 0;
       $$("[data-search]", p).forEach(t => {
         const ok = !needle || t.dataset.search.includes(needle);
@@ -773,9 +787,9 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       $$(".jr-tab", body).forEach(el => el.classList.toggle("on", !on && el.dataset.k === S.ui.notesSection));
       return true;
     }
-    const q = e.target.closest("[data-ui=spell-q], [data-ui=inv-q]");
+    const q = e.target.closest("[data-ui=spell-q], [data-ui=inv-q], [data-ui=feat-q]");
     if (!q || !root.contains(q)) return false;
-    S.ui[q.dataset.ui === "inv-q" ? "invQ" : "spellQ"] = q.value;
+    S.ui[{ "inv-q": "invQ", "feat-q": "featQ" }[q.dataset.ui] || "spellQ"] = q.value;
     filterSpells(q.value);
     return true;
   };
@@ -1013,6 +1027,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         return mutate(ch => (ch.notes[sec] || []).forEach(x => { x.collapsed = v; }));
       }
       case "spell-filter": S.ui.spellFilter = el.dataset.k; return renderTab();
+      case "feat-filter": S.ui.featFilter = el.dataset.k; return renderTab();
       case "gear-table": return X.gearTable();
       case "dedupe-attacks": {
         const ids = combatSources(c, S.d).dupes.map(x => x.id);
@@ -1160,6 +1175,8 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
           S.ui.notesQ = "";
           S.ui.spellQ = "";
           S.ui.invQ = "";
+          S.ui.featQ = "";
+          S.ui.featFilter = "all";
           S.ui.spellFilter = "all";
           S.ui.noteTag = "";
           S.ui.peopleAtt = "all";

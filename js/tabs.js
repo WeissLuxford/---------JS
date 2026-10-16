@@ -1,9 +1,8 @@
 import { COINS, ABILITIES, SKILLS, DAMAGE, ACTIONS, FEATURE_CATS, RARITY, CONDITIONS, DEFENSE_KINDS, containerTree, fmt, usesInfo, spellCast, effectSummary, spellInCombat, itemInCombat, featureInCombat, xpInfo, ammoFor, sceneInfo } from "./rules.js";
 import { icon, actionMark, acIcon, hpIcon, PORTRAIT_PLACEHOLDER } from "./icons.js";
 import { esc, pips, rich, artFx } from "./ui.js";
-import { CLASSES } from "./classes.js";
 import { DOLL_SLOTS, dollLayout, SILHOUETTE } from "./doll.js";
-import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum, purseGp, PROF_KINDS } from "./entities.js";
+import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum, purseGp, PROF_KINDS, classOf, featureColor, itemGlows } from "./entities.js";
 import { NOTE_SECTIONS, SECTION_NAME, NOTE_STATUS, NOTE_ATTITUDE, CLUE_STATE, noteTagsOf, searchNotes, queryStems, highlight, snippetHtml, plainText, richLinks, backlinks, currentSession, pinnedNotes, linkTargets } from "./notes.js";
 
 export const TABS = [
@@ -34,13 +33,7 @@ function addBtn(act, label, extra = "") {
   return `<button class="btn ghost sm" data-act="${act}" ${extra}>${icon("plus")}${esc(label)}</button>`;
 }
 
-const CLASS_COLORS = { barbarian: "#ff6a3d", bard: "#e38ae6", cleric: "#f4d66d", druid: "#78cf6a", fighter: "#e5533d", monk: "#6fd6ff", paladin: "#ffe08a", ranger: "#4fa776", rogue: "#a9b4c2", sorcerer: "#ff7a4a", warlock: "#b46bff", wizard: "#4fa3ff" };
-
-export function classOf(c) {
-  const cls = String((c && c.info && c.info.cls) || "").toLowerCase();
-  const k = Object.keys(CLASSES).find(x => CLASSES[x].match.test(cls));
-  return k ? { name: CLASSES[k].name, icon: "cls" + k[0].toUpperCase() + k.slice(1), color: CLASS_COLORS[k] } : null;
-}
+export { classOf };
 
 export function subtitle(c) {
   const race = [c.info.race].filter(Boolean).join(" ");
@@ -489,30 +482,53 @@ export function tabSpells(ctx) {
 }
 
 function featureTile(ctx, f) {
-  const { d } = ctx;
-  const cat = FEATURE_CATS[f.category] || FEATURE_CATS.other;
+  const { c, d } = ctx;
   const a = ACTIONS[f.action] || ACTIONS.passive;
   const u = usesInfo(d, f);
-  const color = f.source === "dm" ? "#f0c46a" : f.source === "own" ? "#6fd3c4" : "#c9a0ff";
-  const src = f.source === "dm" ? `<i class="flag gold" title="От Мастера">М</i>` : f.source === "own" ? `<i class="flag teal" title="Своё">С</i>` : "";
-  return `<button class="tile" data-rid="${esc(f.id)}" data-open="feature:${esc(f.id)}" data-card="feature:${esc(f.id)}" style="--c:${color}">
-    <span class="tile-ic">${icon(featureIcon(f))}</span>
+  const color = featureColor(c, f);
+  const search = [f.name, f.nameEn, f.effect].filter(Boolean).join(" ").toLowerCase();
+  const fx = artFx("hot", color, .35);
+  return `<button class="tile" data-rid="${esc(f.id)}" data-open="feature:${esc(f.id)}" data-card="feature:${esc(f.id)}" data-search="${esc(search)}" style="--c:${color}">
+    <span class="tile-ic fx"${fx ? ` style="--fx:url(#${fx})"` : ""}>${icon(featureIcon(f))}</span>
     <span class="tile-main"><span class="tile-name">${esc(f.name)}</span><span class="tile-sub">${actionMark(a.shape, a.color)}<span class="tile-sub-t">${esc(a.name)}${f.effect ? ` · ${esc(f.effect)}` : ""}</span></span></span>
-    <span class="tile-side">${src}${u ? pips(u.max, u.left, "#e9a54a") : ""}</span>
+    <span class="tile-side">${u ? pips(u.max, u.left, "#e9a54a") : ""}</span>
   </button>`;
 }
 
+const FEAT_FILTERS = [["all", "Все"], ["active", "Действия"], ["passive", "Пассивные"], ["uses", "С зарядами"]];
+
+function featPass(d, f, k) {
+  if (k === "active") return ["action", "bonus", "reaction"].includes(f.action);
+  if (k === "passive") return !["action", "bonus", "reaction"].includes(f.action);
+  if (k === "uses") return !!usesInfo(d, f);
+  return true;
+}
+
 export function tabFeatures(ctx) {
-  const { c } = ctx;
-  const pact = c.info.patron || c.info.pactBoon ? `<div class="pact-line">${icon("pact")}<span>${c.info.patron ? `Покровитель: <b>${esc(c.info.patron)}</b>` : ""}${c.info.patron && c.info.pactBoon ? " · " : ""}${c.info.pactBoon ? esc(c.info.pactBoon) : ""}</span><button class="icon-btn" data-act="edit-info" title="Изменить">${icon("edit")}</button></div>` : "";
-  const sections = Object.entries(FEATURE_CATS).map(([key, cat]) => {
-    const list = c.features.filter(f => (f.category || "other") === key);
-    if (!list.length) return "";
-    return panel(cat.name, `<div class="tiles" data-reorder="features">${list.map(f => featureTile(ctx, f)).join("")}</div>`, { ic: cat.icon, actions: addBtn("add-feature", "", `data-cat="${key}" title="Добавить"`) });
+  const { c, d, ui } = ctx;
+  const cls = classOf(c);
+  const who = [cls ? `<b>${esc(cls.name)}</b> ${d.level} уровня` : `<b>${d.level}</b> уровень`, c.info.patron ? `покровитель <b>${esc(c.info.patron)}</b>` : "", c.info.pactBoon ? esc(c.info.pactBoon) : ""].filter(Boolean).join(" · ");
+  const ident = `<div class="feat-who" style="--ac:${(cls && cls.color) || "var(--gold)"}">${icon(cls ? cls.icon : "pact")}<span>${who}</span><button class="icon-btn" data-act="edit-info" title="Изменить" aria-label="Изменить">${icon("edit")}</button></div>`;
+  const charges = c.features.map(f => {
+    const u = usesInfo(d, f);
+    if (!u) return "";
+    return `<div class="res-row"><button class="res-name" data-open="feature:${esc(f.id)}" data-card="feature:${esc(f.id)}">${esc(f.name)}<small>${esc(rechargeShort(f.recharge))}</small></button><span class="pips big">${Array.from({ length: Math.min(u.max, 30) }, (_, i) => `<button class="pip ${i < u.left ? "on" : ""}" data-act="use-pip" data-ref="feature:${esc(f.id)}" data-i="${i}" style="--c:#e9a54a"></button>`).join("")}</span><span class="slot-n">${u.left}/${u.max}</span></div>`;
   }).join("");
-  return `${pact}
-    <div class="legend"><span><i class="flag gold">М</i> от Мастера</span><span><i class="flag teal">С</i> своё</span><span class="spacer"></span>${orderBtn(ctx)}<button class="btn ghost sm" data-act="feature-library">${icon("book")}Библиотека</button>${addBtn("add-feature", "Умение", 'data-cat="other"')}</div>
-    ${sections || emptyState("Умений пока нет")}`;
+  const head = ident + (charges ? `<div class="feat-charges">${charges}</div>` : "");
+  const has = k => c.features.some(f => featPass(d, f, k));
+  const k = FEAT_FILTERS.some(([x]) => x === ui.featFilter) && has(ui.featFilter) ? ui.featFilter : "all";
+  const filters = FEAT_FILTERS.filter(([x]) => x === "all" || has(x));
+  const tools = c.features.length > 5 && !ui.ordering ? `<div class="spell-tools"><label class="search-box">${icon("search")}<input type="search" data-ui="feat-q" placeholder="Найти умение" value="${esc(ui.featQ || "")}" aria-label="Найти умение"></label><div class="chips filter">${filters.map(([x, l]) => `<button class="chip toggle ${k === x ? "on" : ""}" data-act="feat-filter" data-k="${x}" aria-pressed="${k === x ? "true" : "false"}">${l}</button>`).join("")}</div></div>` : "";
+  const sections = Object.entries(FEATURE_CATS).map(([key, cat]) => {
+    const list = c.features.filter(f => (f.category || "other") === key && (ui.ordering || featPass(d, f, k)));
+    if (!list.length) return "";
+    return panel(cat.name, `<div class="tiles" data-reorder="features">${list.map(f => featureTile(ctx, f)).join("")}</div>`, { ic: cat.icon, actions: addBtn("add-feature", "", `data-cat="${key}" title="Добавить" aria-label="Добавить"`) });
+  }).join("");
+  return `
+    ${panel("Умения", head, { ic: "gi/lorc/laurels", cls: "feat-head", actions: helpBtn("stat:features") + orderBtn(ctx) + `<button class="btn ghost sm" data-act="feature-library">${icon("book")}Библиотека</button>` + addBtn("add-feature", "Умение", 'data-cat="other"') })}
+    ${tools}
+    <div class="feat-lists">${sections || (c.features.length ? `<p class="empty">Под этот фильтр ничего не подходит</p>` : emptyState("Умений пока нет. Выбери их в «Библиотеке» или добавь своё."))}</div>
+    <p class="empty" data-search-empty hidden>Ничего не нашлось</p>`;
 }
 
 const RARITY_ORDER = ["common", "uncommon", "rare", "veryRare", "legendary", "artifact", "story"];
@@ -559,8 +575,7 @@ export function invFilterPass(it, f) {
 
 const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many);
 
-const GLOW_RARITY = ["rare", "veryRare", "legendary", "artifact"];
-const glows = it => GLOW_RARITY.includes(it.rarity);
+const glows = itemGlows;
 
 function invSlot(it, tree, open) {
   const r = RARITY[it.rarity] || RARITY.common;

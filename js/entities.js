@@ -1,10 +1,11 @@
 import {
-  ABILITIES, SKILLS, DAMAGE, SCHOOLS, ACTIONS, RECHARGE, RARITY, ITEM_TYPES, FEATURE_CATS, FEATURE_SOURCES,
+  ABILITIES, SKILLS, DAMAGE, SCHOOLS, ACTIONS, RECHARGE, RARITY, ITEM_TYPES, FEATURE_CATS,
   CONDITIONS, CASTER_TYPES, HIT_DICE, ALIGNMENTS, ACCENTS, fmt, spellCast, usesInfo, swapType, uid, addDice, effectSummary, weaponStats, asWeapon
 } from "./rules.js";
 import { icon, slotMark, actionMark, acIcon, hpIcon } from "./icons.js";
 import { card, rich, esc, actionFoot, openForm } from "./ui.js";
 import { spellIconByName, featureIconByName } from "./icon-map.js";
+import { CLASSES } from "./classes.js";
 
 const ABIL_OPTS = ABILITIES.map(a => [a.key, a.name]);
 const SAVE_OPTS = [["", "Нет"], ...ABIL_OPTS];
@@ -109,6 +110,24 @@ export function guessIcon(name, words) {
   const hit = words.find(([re]) => re.test(n));
   return hit ? hit[1] : "";
 }
+
+const CLASS_COLORS = { barbarian: "#ff6a3d", bard: "#e38ae6", cleric: "#f4d66d", druid: "#78cf6a", fighter: "#e5533d", monk: "#6fd6ff", paladin: "#ffe08a", ranger: "#4fa776", rogue: "#a9b4c2", sorcerer: "#ff7a4a", warlock: "#b46bff", wizard: "#4fa3ff" };
+
+export function classOf(c) {
+  const cls = String((c && c.info && c.info.cls) || "").toLowerCase();
+  const k = Object.keys(CLASSES).find(x => CLASSES[x].match.test(cls));
+  return k ? { name: CLASSES[k].name, icon: "cls" + k[0].toUpperCase() + k.slice(1), color: CLASS_COLORS[k] } : null;
+}
+
+const FEAT_COLORS = { invocation: "#7aa2ff", gift: "#ff6a5a", race: "#e9a54a", background: "#d8c08a", feat: "#f4d66d", other: "#8fb8d8" };
+
+export function featureColor(c, f) {
+  if ((f.category || "other") === "class") return (classOf(c) || {}).color || "#c9a0ff";
+  return FEAT_COLORS[f.category] || FEAT_COLORS.other;
+}
+
+const GLOW_RARITY = ["rare", "veryRare", "legendary", "artifact"];
+export const itemGlows = it => GLOW_RARITY.includes(it.rarity);
 
 export function featureIcon(f) {
   return f.icon || featureIconByName(f) || guessIcon(f.name, FEATURE_WORDS) || (FEATURE_CATS[f.category] || FEATURE_CATS.other).icon;
@@ -220,7 +239,6 @@ export function featureModel(c, d, f) {
   const cat = FEATURE_CATS[f.category] || FEATURE_CATS.other;
   const u = usesInfo(d, f);
   const lines = (f.damage || []).map(x => ({ dice: x.addMod ? addDice(x.dice, d.spell.mod) : x.dice, type: swapType(c, x.type), swapped: swapType(c, x.type) !== x.type, origType: x.type }));
-  const src = FEATURE_SOURCES[f.source];
   const footer = [actionFoot(f.action || "passive")];
   if (u) footer.push({ mark: slotMark("#e9a54a"), text: rechargeText(f, u) });
   else if (f.recharge === "always" && f.action && f.action !== "passive") footer.push({ mark: slotMark("#8d8577"), text: "Всегда доступно" });
@@ -228,8 +246,8 @@ export function featureModel(c, d, f) {
   return {
     title: f.name,
     subtitle: (FEATURE_SINGULAR[f.category] || "Умение") + (f.nameEn ? ` · ${f.nameEn}` : ""),
-    art: { icon: featureIcon(f), color: f.source === "dm" ? "#f0c46a" : "#c9a0ff" },
-    badges: [src ? { text: src, color: f.source === "dm" ? "#f0c46a" : f.source === "own" ? "#6fd3c4" : "#c9a35b" } : null],
+    art: { icon: featureIcon(f), color: featureColor(c, f), fx: "hot" },
+    badges: [],
     dice: lines,
     body: rich(f.description),
     effect: f.effect,
@@ -264,7 +282,7 @@ export function itemModel(c, d, it) {
     title: it.name,
     subtitle: t.name,
     subAccent: { text: r.name, color: r.color },
-    art: { icon: itemIcon(it), color: r.color, fx: r.fx },
+    art: { icon: itemIcon(it), color: r.color, fx: itemGlows(it) ? r.fx : "flat" },
     rarityColor: r.color,
     badges: [it.equipped ? { text: "Экипировано", color: "#e9c77a" } : null, it.requiresAttunement ? { text: it.attuned ? "Настроено" : "Требует настройки", color: it.attuned ? "#b46bff" : "#8d8577" } : null],
     dice: lines,
@@ -405,6 +423,9 @@ export function statModel(c, d, key) {
     const top = heavy.map(it => `- ${esc(it.name)}: ${fmtNum((Number(it.weight) || 0) * (Number(it.qty) || 1))} фнт`).join("\n");
     return { title: "Вес", subtitle: `${fmtNum(d.weight)} из ${L.max} фнт`, art: { icon: "gi/delapouite/weight", color: d.weight > L.max ? "#e5533d" : "#e9c77a" }, body: rich(`Унести можно Сила × 15 = **${L.max} фнт**. Вещи в оставленных контейнерах не считаются.\n\nПо варианту правил с обременением: больше ${L.light} фнт скорость −10 фт, больше ${L.heavy} фнт скорость −20 фт и помеха на броски Сил, Лов, Тел.${top ? `\n\n**Тяжелее всего:**\n${top}` : ""}`), footer: [{ mark: actionMark("ring", "#e9c77a"), text: "Считается сам" }] };
   }
+  if (key === "features") {
+    return { title: "Умения", subtitle: "Классовые, расовые, черты и всё прочее", art: { icon: "gi/lorc/laurels", color: "#f4d66d" }, body: rich("- Нажми на умение, чтобы открыть его карточку. Активное умение там же и применяется.\n- Заряды сверху тратятся нажатием на точку и восстанавливаются отдыхом сами.\n- Цвет иконки показывает раздел: классовые в цвете класса, воззвания синие, дары покровителя красные, расовые янтарные.") };
+  }
   if (key === "doll") {
     return { title: "Надето", subtitle: "Как в BG3", art: { icon: "gi/lorc/battle-gear", color: "#e9c77a" }, body: rich("- Нажми на ячейку, чтобы надеть, заменить или снять вещь.\n- Двуручное оружие занимает обе руки.\n- Сменное оружие не считается в бою, пока не поменяешь комплекты кнопкой между ними.\n- Колец и амулетов правила не ограничивают: лишние окажутся в «Ещё надето». Настроиться можно только на 3 магических предмета.\n- Картинку персонажа во весь рост можно поставить в профиле, «Портрет и доска».") };
   }
@@ -509,7 +530,6 @@ export const EDITORS = {
       { key: "name", label: "Название", span: 2, max: 120 },
       { key: "nameEn", label: "Англ. название" },
       { key: "category", label: "Раздел", type: "select", options: FEATURE_CATS },
-      { key: "source", label: "Откуда", type: "select", options: Object.entries(FEATURE_SOURCES).map(([k, v]) => [k, v || "Не указано"]) },
       { key: "action", label: "Действие", type: "select", options: actionOpts },
       { key: "uses", label: "Использований", placeholder: "1 или =pb", hint: usesHint },
       { key: "recharge", label: "Перезарядка", type: "select", options: rechargeOpts },
