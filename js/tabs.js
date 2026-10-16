@@ -606,6 +606,13 @@ function dollCell(c, slot, it, { two = false } = {}) {
   return `<button class="dslot ${two ? "two" : ""} ${r.fx === "flat" ? "" : "magic"}" data-act="doll-slot" data-slot="${slot}" data-drag="${esc(it.id)}" data-dz="slot:${slot}" data-card="item:${esc(it.id)}" data-search="${esc(search)}" style="--c:${r.color}"><span class="dslot-ic${r.fx === "flat" ? " flat" : ""}"${fx ? ` style="--fx:url(#${fx})"` : ""}>${icon(itemIcon(it))}</span>${it.attuned ? `<span class="slot-att" title="Настроено">${icon("sparkle")}</span>` : ""}<span class="dslot-n">${esc(it.name)}</span>${two ? `<small class="dslot-two">Двуручное</small>` : ""}</button>`;
 }
 
+export function artStyle(p) {
+  const x = Number(p && p.x) || 0;
+  const y = Number(p && p.y) || 0;
+  const z = Number(p && p.z) || 1;
+  return `object-position:${x}% ${y}%;transform:scale(${z});transform-origin:${x}% ${y}%`;
+}
+
 function dollPanel(ctx, tree) {
   const { c, d } = ctx;
   const L = dollLayout(c);
@@ -615,9 +622,9 @@ function dollPanel(ctx, tree) {
   const extra = `<div class="doll-extra${L.extra.length ? "" : " empty"}"><p class="inv-h">${icon("plus")}Ещё надето</p>${slotGrid(ctx, L.extra, ctx.c.items, tree, { drop: "extra", empty: `<p class="hint box-empty">Перетащи сюда, чтобы носить без ячейки</p>` })}</div>`;
   const body = `
     <div class="doll${c.fullArt ? " has-art" : ""}">
-      ${c.fullArt ? `<img class="doll-art" src="${esc(c.fullArt)}" alt="">` : ""}
+      ${c.fullArt ? `<img class="doll-art" src="${esc(c.fullArt)}" alt="" style="${artStyle(c.fullArtPos)}">` : ""}
       <div class="doll-col">${col("left")}</div>
-      <div class="doll-mid">${c.fullArt ? "" : SILHOUETTE}<div class="doll-ac" data-card="stat:ac">${icon(acIcon(d.ac))}<b data-calc="ac">${d.ac}</b><small>КД</small></div></div>
+      <div class="doll-mid">${c.fullArt ? `<button class="doll-art-btn" data-act="art-frame" title="Поправить картинку" aria-label="Поправить картинку">${icon("target")}Кадр</button>` : `${SILHOUETTE}<button class="doll-add" data-act="art-add" title="Картинка во весь рост" aria-label="Добавить картинку во весь рост">${icon("plus")}<span>Картинка<br>во весь рост</span></button>`}<div class="doll-ac" data-card="stat:ac">${icon(acIcon(d.ac))}<b data-calc="ac">${d.ac}</b><small>КД</small></div></div>
       <div class="doll-col">${col("right")}</div>
     </div>
     <div class="doll-arms">

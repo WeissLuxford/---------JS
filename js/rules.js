@@ -709,6 +709,8 @@ export function normalize(c) {
   out.name = String(out.name ?? "").slice(0, 120);
   out.portrait = typeof out.portrait === "string" && out.portrait.startsWith("data:image/") ? out.portrait : "";
   out.fullArt = typeof out.fullArt === "string" && out.fullArt.startsWith("data:image/") ? out.fullArt : "";
+  const ap = out.fullArtPos && typeof out.fullArtPos === "object" ? out.fullArtPos : {};
+  out.fullArtPos = { x: Math.max(0, Math.min(100, num(ap.x, 50))), y: Math.max(0, Math.min(100, num(ap.y, 0))), z: Math.max(1, Math.min(3, num(ap.z, 1))) };
   out.boardAt = Math.max(0, num(out.boardAt));
   for (const k of ABILITY_KEYS) out.abilities[k] = Math.max(1, Math.min(30, Math.round(num(out.abilities[k], 10))));
   out.info.level = clampLevel(out.info.level);

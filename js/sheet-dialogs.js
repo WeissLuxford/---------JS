@@ -1,8 +1,8 @@
 import { canInstall } from "./pwa.js";
 import { SKILLS, ABILITIES, mod, compute, normalize, fmt, importCharacter, payCoins, COIN_NAMES, COIN_CP, COINS, coinsText, coinsTotalCp, CONDITIONS, RARITY, FEATURE_CATS, SCENE_TIMES, SCENE_WEATHER, sceneInfo } from "./rules.js";
 import { icon } from "./icons.js";
-import { esc, $, toast, openModal, confirmDialog, rollLog, fxSettings, canVibrate, playSound, dateTime, timeAgo, download, pickFile, rollCardOn } from "./ui.js";
-import { subtitle } from "./tabs.js";
+import { esc, $, toast, openModal, compressImage, confirmDialog, rollLog, fxSettings, canVibrate, playSound, dateTime, timeAgo, download, pickFile, rollCardOn } from "./ui.js";
+import { subtitle, artStyle } from "./tabs.js";
 import { cardFor, itemIcon, spellIcon, featureIcon, attackIcon, fmtNum } from "./entities.js";
 import { listHistory, createChar, getMode, subscribeList, getRecents, newCharId } from "./store.js";
 import { describeChanges } from "./changes.js";
@@ -98,6 +98,92 @@ export function installDialogs(X) {
     }
     playSound("coins");
     toast(`${icon("coin")} ${pay ? "Заплачено" : "Получено"} ${n} ${COIN_NAMES[unit]}. В кошельке: ${esc(coinsText(S.c.coins))}`, { kind: "good", timeout: 4000 });
+  }
+
+  async function pickFullArt() {
+    const file = await pickFile("image/*");
+    if (!file) return;
+    try {
+      const data = await compressImage(file, { max: 1100, limit: 220000 });
+      if (!data) return toast("Картинка слишком большая", { kind: "bad" });
+      return artFrame(data);
+    } catch {
+      toast("Не получилось прочитать картинку", { kind: "bad" });
+    }
+  }
+
+  function artFrame(fresh) {
+    const src = fresh || (S.c && S.c.fullArt);
+    if (!src) return;
+    const start = fresh ? { x: 50, y: 0, z: 1 } : { x: 50, y: 0, z: 1, ...(S.c.fullArtPos || {}) };
+    const pos = { ...start };
+    const doll = root.querySelector(".doll");
+    const r = doll ? doll.getBoundingClientRect() : { width: 340, height: 470 };
+    const dw = Math.max(240, r.width || 340);
+    const dh = Math.max(300, r.height || 470);
+    const col = Math.min(45, (88 / dw) * 100);
+    return new Promise(resolve => {
+      let saved = false;
+      const m = openModal({
+        title: fresh ? "Картинка во весь рост" : "Кадр картинки",
+        cls: "art-frame-modal",
+        body: `<div class="art-frame" style="aspect-ratio:${dw} / ${dh}"><img src="${esc(src)}" alt="" draggable="false"><div class="art-ghost" style="--col:${col}%"><span></span><span></span></div></div>
+          <label class="fld art-zoom"><span>Масштаб</span><input type="range" min="1" max="3" step="0.01" value="${pos.z}" data-zoom></label>
+          <p class="hint">Тяни картинку, чтобы подвинуть. Полосы по краям показывают, где встанут ячейки.</p>
+          <div class="form-actions"><button class="btn ghost" data-reset>${icon("history")}Сбросить</button><span class="spacer"></span><button class="btn gold" data-save>${icon("check")}Сохранить</button></div>`,
+        onClose: () => resolve(saved)
+      });
+      const frame = m.body.querySelector(".art-frame");
+      const img = frame.querySelector("img");
+      const zoom = m.body.querySelector("[data-zoom]");
+      const paint = () => img.setAttribute("style", artStyle(pos));
+      paint();
+      const span = axis => {
+        const fw = frame.clientWidth;
+        const fh = frame.clientHeight;
+        const iw = img.naturalWidth || fw;
+        const ih = img.naturalHeight || fh;
+        const s = Math.max(fw / iw, fh / ih);
+        return axis === "x" ? Math.max(1, iw * s - fw + (pos.z - 1) * fw) : Math.max(1, ih * s - fh + (pos.z - 1) * fh);
+      };
+      let drag = null;
+      frame.addEventListener("pointerdown", e => {
+        drag = { x: e.clientX, y: e.clientY, px: pos.x, py: pos.y, id: e.pointerId };
+        frame.setPointerCapture(e.pointerId);
+      });
+      frame.addEventListener("pointermove", e => {
+        if (!drag || e.pointerId !== drag.id) return;
+        pos.x = Math.max(0, Math.min(100, drag.px - ((e.clientX - drag.x) / span("x")) * 100));
+        pos.y = Math.max(0, Math.min(100, drag.py - ((e.clientY - drag.y) / span("y")) * 100));
+        paint();
+      });
+      const stop = () => (drag = null);
+      frame.addEventListener("pointerup", stop);
+      frame.addEventListener("pointercancel", stop);
+      frame.addEventListener("wheel", e => {
+        e.preventDefault();
+        pos.z = Math.max(1, Math.min(3, pos.z * (e.deltaY < 0 ? 1.08 : 1 / 1.08)));
+        zoom.value = pos.z;
+        paint();
+      }, { passive: false });
+      zoom.addEventListener("input", () => {
+        pos.z = Number(zoom.value) || 1;
+        paint();
+      });
+      m.body.querySelector("[data-reset]").onclick = () => {
+        Object.assign(pos, { x: 50, y: 0, z: 1 });
+        zoom.value = 1;
+        paint();
+      };
+      m.body.querySelector("[data-save]").onclick = () => {
+        const p = { x: Math.round(pos.x * 10) / 10, y: Math.round(pos.y * 10) / 10, z: Math.round(pos.z * 100) / 100 };
+        saved = X.mutate(c => {
+          if (fresh) c.fullArt = fresh;
+          c.fullArtPos = p;
+        }) !== false;
+        m.close();
+      };
+    });
   }
 
   function dollPicker(slot) {
@@ -549,5 +635,5 @@ export function installDialogs(X) {
     });
   }
 
-  Object.assign(X, { dollPicker, backupDialog, sceneDialog, coinDialog, searchAll, switchChar, shortRest, longRest, restSummary, historyDialog, rollLogDialog, importDialog, menu, fileItems, spellAbilityDialog, sheetCheckDialog });
+  Object.assign(X, { dollPicker, pickFullArt, artFrame, backupDialog, sceneDialog, coinDialog, searchAll, switchChar, shortRest, longRest, restSummary, historyDialog, rollLogDialog, importDialog, menu, fileItems, spellAbilityDialog, sheetCheckDialog });
 }

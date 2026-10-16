@@ -1,4 +1,4 @@
-const VERSION = "v50";
+const VERSION = "v51";
 const SHELL = "dnd-shell-" + VERSION;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -92,8 +92,9 @@ self.addEventListener("activate", event => {
   );
 });
 
-function fromNetwork(request, cacheName, opaque = false) {
-  return fetch(request).then(res => {
+function fromNetwork(request, cacheName, opaque = false, fresh = false) {
+  const req = !fresh ? request : request.mode === "navigate" ? new Request(request.url, { cache: "no-cache" }) : new Request(request, { cache: "no-cache" });
+  return fetch(req).then(res => {
     if (res && ((res.ok && (res.type === "basic" || res.type === "cors")) || (opaque && res.type === "opaque"))) {
       const copy = res.clone();
       caches.open(cacheName).then(c => c.put(request, copy)).catch(() => {});
@@ -103,7 +104,7 @@ function fromNetwork(request, cacheName, opaque = false) {
 }
 
 function networkFirst(event, request) {
-  const net = fromNetwork(request, SHELL);
+  const net = fromNetwork(request, SHELL, false, true);
   event.waitUntil(net.then(() => null, () => null));
   const cached = () => caches.match(request, { ignoreSearch: true }).then(hit => hit || (request.mode === "navigate" ? caches.match("index.html") : null));
   const timer = new Promise(res => setTimeout(res, NETWORK_WAIT)).then(cached);

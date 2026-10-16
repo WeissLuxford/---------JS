@@ -297,6 +297,10 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
   }
 
   function rerenderKeepingModal() {
+    if (S.dragBusy && S.dragBusy()) {
+      S.pendingRender = true;
+      return;
+    }
     S.pendingRender = false;
     renderAll(true);
     if (S.openRef && S.openModalApi) X.refreshEntityModal();
@@ -828,7 +832,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     return m;
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-armor", "edit-abilities", "edit-prof", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "note-create-link", "feature-library", "box-stored", "spell-ability", "doll-slot", "doll-swap"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-armor", "edit-abilities", "edit-prof", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "note-create-link", "feature-library", "box-stored", "spell-ability", "doll-slot", "doll-swap", "art-add", "art-frame"]);
 
   const UNDO = {
     "hp-quick": el => (Number(el.dataset.n) < 0 ? `Урон ${-Number(el.dataset.n)}` : `Лечение ${el.dataset.n}`),
@@ -1238,6 +1242,8 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         if (i < 0) playSound("equip");
         return;
       }
+      case "art-add": return X.pickFullArt();
+      case "art-frame": return X.artFrame();
       case "doll-slot": return X.dollPicker(el.dataset.slot);
       case "doll-swap": return X.withUndo("Смена оружия", () => mutate(ch => { swapSets(ch); }));
       case "box-stored": return mutate(ch => { const b = ch.items.find(x => x.id === el.dataset.id); if (b) b.stored = !b.stored; });
@@ -1419,6 +1425,9 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     if (ok === false) renderTab();
   });
   const offDrag = enableItemDrag(root, {
+    onEnd: () => {
+      if (S.pendingRender && !S.disposed && !inputFocused()) rerenderKeepingModal();
+    },
     canDrag: () => !!S.c && !S.disposed && S.tab === "inventory" && !S.ui.ordering && !readOnly(),
     onDrop: (src, t) => {
       const id = src.dataset.drag;
@@ -1438,8 +1447,10 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       playSound(target.kind === "slot" || target.kind === "extra" ? "equip" : "unequip");
     }
   });
+  S.dragBusy = () => offDrag.busy();
   const offLong = enableLongPress(root, (ref, el) => {
     if (!S.c || S.disposed || S.ui.ordering || root.classList.contains("item-dragging")) return;
+    if (el.closest("[data-drag]") && S.tab === "inventory" && !readOnly()) return;
     hideHoverCard();
     if (el.closest("[data-open]")) return X.openEntity(el.closest("[data-open]").dataset.open);
     const html = cardFor(S.c, S.d, ref);

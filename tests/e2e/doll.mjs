@@ -78,6 +78,31 @@ dp.on("pageerror", e => errors.push(e.message));
   await page.screenshot({ path: OUT + "doll-desk.png", fullPage: true });
 }
 await desk.close();
+const tctx = await browser.newContext({ viewport: { width: 390, height: 2400 }, hasTouch: true, isMobile: true, serviceWorkers: "block" });
+await tctx.route(/gstatic.com|googleapis.com|google.com/, x => x.abort());
+{
+  const page = await tctx.newPage();
+  page.on("pageerror", e => errors.push(e.message));
+  await page.goto("http://localhost:8765/#/c/kirion-thorndike/inventory");
+  await page.waitForSelector(".doll");
+  const cdp = await tctx.newCDPSession(page);
+  const touch = (type, x, y) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y, id: 1 }] });
+  const mid = async sel => { const b = await page.locator(sel).first().boundingBox(); return [b.x + b.width / 2, b.y + b.height / 2]; };
+  const [x0, y0] = await mid(".doll-swap");
+  await touch("touchStart", x0, y0);
+  await touch("touchEnd");
+  await sleep(300);
+  const [x1, y1] = await mid(".inv-carried .slot:has-text('Фонарь с колпаком')");
+  const [x2, y2] = await mid(".inv-carried .slot.box:has-text('Рюкзак')");
+  await touch("touchStart", x1, y1);
+  await sleep(350);
+  for (let i = 1; i <= 12; i++) { await touch("touchMove", x1 + (x2 - x1) * i / 12, y1 + (y2 - y1) * i / 12); await sleep(25); }
+  await touch("touchEnd");
+  await sleep(500);
+  ok("touch hold and drag right after a tap puts the lantern in the backpack", (await page.locator(".box-pop:not([hidden])", { hasText: "Фонарь с колпаком" }).count()) === 1);
+  ok("long hold on an item does not open its card", (await page.locator(".modal-back.in").count()) === 0);
+}
+await tctx.close();
 ok("no errors", errors.length === 0, errors.join("|"));
 await browser.close();
 console.log(r.join("\n"));
