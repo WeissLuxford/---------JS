@@ -72,7 +72,7 @@ export function installRolls(X) {
       localStorage.setItem("dnd.turn." + id, JSON.stringify(S.ui.turn));
     } catch {}
     const bar = $("[data-turn]", root);
-    if (bar) bar.outerHTML = turnBar({ ui: S.ui });
+    if (bar) bar.outerHTML = turnBar({ c: S.c, ui: S.ui });
   }
 
   function markAction(kind) {

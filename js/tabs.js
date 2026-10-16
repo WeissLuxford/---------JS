@@ -295,9 +295,8 @@ function attacksPanel(ctx) {
     group(src.pinned.length ? "Закреплено" : "", "pinned", src.pinned.map(p => pinnedRow(ctx, p)).join(""));
   const spent = Object.values((ctx.ui && ctx.ui.ammoSpent) || {}).reduce((a, b) => a + b, 0);
   const collect = spent ? `<div class="ammo-bar">${icon("gi/delapouite/quiver")}<span>Выпущено боеприпасов: ${spent}. После боя можно собрать половину.</span><button class="btn ghost sm" data-act="collect-ammo">Собрать ${Math.floor(spent / 2)}</button></div>` : "";
-  const dupes = src.dupes.length ? `<div class="dupe-bar">${icon("info")}<span>${esc(src.dupes.map(a => a.name).join(", "))}: эти записи атак повторяют заклинания или оружие, поэтому спрятаны.</span><button class="btn ghost sm" data-act="dedupe-attacks">${icon("trash")}Удалить копии</button></div>` : "";
-  const hint = `<p class="hint atk-hint explain">Сюда само попадает надетое оружие, заклинания с уроном (у тех, кто готовит заклинания, только подготовленные), надетые вещи с действием и зарядами и умения с уроном. Убрать или закрепить: «В панели боя» в настройках записи.</p>`;
-  return panel("Атаки", `${dupes}${body || emptyState("Атак пока нет")}${collect}${hint}`, { ic: "gi/lorc/crossed-swords", actions: orderBtn(ctx) + addBtn("add-attack", "Атака"), cls: "p-attacks" });
+  const dupes = src.dupes.length ? `<div class="dupe-bar" title="${esc(src.dupes.map(a => a.name).join(", "))}">${icon("info")}<span>Спрятаны повторы: ${src.dupes.length}</span><button class="btn ghost sm" data-act="dedupe-attacks">${icon("trash")}Удалить копии</button></div>` : "";
+  return panel("Атаки", `${dupes}${body || emptyState("Атак пока нет")}${collect}`, { ic: "gi/lorc/crossed-swords", actions: helpBtn("stat:attacks") + orderBtn(ctx) + addBtn("add-attack", "Атака"), cls: "p-attacks" });
 }
 
 function slotsBlock(ctx) {
@@ -370,10 +369,10 @@ function effectsPanel(ctx) {
       <button class="icon-btn" data-act="remove-effect" data-id="${esc(e.id)}" title="Снять" aria-label="Снять «${esc(e.name)}»">${icon("close")}</button>
     </div>`).join("");
   const timed = list.some(e => e.rounds != null);
-  const actions = `${timed ? `<button class="btn ghost sm" data-act="next-round" title="Уменьшить длительность эффектов на 1 раунд">${icon("hourglass")}Раунд</button>` : ""}<button class="btn ghost sm" data-act="add-effect">${icon("plus")}Эффект</button>`;
+  const actions = `${helpBtn("stat:effects")}${timed ? `<button class="btn ghost sm" data-act="next-round" title="Уменьшить длительность эффектов на 1 раунд">${icon("hourglass")}Раунд</button>` : ""}<button class="btn ghost sm" data-act="add-effect">${icon("plus")}Эффект</button>`;
   const has = k => list.some(e => e.preset === k);
   const cover = `<div class="cover-row"><span>Укрытие:</span><button class="chip toggle ${has("cover2") ? "on" : ""}" data-act="cover" data-k="cover2" aria-pressed="${has("cover2")}">½ · +2 КД</button><button class="chip toggle ${has("cover5") ? "on" : ""}" data-act="cover" data-k="cover5" aria-pressed="${has("cover5")}">¾ · +5 КД</button></div>`;
-  return panel("Эффекты", `${cover}${rows ? `<div class="eff-list">${rows}</div>${timed ? `<div class="eff-foot"><button class="btn ghost sm" data-act="end-combat">${icon("gi/delapouite/sparkles")}Бой окончен: снять эффекты до минуты</button></div>` : ""}` : `<p class="hint eff-empty explain">Благословение, Сглаз, Щит и другие: прибавляются к броскам, КД и урону сами.</p>`}`, { ic: "gi/delapouite/sparkles", cls: `effects-panel ${rows ? "" : "empty"}`, actions });
+  return panel("Эффекты", `${cover}${rows ? `<div class="eff-list">${rows}</div>${timed ? `<div class="eff-foot"><button class="btn ghost sm" data-act="end-combat">${icon("gi/delapouite/sparkles")}Бой окончен: снять эффекты до минуты</button></div>` : ""}` : ""}`, { ic: "gi/delapouite/sparkles", cls: `effects-panel ${rows ? "" : "empty"}`, actions });
 }
 
 function conditionsPanel(ctx) {
@@ -384,8 +383,8 @@ function conditionsPanel(ctx) {
   const exh = `<div class="exh"><span data-card="stat:exhaustion">Истощение</span>${[0, 1, 2, 3, 4, 5, 6].map(i => `<button class="chip toggle ${c.exhaustion === i ? "on" : ""}" data-act="exhaustion" data-i="${i}" aria-pressed="${c.exhaustion === i ? "true" : "false"}" aria-label="Истощение ${i}">${i}</button>`).join("")}</div>`;
   const summary = [...active.map(k => [k.icon, k.name]), c.exhaustion ? ["sleep", `Истощение ${c.exhaustion}`] : null].filter(Boolean);
   return `<details class="panel cond-panel" data-ui-open="condOpen" ${open ? "open" : ""}>
-    <summary class="panel-h">${icon("gi/delapouite/half-dead")}<h3>Состояния</h3><span class="cond-sum">${summary.length ? summary.map(([ic, t]) => `<span class="chip bad">${icon(ic || "skull")}${esc(t)}</span>`).join("") : `<span class="dim">нет</span>`}</span><span class="spacer"></span><span class="cond-chev">${icon("down")}</span></summary>
-    <div class="panel-b"><p class="hint explain">Отмеченные состояния сами дают помеху или преимущество на броски. Зажми или наведи, чтобы прочитать описание.</p><div class="chips">${conds}</div>${exh}</div>
+    <summary class="panel-h">${icon("gi/delapouite/half-dead")}<h3>Состояния</h3><span class="cond-sum">${summary.length ? summary.map(([ic, t]) => `<span class="chip bad">${icon(ic || "skull")}${esc(t)}</span>`).join("") : `<span class="dim">нет</span>`}</span><span class="spacer"></span>${helpBtn("stat:conditions")}<span class="cond-chev">${icon("down")}</span></summary>
+    <div class="panel-b"><div class="chips">${conds}</div>${exh}</div>
   </details>`;
 }
 
@@ -395,7 +394,7 @@ export function tabCombat(ctx) {
   const res = resourceRows(ctx);
   return `
   ${combatStrip(ctx)}
-  ${turnBar(ctx)}
+  <div class="turn-wrap">${turnBar(ctx)}</div>
   <div class="combat-grid">
     <div class="col">
       <div class="rest-row">

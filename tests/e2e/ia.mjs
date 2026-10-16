@@ -29,7 +29,7 @@ async function open(viewport, path) {
   const heads = await page.locator(".menu-group h4").allInnerTexts();
   ok("menu grouped", ["Игра", "Найти", "Настройки"].every(h => heads.some(x => x.toLowerCase() === h.toLowerCase())) && !heads.some(x => /лист и файлы/i.test(x)), heads.join(","));
   ok("settings are switches", await page.locator(".menu-switch").count() === 10);
-  const explainVisible = () => page.locator(".atk-hint").first().isVisible();
+  const explainVisible = () => page.evaluate(() => { const p = document.createElement("p"); p.className = "hint explain"; p.textContent = "x"; document.querySelector(".sheet").appendChild(p); const v = getComputedStyle(p).display !== "none"; p.remove(); return v; });
   ok("explanations shown by default", await explainVisible());
   await page.click("[data-sw=explain-toggle]");
   await sleep(150);
