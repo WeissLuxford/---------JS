@@ -1849,8 +1849,8 @@ b.bad { color: #ff8a73; }
   .tab .ic { width: 22px; height: 22px; }
   .tab.on { border-top-color: transparent; }
   .tabs { overflow: visible; }
-  .tab-gem { display: block; position: absolute; z-index: 0; top: 0; left: calc((var(--i) + .5) * 100% / var(--n)); width: 58px; height: 58px; margin: -26px 0 0 -29px; pointer-events: none; transform: rotate(var(--rot, 0deg)); transition: left .45s cubic-bezier(.34, 1.3, .5, 1), transform .45s cubic-bezier(.34, 1.3, .5, 1); filter: drop-shadow(0 -2px 8px rgba(233, 199, 122, .28)) drop-shadow(0 4px 6px rgba(0, 0, 0, .6)); }
-  .tab-gem svg { width: 100%; height: 100%; display: block; }
+  .tab-gem { display: grid; place-items: center; position: absolute; z-index: 0; top: 0; left: 0; width: calc(100% / var(--n)); height: 58px; margin-top: -26px; pointer-events: none; transform: translate3d(calc(var(--i) * 100%), 0, 0); transition: transform .45s cubic-bezier(.34, 1.3, .5, 1); will-change: transform; filter: drop-shadow(0 -2px 8px rgba(233, 199, 122, .28)) drop-shadow(0 4px 6px rgba(0, 0, 0, .6)); }
+  .tab-gem svg { width: 58px; height: 58px; display: block; transform: rotate(var(--rot, 0deg)); transition: transform .45s cubic-bezier(.34, 1.3, .5, 1); will-change: transform; }
   .tab-gem .g-out { fill: url(#gemGold); stroke: #fff1c4; stroke-width: 2.5; stroke-linejoin: round; }
   .tab-gem .g-in { fill: rgba(255, 250, 230, .18); stroke: rgba(70, 45, 15, .45); stroke-width: 1.6; stroke-linejoin: round; }
   .tab-gem .g-line { fill: none; stroke: rgba(70, 45, 15, .4); stroke-width: 1.2; }
@@ -2084,7 +2084,7 @@ body.hp-dying::before { animation: hp-pulse 1.5s ease-in-out infinite; }
 .tb-portrait.low { --ring: #ff5a4a; border-color: var(--ring); animation: ring-pulse 1.6s ease-in-out infinite; }
 .tab-body.tab-in { animation: tab-in .2s ease-out; }
 @keyframes tab-in { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .tab-body.tab-in { animation: none; } .tab-gem, .tab .ic { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { .tab-body.tab-in { animation: none; } .tab-gem, .tab-gem svg, .tab .ic { transition: none !important; } }
 @keyframes ring-pulse { 0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 25%, transparent), 0 0 6px color-mix(in srgb, var(--ring) 40%, transparent); } 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 45%, transparent), 0 0 16px color-mix(in srgb, var(--ring) 75%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .tb-portrait.conc, .tb-portrait.low { animation: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 45%, transparent), 0 0 10px color-mix(in srgb, var(--ring) 60%, transparent); } }
 .check-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
@@ -2589,7 +2589,8 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 7px; border-radius: 6
 .lite .slot.magic, .lite .dslot.magic { background: color-mix(in srgb, var(--c) 14%, #15100c); }
 .lite .doll.has-art .dslot { background: rgba(14, 10, 8, .78); }
 .lite .panel::before { display: none; }
-.lite .tab-gem { transition: left .45s cubic-bezier(.34, 1.3, .5, 1), transform .45s cubic-bezier(.34, 1.3, .5, 1) !important; }
+.lite .tab-gem, .lite .tab-gem svg { transition: transform .45s cubic-bezier(.34, 1.3, .5, 1) !important; }
+.lite .tab-gem { filter: none; }
 .lite .tab .ic { transition: transform .35s cubic-bezier(.34, 1.4, .5, 1), opacity .25s !important; }
 .lite .tabs.rolling .tab.on .ic { transition-duration: .08s !important; }
 .pb-full-img { max-width: 220px; margin: 6px auto 10px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line-2); }
@@ -2624,3 +2625,18 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 7px; border-radius: 6
 .doll-extra.empty { display: none; }
 .item-dragging .doll-extra.empty { display: block; }
 .inv-carried .box-empty, .doll-extra .box-empty { grid-column: 1 / -1; text-align: center; padding: 14px 0; }
+
+.stamp { --c: var(--gold-2); flex: none; display: inline-block; align-self: center; padding: 2px 9px; border: 2px solid var(--c); border-radius: 5px; transform: rotate(-6deg); font-family: var(--font-head); font-size: 12.5px; font-weight: 700; letter-spacing: .12em; line-height: 1.25; text-transform: uppercase; white-space: nowrap; color: var(--c); background: color-mix(in srgb, var(--c) 9%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent), 0 0 10px color-mix(in srgb, var(--c) 22%, transparent); text-shadow: 0 0 8px color-mix(in srgb, var(--c) 45%, transparent); opacity: .92; }
+.stamp.failed, .stamp.false, .stamp.big.failed, .stamp.big.false { transform: rotate(3deg); }
+.stamp.big { align-self: flex-start; margin: 10px 0 6px 2px; padding: 4px 12px; transform: rotate(-3deg); font-size: 14px; animation: stamp-in .35s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes stamp-in { from { opacity: 0; scale: 1.7; } }
+@media (prefers-reduced-motion: reduce) { .stamp.big { animation: none; } }
+.nr-dates { display: flex; flex-wrap: wrap; gap: 0 6px; margin: 2px 0 0; font-size: 14px; font-style: italic; color: var(--faint); }
+.nr-dates .edited { color: var(--gold-2); }
+.nr-dates .edited::before { content: "·"; margin-right: 6px; color: var(--faint); }
+.note.session > header > .ses-date { flex: none; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 50px; margin: -6px 4px -6px -4px; padding: 6px 4px; border-right: 1px dashed rgba(201, 163, 91, .3); }
+.note.session > header > .ses-date b { font-family: var(--font-head); font-size: 22px; font-weight: 700; line-height: 1; color: var(--gold-3); font-variant-numeric: tabular-nums; }
+.note.session > header > .ses-date small { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.note.session > header > .ses-date.none { width: 0; border: 0; margin: 0; padding: 0; }
+.note.session.collapsed > header > .ses-date b { color: var(--gold); }
+.jr-date { font-size: 13px; font-style: italic; white-space: nowrap; color: var(--faint); }

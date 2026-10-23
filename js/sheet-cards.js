@@ -268,7 +268,9 @@ export function installCards(X) {
         const i = list.findIndex(x => x.id === val.id);
         if (i >= 0) {
           const next = { ...list[i] };
-          for (const k of changedKeys(initial, val)) next[k] = val[k];
+          const keys = changedKeys(initial, val);
+          for (const k of keys) next[k] = val[k];
+          if (keys.length) next.updated = Date.now();
           list[i] = next;
         } else list.unshift(val);
       }),

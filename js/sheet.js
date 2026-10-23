@@ -446,28 +446,31 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     }, 2500);
   }
 
+  function moveGem() {
+    $$(".tab", root).forEach(b => b.classList.toggle("on", b.dataset.tab === S.tab));
+    const nav = $(".tabs", root);
+    if (!nav) return;
+    const i = Math.max(0, TABS.findIndex(t => t.key === S.tab));
+    const prev = Number(nav.style.getPropertyValue("--i")) || 0;
+    if (i !== prev) {
+      S.gemRot = (S.gemRot || 0) + (i - prev) * 120;
+      nav.classList.add("rolling");
+      clearTimeout(S.gemTimer);
+      S.gemTimer = setTimeout(() => nav.classList.remove("rolling"), 380);
+    }
+    nav.style.setProperty("--i", i);
+    nav.style.setProperty("--rot", S.gemRot + "deg");
+  }
+
   function renderTab() {
     setAmbient(S.c && S.c.scene);
     const body = $("[data-body]", root);
     if (!body) return;
+    moveGem();
     body.innerHTML = (S.ui.ordering ? `<div class="order-bar">${icon("menu")}<span>Перетаскивай карточки за значок ⠿ (на компьютере ещё Alt + стрелки). Порядок сохранится для всех устройств.</span><button class="btn gold sm" data-act="toggle-order">${icon("check")}Готово</button></div>` : "") + RENDER[S.tab]({ c: S.c, d: S.d, ui: S.ui });
     body.dataset.tab = S.tab;
     body.classList.toggle("ordering", !!S.ui.ordering);
     if (S.ui.ordering) $$("[data-reorder] > [data-rid]", body).forEach(el => el.insertAdjacentHTML("afterbegin", `<span class="drag-h" aria-hidden="true">⠿</span>`));
-    $$(".tab", root).forEach(b => b.classList.toggle("on", b.dataset.tab === S.tab));
-    const nav = $(".tabs", root);
-    if (nav) {
-      const i = Math.max(0, TABS.findIndex(t => t.key === S.tab));
-      const prev = Number(nav.style.getPropertyValue("--i")) || 0;
-      if (i !== prev) {
-        S.gemRot = (S.gemRot || 0) + (i - prev) * 120;
-        nav.classList.add("rolling");
-        clearTimeout(S.gemTimer);
-        S.gemTimer = setTimeout(() => nav.classList.remove("rolling"), 380);
-      }
-      nav.style.setProperty("--i", i);
-      nav.style.setProperty("--rot", S.gemRot + "deg");
-    }
     $$("textarea.autogrow", body).forEach(grow);
     if (S.tab === "notes") X.afterNotesRender();
     if (readOnly()) $$("input:not([data-ui]), textarea, select:not([data-ui])", body).forEach(el => (el.disabled = true));
@@ -1343,12 +1346,35 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       S.ui.ordering = false;
       hideHoverCard();
       history.replaceState(history.state, "", here(S.tab));
-      renderTab();
-      const body = $("[data-body]", root);
-      body.classList.remove("tab-in");
-      void body.offsetWidth;
-      body.classList.add("tab-in");
-      window.scrollTo({ top: S.scroll[S.tab] || 0 });
+      const swap = () => {
+        if (S.disposed || !S.c) return;
+        renderTab();
+        const body = $("[data-body]", root);
+        body.classList.remove("tab-in");
+        void body.offsetWidth;
+        body.classList.add("tab-in");
+        window.scrollTo({ top: S.scroll[S.tab] || 0 });
+      };
+      moveGem();
+      clearTimeout(S.swapTimer);
+      if (S.swapOff) S.swapOff();
+      if (!liteOn() || reducedMotion()) return swap();
+      const gem = $(".tab-gem", root);
+      const off = () => {
+        if (gem) gem.removeEventListener("transitionend", onEnd);
+        S.swapOff = null;
+      };
+      const land = () => {
+        off();
+        clearTimeout(S.swapTimer);
+        swap();
+      };
+      const onEnd = ev => {
+        if (ev.target === gem && ev.propertyName === "transform") land();
+      };
+      if (gem) gem.addEventListener("transitionend", onEnd);
+      S.swapOff = off;
+      S.swapTimer = setTimeout(land, 650);
       return;
     }
     if (S.ui.ordering && e.target.closest("[data-reorder]") && !e.target.closest("[data-act=toggle-order]")) {

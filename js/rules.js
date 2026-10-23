@@ -692,7 +692,7 @@ function cleanNote(x, k, i) {
   for (const f of ["title", "subtitle", "text", "tags", "aliases", "date"]) if (f in out) out[f] = String(out[f] ?? "");
   for (const [f, ok] of Object.entries(NOTE_ENUMS)) if (f in out) out[f] = ok.includes(out[f]) ? out[f] : "";
   for (const f of ["collapsed", "pinned"]) if (f in out) out[f] = !!out[f];
-  for (const f of ["created", "touched"]) if (f in out) out[f] = Math.max(0, num(out[f]));
+  for (const f of ["created", "touched", "updated"]) if (f in out) out[f] = Math.max(0, num(out[f]));
   return out;
 }
 

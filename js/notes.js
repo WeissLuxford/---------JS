@@ -306,6 +306,28 @@ const MONTHS = ["января", "февраля", "марта", "апреля", 
 
 export const dateText = d => `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 
+const MONTHS_SHORT = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+
+function noteDay(n) {
+  const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(String(n.date || ""));
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const t = Number(n.created) || 0;
+  return t > 0 ? new Date(t) : null;
+}
+
+export function shortDate(d, now = new Date()) {
+  if (!d) return "";
+  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}${d.getFullYear() === now.getFullYear() ? "" : " " + d.getFullYear()}`;
+}
+
+export function noteDates(n) {
+  const made = noteDay(n);
+  const t = Number(n.updated) || Number(n.touched) || 0;
+  const edit = t > 0 ? new Date(t) : null;
+  const sameDay = made && edit && made.toDateString() === edit.toDateString();
+  return { made, edit: edit && !sameDay ? edit : null };
+}
+
 const pad = n => String(n).padStart(2, "0");
 
 export const timeText = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;

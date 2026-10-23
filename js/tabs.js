@@ -3,7 +3,7 @@ import { icon, actionMark, acIcon, hpIcon, PORTRAIT_PLACEHOLDER } from "./icons.
 import { esc, pips, rich, artFx } from "./ui.js";
 import { DOLL_SLOTS, dollLayout, SILHOUETTE } from "./doll.js";
 import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum, purseGp, PROF_KINDS, classOf, featureColor, itemGlows, fxOf } from "./entities.js";
-import { NOTE_SECTIONS, SECTION_NAME, NOTE_STATUS, NOTE_ATTITUDE, CLUE_STATE, noteTagsOf, searchNotes, queryStems, highlight, snippetHtml, plainText, richLinks, backlinks, currentSession, pinnedNotes, linkTargets } from "./notes.js";
+import { NOTE_SECTIONS, SECTION_NAME, NOTE_STATUS, NOTE_ATTITUDE, CLUE_STATE, noteTagsOf, searchNotes, queryStems, highlight, snippetHtml, plainText, richLinks, backlinks, currentSession, pinnedNotes, linkTargets, noteDates, shortDate } from "./notes.js";
 
 export const TABS = [
   { key: "char", name: "Персонаж", short: "Герой", icon: "tabChar" },
@@ -713,6 +713,25 @@ function noteBadge(n, sec) {
   return st ? `<span class="badge" style="--c:${st[1]}">${st[0]}</span>` : "";
 }
 
+const STAMPED = { quests: ["done", "failed"], clues: ["confirmed", "false"] };
+
+function noteStamp(n, sec, big = false) {
+  const g = NOTE_GROUPS[sec];
+  const st = g && (STAMPED[sec] || []).includes(n[g.field]) ? g.states[n[g.field]] : null;
+  return st ? `<span class="stamp ${big ? "big" : ""} ${n[g.field]}" style="--c:${st[1]}">${st[0]}</span>` : "";
+}
+
+function noteDatesHtml(n) {
+  const d = noteDates(n);
+  if (!d.made && !d.edit) return "";
+  return `<p class="nr-dates">${d.made ? `<span>записано ${shortDate(d.made)}</span>` : ""}${d.edit ? `<span class="edited">правлено ${shortDate(d.edit)}</span>` : ""}</p>`;
+}
+
+function sessionDateCol(n) {
+  const d = noteDates(n).made;
+  return d ? `<time class="ses-date" datetime="${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}"><b>${d.getDate()}</b><small>${shortDate(d).split(" ")[1]}</small></time>` : `<span class="ses-date none"></span>`;
+}
+
 const ENTRY = /^\s*- \*\*(\d\d:\d\d)\*\*\s?(.*)$/;
 
 function sessionEntries(text) {
@@ -770,7 +789,7 @@ function noteCard(n, sec, ctx, o = {}) {
   const back = !shut && o.back ? o.back.get(n.id) || [] : [];
   const linkOpts = o.links ? o.links(n.id) : undefined;
   return `<article data-rid="${esc(n.id)}" data-sec="${sec}" class="note ${sec === "sessions" ? "session" : ""} ${shut ? "collapsed" : ""} ${n.pinned ? "pinned" : ""} ${n.status === "done" || n.status === "failed" || n.state === "false" ? "dim" : ""}">
-    <header><button class="note-toggle" data-act="toggle-note" data-sec="${sec}" data-id="${esc(n.id)}" aria-expanded="${shut ? "false" : "true"}"><span class="note-chev">${icon("down")}</span><span class="note-titles"><h4>${stems.length ? highlight(title, stems) : esc(title)}</h4>${n.subtitle ? `<span class="note-sub">${stems.length ? highlight(n.subtitle, stems) : esc(n.subtitle)}</span>` : ""}${preview ? `<span class="note-prev">${preview}</span>` : ""}</span></button>${o.showSec ? `<span class="badge sec">${esc(SECTION_NAME[sec] || "")}</span>` : ""}${noteBadge(n, sec)}<button class="icon-btn note-pin ${n.pinned ? "on" : ""}" data-act="pin-note" data-sec="${sec}" data-id="${esc(n.id)}" title="${n.pinned ? "Открепить из «Важного»" : "Закрепить в «Важном»"}" aria-pressed="${n.pinned ? "true" : "false"}">${icon("star")}</button><button class="icon-btn" data-act="edit-note" data-sec="${sec}" data-id="${esc(n.id)}" title="Изменить" aria-label="Изменить «${esc(title)}»">${icon("edit")}</button></header>
+    <header>${sec === "sessions" ? sessionDateCol(n) : ""}<button class="note-toggle" data-act="toggle-note" data-sec="${sec}" data-id="${esc(n.id)}" aria-expanded="${shut ? "false" : "true"}"><span class="note-chev">${icon("down")}</span><span class="note-titles"><h4>${stems.length ? highlight(title, stems) : esc(title)}</h4>${n.subtitle ? `<span class="note-sub">${stems.length ? highlight(n.subtitle, stems) : esc(n.subtitle)}</span>` : ""}${preview ? `<span class="note-prev">${preview}</span>` : ""}</span></button>${o.showSec ? `<span class="badge sec">${esc(SECTION_NAME[sec] || "")}</span>` : ""}${noteBadge(n, sec)}<button class="icon-btn note-pin ${n.pinned ? "on" : ""}" data-act="pin-note" data-sec="${sec}" data-id="${esc(n.id)}" title="${n.pinned ? "Открепить из «Важного»" : "Закрепить в «Важном»"}" aria-pressed="${n.pinned ? "true" : "false"}">${icon("star")}</button><button class="icon-btn" data-act="edit-note" data-sec="${sec}" data-id="${esc(n.id)}" title="Изменить" aria-label="Изменить «${esc(title)}»">${icon("edit")}</button></header>
     ${tags.length ? `<div class="note-tags">${tags.map(t => `<button class="tag ${ui.noteTag === t ? "on" : ""}" data-act="note-tag" data-k="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}
     ${shut ? "" : `<div class="note-text">${(sec === "sessions" ? sessionHtml(n.text, linkOpts) : rich(n.text, linkOpts)) || `<p class="dim">Пусто</p>`}</div>`}
     ${back.length ? `<div class="note-back"><span>${icon("link")}Упоминается:</span>${back.map(b => `<button class="tag" data-act="open-note" data-sec="${b.sec}" data-id="${esc(b.id)}">${esc(b.title)}</button>`).join("")}</div>` : ""}
@@ -811,11 +830,13 @@ function noteEntry(n, sec, o = {}) {
   const dim = n.status === "done" || n.status === "failed" || n.state === "false";
   const todo = String(n.text || "").match(/^\s*[-*] \[[ xXхХ]\]/gm) || [];
   const done = todo.filter(t => /\[[xXхХ]\]/.test(t)).length;
+  const dates = noteDates(n);
+  const when = dates.edit ? shortDate(dates.edit) : shortDate(dates.made);
   const goal = todo.length ? `<span class="jr-goal ${done === todo.length ? "all" : ""}" title="Выполнено целей">${done} из ${todo.length}</span>` : "";
   return `<button class="jr-entry ${dim ? "dim" : ""}" style="--c:${st ? st[1] : "var(--gold)"}" data-rid="${esc(n.id)}" data-act="read-note" data-sec="${sec}" data-id="${esc(n.id)}">
     ${noteMedal(n, sec)}
     <span class="jr-t"><b>${stems.length ? highlight(title, stems) : esc(title)}</b>${n.subtitle ? `<small>${stems.length ? highlight(n.subtitle, stems) : esc(n.subtitle)}</small>` : ""}${prev ? `<span class="jr-prev">${prev}</span>` : ""}</span>
-    <span class="jr-side">${goal}${n.pinned ?`<i class="jr-pin" title="В «Важном»">${icon("star")}</i>` : ""}${o.showSec ? `<span class="badge sec">${esc(SECTION_NAME[sec] || "")}</span>` : ""}${o.showSec && st ? `<span class="badge" style="--c:${st[1]}">${st[0]}</span>` : ""}</span>
+    <span class="jr-side">${goal}${n.pinned ?`<i class="jr-pin" title="В «Важном»">${icon("star")}</i>` : ""}${o.showSec ? `<span class="badge sec">${esc(SECTION_NAME[sec] || "")}</span>` : ""}${o.showSec && st ? `<span class="badge" style="--c:${st[1]}">${st[0]}</span>` : ""}${when ? `<time class="jr-date">${when}</time>` : ""}</span>
   </button>`;
 }
 
@@ -836,8 +857,9 @@ export function noteReadHtml(c, sec, n, { readOnly = false } = {}) {
   const back = backlinks(c).get(n.id) || [];
   const tags = noteTagsOf(n);
   const s = NOTE_SECTIONS.find(x => x.key === sec) || {};
+  const stamp = noteStamp(n, sec, true);
   return `<article class="nr" style="--c:${st ? st[1] : "var(--gold-2)"}">
-    <header class="nr-h">${noteMedal(n, sec, true)}<div class="nr-ti"><span class="nr-sec">${icon(s.icon || "scroll")}${esc(s.name || "")}${st ? ` · <b>${st[0]}</b>` : ""}</span><h2>${esc(n.title || "Без названия")}</h2>${n.subtitle ? `<p class="nr-sub">${esc(n.subtitle)}</p>` : ""}</div></header>
+    <header class="nr-h">${noteMedal(n, sec, true)}<div class="nr-ti"><span class="nr-sec">${icon(s.icon || "scroll")}${esc(s.name || "")}${st && !stamp ? ` · <b>${st[0]}</b>` : ""}</span><h2>${esc(n.title || "Без названия")}</h2>${n.subtitle ? `<p class="nr-sub">${esc(n.subtitle)}</p>` : ""}${noteDatesHtml(n)}${stamp}</div></header>
     <div class="nr-orn" aria-hidden="true"><i></i></div>
     <div class="nr-text note-text">${rich(n.text, richLinks(c)(n.id)) || `<p class="dim">Пока пусто. Нажми «Изменить», чтобы записать.</p>`}</div>
     ${tags.length ? `<div class="nr-tags">${tags.map(t => `<button class="tag" data-act="note-tag" data-k="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}
