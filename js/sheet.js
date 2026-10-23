@@ -27,7 +27,7 @@ import { installScenes } from "./sheet-scenes.js";
 import { installChronicle } from "./sheet-chronicle.js";
 import { skinFor } from "./achievements.js";
 import { installNotes, loadRecent } from "./sheet-notes.js";
-import { tabFxResolved, tabFxChoice, beginTabFx, runTabFx, tabFxPicker } from "./sheet-tabfx.js";
+import { tabFxResolved, tabFxChoice, beginTabFx, runTabFx, tabFxPicker, veilOn } from "./sheet-tabfx.js";
 import { keepAwake, setWake, wakeOn, wakeSupported } from "./wake.js";
 import { sheetIssues } from "./checks.js";
 import { loadTemplates, templateCopy } from "./templates.js";
@@ -463,27 +463,68 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     nav.style.setProperty("--rot", S.gemRot + "deg");
   }
 
+  function afterGem(fn) {
+    const gem = $(".tab-gem", root);
+    const off = () => {
+      if (gem) gem.removeEventListener("transitionend", onEnd);
+      S.swapOff = null;
+    };
+    const land = () => {
+      off();
+      clearTimeout(S.swapTimer);
+      if (!S.disposed && S.c) fn();
+    };
+    const onEnd = ev => {
+      if (ev.target === gem && ev.propertyName === "transform") land();
+    };
+    if (gem) gem.addEventListener("transitionend", onEnd);
+    S.swapOff = off;
+    S.swapTimer = setTimeout(land, 650);
+  }
+
   function switchTab(key) {
-    const from = TABS.findIndex(t => t.key === S.tab);
+    const shown = S.shownTab || S.tab;
+    const from = TABS.findIndex(t => t.key === shown);
     const to = TABS.findIndex(t => t.key === key);
-    const v = from === to ? null : tabFxResolved();
+    if (S.swapOff) S.swapOff();
+    clearTimeout(S.swapTimer);
     if (S.fx) S.fx.finish();
-    S.scroll[S.tab] = window.scrollY;
-    const fx = v ? beginTabFx(root, v) : null;
+    S.scroll[shown] = window.scrollY;
     S.tab = key;
     S.ui.ordering = false;
     hideHoverCard();
     history.replaceState(history.state, "", here(S.tab));
     moveGem();
-    renderTab();
-    const body = $("[data-body]", root);
-    if (!fx && tabFxChoice() !== "none") {
-      body.classList.remove("tab-in");
-      void body.offsetWidth;
-      body.classList.add("tab-in");
+    const dropVeil = () => {
+      if (S.veil) S.veil.reveal();
+      S.veil = null;
+    };
+    if (from === to) return dropVeil();
+    const choice = tabFxChoice();
+    const gem = $(".tab-gem", root);
+    const weak = liteOn() && !reducedMotion() && !!gem && getComputedStyle(gem).display !== "none";
+    const light = weak && choice === "auto";
+    const v = light ? null : tabFxResolved();
+    const commit = () => {
+      const fx = v ? beginTabFx(root, v) : null;
+      renderTab();
+      const body = $("[data-body]", root);
+      if (!fx && !light && choice !== "none") {
+        body.classList.remove("tab-in");
+        void body.offsetWidth;
+        body.classList.add("tab-in");
+      }
+      window.scrollTo({ top: S.scroll[S.tab] || 0 });
+      if (fx) S.fx = runTabFx(fx, root, { from, to, count: TABS.length, names: TABS.map(t => t.name) });
+      dropVeil();
+    };
+    if (!weak) {
+      if (S.veil) S.veil.clear();
+      S.veil = null;
+      return commit();
     }
-    window.scrollTo({ top: S.scroll[S.tab] || 0 });
-    if (fx) S.fx = runTabFx(fx, root, { from, to, count: TABS.length, names: TABS.map(t => t.name) });
+    if (light && !S.veil) S.veil = veilOn(root);
+    afterGem(commit);
   }
 
   function tryTabFx() {
@@ -503,6 +544,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     moveGem();
     body.innerHTML = (S.ui.ordering ? `<div class="order-bar">${icon("menu")}<span>Перетаскивай карточки за значок ⠿ (на компьютере ещё Alt + стрелки). Порядок сохранится для всех устройств.</span><button class="btn gold sm" data-act="toggle-order">${icon("check")}Готово</button></div>` : "") + RENDER[S.tab]({ c: S.c, d: S.d, ui: S.ui });
     body.dataset.tab = S.tab;
+    S.shownTab = S.tab;
     body.classList.toggle("ordering", !!S.ui.ordering);
     if (S.ui.ordering) $$("[data-reorder] > [data-rid]", body).forEach(el => el.insertAdjacentHTML("afterbegin", `<span class="drag-h" aria-hidden="true">⠿</span>`));
     $$("textarea.autogrow", body).forEach(grow);

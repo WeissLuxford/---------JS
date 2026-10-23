@@ -4,7 +4,6 @@ import { VARIANTS, WEIGHT_WORD, variantById, playFx } from "./tab-fx.js";
 
 const KEY = "dnd.tabfx";
 const AUTO_STRONG = "portal";
-const AUTO_WEAK = "seal";
 
 export function tabFxChoice() {
   try {
@@ -22,7 +21,7 @@ export function setTabFxChoice(id) {
 }
 
 export function autoTabFx() {
-  return variantById(liteOn() ? AUTO_WEAK : AUTO_STRONG);
+  return liteOn() ? null : variantById(AUTO_STRONG);
 }
 
 export function tabFxResolved() {
@@ -35,7 +34,9 @@ export function tabFxResolved() {
 
 export function tabFxLabel() {
   const choice = tabFxChoice();
-  return choice === "auto" ? `Авто, ${autoTabFx().name}` : variantById(choice).name;
+  if (choice !== "auto") return variantById(choice).name;
+  const auto = autoTabFx();
+  return auto ? `Авто, ${auto.name}` : "Авто, лёгкая";
 }
 
 function geometry(root) {
@@ -53,13 +54,50 @@ function ghost(layer, body, g) {
   const page = document.createElement("div");
   page.className = "fxpage";
   const r = body.getBoundingClientRect();
-  const copy = body.cloneNode(true);
+  const lo = g.top - 120;
+  const hi = g.top + g.height + 120;
+  const copy = body.cloneNode(false);
   copy.removeAttribute("data-body");
   copy.classList.remove("tab-in", "ordering");
   copy.style.cssText = `position: absolute; margin: 0; left: ${r.left}px; top: ${r.top - g.top}px; width: ${r.width}px`;
+  for (const kid of body.children) {
+    const kr = kid.getBoundingClientRect();
+    if (kr.bottom < lo || kr.top > hi) {
+      const stub = kid.cloneNode(false);
+      stub.removeAttribute("id");
+      stub.style.height = `${Math.round(kr.height)}px`;
+      stub.style.overflow = "hidden";
+      copy.append(stub);
+    } else copy.append(kid.cloneNode(true));
+  }
   page.append(copy);
   layer.append(page);
   return page;
+}
+
+export function veilOn(root) {
+  const sheet = root.querySelector(".sheet");
+  if (!sheet) return null;
+  const g = geometry(root);
+  if (g.height < 120) return null;
+  const el = document.createElement("div");
+  el.className = "tabveil";
+  el.setAttribute("aria-hidden", "true");
+  el.style.cssText = `top: ${g.top}px; height: ${g.height}px`;
+  sheet.append(el);
+  let anim = el.animate([{ opacity: 0 }, { opacity: .82 }], { duration: 320, easing: "ease-out", fill: "forwards" });
+  return {
+    clear() {
+      anim.cancel();
+      el.remove();
+    },
+    reveal() {
+      const from = parseFloat(getComputedStyle(el).opacity) || 0;
+      anim.cancel();
+      anim = el.animate([{ opacity: from }, { opacity: 0 }], { duration: 300, easing: "ease-in", fill: "forwards" });
+      anim.finished.then(() => el.remove(), () => el.remove());
+    }
+  };
 }
 
 export function beginTabFx(root, v) {
@@ -110,7 +148,7 @@ export function runTabFx(fx, root, { from, to, count, names }) {
 
 export function tabFxPicker(onTry) {
   const choice = tabFxChoice();
-  const rows = [{ id: "auto", name: "Авто", w: -1, note: `Сильные устройства: ${variantById(AUTO_STRONG).name}, слабые: ${variantById(AUTO_WEAK).name}. Сейчас выбрано: ${autoTabFx().name}` }, ...VARIANTS];
+  const rows = [{ id: "auto", name: "Авто", w: -1, note: `Сильные устройства: ${variantById(AUTO_STRONG).name}. Слабые: лёгкая смена, страница гаснет, пока катится кубик, и проявляется, когда он встал. Сейчас: ${autoTabFx() ? autoTabFx().name : "лёгкая смена"}` }, ...VARIANTS];
   let grp = "";
   const html = rows.map(v => {
     const head = v.grp && v.grp !== grp ? `<h4 class="fxo-grp">${esc(v.grp)}</h4>` : "";

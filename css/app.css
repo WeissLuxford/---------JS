@@ -2591,6 +2591,7 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 7px; border-radius: 6
 .lite .panel::before { display: none; }
 .lite .tab-gem, .lite .tab-gem svg { transition: transform .45s cubic-bezier(.34, 1.3, .5, 1) !important; }
 .lite .tab-gem { filter: none; }
+.lite .tab-body.tab-in { animation-duration: .28s !important; }
 .lite .tab .ic { transition: transform .35s cubic-bezier(.34, 1.4, .5, 1), opacity .25s !important; }
 .lite .tabs.rolling .tab.on .ic { transition-duration: .08s !important; }
 .pb-full-img { max-width: 220px; margin: 6px auto 10px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line-2); }
@@ -2659,3 +2660,4 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 7px; border-radius: 6
 .fxw0 { color: #4fcf6a; background: rgba(79, 207, 106, .14); }
 .fxw1 { color: #e9c77a; background: rgba(233, 199, 122, .14); }
 .fxw2 { color: #e5533d; background: rgba(229, 83, 61, .14); }
+.tabveil { position: fixed; left: 0; right: 0; z-index: 20; background: var(--bg); opacity: 0; }
