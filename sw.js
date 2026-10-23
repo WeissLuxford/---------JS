@@ -1,5 +1,5 @@
-const VERSION = "v52";
-const BUILD = "a7d73b2e19";
+const VERSION = "v53";
+const BUILD = "500057ae40";
 const SHELL = "dnd-shell-" + VERSION + "-" + BUILD;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -67,6 +67,7 @@ const PRECACHE = [
   "js/sheet-levelup.js",
   "js/sheet-magic.js",
   "js/sheet-notes.js",
+  "js/sheet-tabfx.js",
   "js/sheet-rolls.js",
   "js/sheet-scenes.js",
   "js/sheet-turn.js",
@@ -74,6 +75,7 @@ const PRECACHE = [
   "js/sheet-util.js",
   "js/store.js",
   "js/sync.js",
+  "js/tab-fx.js",
   "js/tabs.js",
   "js/ui.js",
   "data/spells-srd.json",

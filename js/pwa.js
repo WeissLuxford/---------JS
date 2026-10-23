@@ -25,6 +25,11 @@ export function isIOS() {
   return /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
 
+export function keepStorage() {
+  if (!isStandalone() || !navigator.storage || !navigator.storage.persist) return;
+  navigator.storage.persisted().then(ok => ok || navigator.storage.persist()).catch(() => {});
+}
+
 export function canInstall() {
   return !isStandalone() && (!!deferred || isIOS());
 }

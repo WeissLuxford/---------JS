@@ -27,6 +27,7 @@ import { installScenes } from "./sheet-scenes.js";
 import { installChronicle } from "./sheet-chronicle.js";
 import { skinFor } from "./achievements.js";
 import { installNotes, loadRecent } from "./sheet-notes.js";
+import { tabFxResolved, tabFxChoice, beginTabFx, runTabFx, tabFxPicker } from "./sheet-tabfx.js";
 import { keepAwake, setWake, wakeOn, wakeSupported } from "./wake.js";
 import { sheetIssues } from "./checks.js";
 import { loadTemplates, templateCopy } from "./templates.js";
@@ -460,6 +461,39 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     }
     nav.style.setProperty("--i", i);
     nav.style.setProperty("--rot", S.gemRot + "deg");
+  }
+
+  function switchTab(key) {
+    const from = TABS.findIndex(t => t.key === S.tab);
+    const to = TABS.findIndex(t => t.key === key);
+    const v = from === to ? null : tabFxResolved();
+    if (S.fx) S.fx.finish();
+    S.scroll[S.tab] = window.scrollY;
+    const fx = v ? beginTabFx(root, v) : null;
+    S.tab = key;
+    S.ui.ordering = false;
+    hideHoverCard();
+    history.replaceState(history.state, "", here(S.tab));
+    moveGem();
+    renderTab();
+    const body = $("[data-body]", root);
+    if (!fx && tabFxChoice() !== "none") {
+      body.classList.remove("tab-in");
+      void body.offsetWidth;
+      body.classList.add("tab-in");
+    }
+    window.scrollTo({ top: S.scroll[S.tab] || 0 });
+    if (fx) S.fx = runTabFx(fx, root, { from, to, count: TABS.length, names: TABS.map(t => t.name) });
+  }
+
+  function tryTabFx() {
+    const i = TABS.findIndex(t => t.key === S.tab);
+    const j = i < TABS.length - 1 ? i + 1 : i - 1;
+    const back = TABS[i].key;
+    switchTab(TABS[j].key);
+    setTimeout(() => {
+      if (!S.disposed && S.c) switchTab(back);
+    }, 1500);
   }
 
   function renderTab() {
@@ -980,6 +1014,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       case "proposals": return openProposals();
       case "achievements": return X.openTrophies();
       case "dice-skin": return X.openSkins();
+      case "tabfx": return tabFxPicker(tryTabFx);
       case "roll-mode":
         S.rollMode = S.rollMode === "normal" ? "adv" : S.rollMode === "adv" ? "dis" : "normal";
         if (el) el.innerHTML = rollModeLabel();
@@ -1341,40 +1376,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
-      S.scroll[S.tab] = window.scrollY;
-      S.tab = tab.dataset.tab;
-      S.ui.ordering = false;
-      hideHoverCard();
-      history.replaceState(history.state, "", here(S.tab));
-      const swap = () => {
-        if (S.disposed || !S.c) return;
-        renderTab();
-        const body = $("[data-body]", root);
-        body.classList.remove("tab-in");
-        void body.offsetWidth;
-        body.classList.add("tab-in");
-        window.scrollTo({ top: S.scroll[S.tab] || 0 });
-      };
-      moveGem();
-      clearTimeout(S.swapTimer);
-      if (S.swapOff) S.swapOff();
-      if (!liteOn() || reducedMotion()) return swap();
-      const gem = $(".tab-gem", root);
-      const off = () => {
-        if (gem) gem.removeEventListener("transitionend", onEnd);
-        S.swapOff = null;
-      };
-      const land = () => {
-        off();
-        clearTimeout(S.swapTimer);
-        swap();
-      };
-      const onEnd = ev => {
-        if (ev.target === gem && ev.propertyName === "transform") land();
-      };
-      if (gem) gem.addEventListener("transitionend", onEnd);
-      S.swapOff = off;
-      S.swapTimer = setTimeout(land, 650);
+      switchTab(tab.dataset.tab);
       return;
     }
     if (S.ui.ordering && e.target.closest("[data-reorder]") && !e.target.closest("[data-act=toggle-order]")) {

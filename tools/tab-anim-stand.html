@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Стенд анимаций смены вкладки</title>
+<link rel="stylesheet" href="../css/app.css">
+<style>
+  :root { --bg: #0c0907; --text: #e8dfcf; --text-2: #c4b7a2; --dim: #9a8d79; --gold: #c9a35b; --gold-2: #e9c77a; --gold-3: #f6e2ae; --line: rgba(201, 163, 91, .22); --line-2: rgba(201, 163, 91, .42); --font: "EB Garamond", Georgia, "Times New Roman", serif; --font-head: "Alegreya SC", "EB Garamond", Georgia, serif; color-scheme: dark; }
+  html { background: #0c0907; color: #e8dfcf; }
+  body { background: #0c0907; color: #e8dfcf; font-family: Georgia, "Times New Roman", serif; font-family: var(--font); margin: 0; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 14px 14px 60px; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; align-items: start; }
+  h1 { grid-column: 1 / -1; font-family: var(--font-head); color: var(--gold-2); font-size: 26px; margin: 4px 0 0; }
+  .lead { grid-column: 1 / -1; margin: 0; color: var(--dim); font-size: 16px; line-height: 1.45; }
+  .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+  .var { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(201, 163, 91, .18); background: #15100c; color: var(--text); font: inherit; cursor: pointer; }
+  .var:hover { border-color: rgba(201, 163, 91, .5); }
+  .var.on { border-color: var(--gold-2); background: linear-gradient(180deg, #221912, #15100c); box-shadow: 0 0 12px rgba(233, 199, 122, .2); }
+  .var b { display: flex; align-items: center; gap: 8px; font-family: var(--font-head); font-size: 17px; font-weight: 600; color: var(--gold-3); }
+  .var small { font-size: 14px; color: var(--dim); line-height: 1.3; }
+  .tag { margin-left: auto; padding: 1px 8px; border-radius: 9px; font-family: var(--font); font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+  .w0 { color: #4fcf6a; background: rgba(79, 207, 106, .14); }
+  .w1 { color: #e9c77a; background: rgba(233, 199, 122, .14); }
+  .w2 { color: #e5533d; background: rgba(229, 83, 61, .14); }
+  .side { position: sticky; top: 10px; display: flex; flex-direction: column; gap: 10px; }
+  .tools { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tools button { font: inherit; font-size: 15px; padding: 7px 12px; border-radius: 9px; border: 1px solid rgba(201, 163, 91, .25); background: #15100c; color: var(--text-2); cursor: pointer; }
+  .tools button.on { border-color: var(--gold-2); color: var(--gold-3); background: #221912; }
+  .meter { min-height: 22px; font-size: 15px; color: var(--text-2); }
+  .meter b { color: var(--gold-3); }
+  .phone { position: relative; width: 100%; max-width: 380px; height: min(700px, calc(100vh - 150px)); min-height: 520px; border-radius: 22px; border: 2px solid rgba(201, 163, 91, .4); background: #0c0907; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
+  .stage { position: relative; flex: 1; overflow: hidden; min-height: 0; }
+  .page { position: absolute; inset: 0; display: none; padding: 14px 12px; overflow: hidden; background: var(--pg); }
+  .page.on { display: block; }
+  .page h2 { font-family: var(--font-head); font-size: 26px; color: var(--gold-3); margin: 2px 0 12px; }
+  .card { display: flex; align-items: center; gap: 12px; margin-bottom: 9px; padding: 11px 12px; border-radius: 12px; border: 1px solid rgba(201, 163, 91, .2); background: rgba(21, 16, 12, .85); }
+  .card i { flex: none; width: 38px; height: 38px; border-radius: 9px; background: var(--c); opacity: .85; }
+  .card span { display: flex; flex-direction: column; gap: 3px; }
+  .card b { font-family: var(--font-head); font-size: 16px; color: var(--gold-3); font-weight: 600; }
+  .card small { font-size: 14px; color: var(--dim); }
+  .fx { position: absolute; pointer-events: none; z-index: 6; }
+  .grp { grid-column: 1 / -1; margin: 8px 0 0; font-family: var(--font-head); font-size: 15px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  .grp:first-child { margin-top: 0; }
+  .die { --c: #e9c77a; display: grid; place-items: center; background: linear-gradient(180deg, color-mix(in srgb, var(--c) 55%, #fff), var(--c) 55%, color-mix(in srgb, var(--c) 50%, #000)); clip-path: polygon(50% 0, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%); }
+  .die b { font-family: var(--font-head); font-size: 16px; color: #2a1a0a; }
+  .skel { position: absolute; inset: 0; z-index: 5; padding: 14px 12px; background: #0c0907; overflow: hidden; opacity: 0; pointer-events: none; }
+  .skel div { height: 56px; margin-bottom: 9px; border-radius: 12px; background: #1a130e; }
+  .skel div:first-child { height: 34px; width: 50%; margin-bottom: 14px; }
+  .skel .sheen { position: absolute; inset: 0; margin: 0; height: auto; border-radius: 0; background: linear-gradient(100deg, transparent 30%, rgba(233, 199, 122, .12) 50%, transparent 70%); }
+  .bar { position: relative; flex: none; display: flex; height: 62px; border-top: 1px solid var(--line-2); background: rgba(14, 10, 8, .98); z-index: 9; }
+  .bar .t { flex: 1; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; font-family: var(--font-head); font-size: 12px; color: var(--dim); cursor: pointer; border: 0; background: none; z-index: 2; }
+  .bar .t.on { color: var(--gold-3); }
+  .gem { position: absolute; top: -22px; left: 0; width: calc(100% / 6); height: 42px; display: grid; place-items: center; transition: transform .45s cubic-bezier(.34, 1.3, .5, 1); z-index: 1; pointer-events: none; }
+  .gem i { width: 40px; height: 40px; background: linear-gradient(180deg, #ffe3a0, #d9a94e 55%, #8a5f22); clip-path: polygon(50% 0, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%); }
+  @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; } .side { position: static; order: -1; } .phone { margin: 0 auto; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p id="fail" class="lead" style="color:#e5533d" hidden>Стенд подключает общий модуль анимаций и работает только с сервера: открой http://localhost:8765/tools/tab-anim-stand.html (docker compose up -d) или страницу на GitHub Pages.</p>
+  <h1>Стенд анимаций смены вкладки</h1>
+  <p class="lead">Выбери вариант справа и нажимай вкладки внизу телефона. «Нагрузить поток» имитирует слабый телефон: анимации, которые идут на графическом процессоре, остаются гладкими, а тяжёлые начинают дёргаться. Метка веса: <span class="tag w0">легко</span> <span class="tag w1">средне</span> <span class="tag w2">тяжело</span>.</p>
+  <div class="list" id="list"></div>
+  <div class="side">
+    <div class="tools">
+      <button id="auto">Автопоказ</button>
+      <button id="slow">Замедлить ×3</button>
+      <button id="snd" class="on">Звук</button>
+      <button id="load">Нагрузить поток</button>
+    </div>
+    <div class="meter" id="meter">Нажми на вкладку, чтобы замерить кадры.</div>
+    <div class="phone" id="phone">
+      <div class="stage" id="stage"></div>
+      <nav class="bar" id="bar"><span class="gem" id="gem"><i></i></span></nav>
+    </div>
+  </div>
+</div>
+<script type="module">
+import { VARIANTS, WEIGHT_WORD, playFx } from "../js/tab-fx.js";
+const TABS = [
+  { key: "hero", name: "Герой", pg: "#150f0b", c: "#c9a35b", cards: [["Хиты", "28 из 28"], ["Класс доспеха", "18"], ["Инициатива", "+2"], ["Скорость", "30 фт"], ["Мастерство", "+2"], ["Вдохновение", "нет"], ["Опыт", "0 из 2700"]] },
+  { key: "combat", name: "Бой", pg: "#150d0c", c: "#d4624e", cards: [["Алебарда", "+7, 1к10+4"], ["Ручной топор", "+7, 1к6+4"], ["Глефа", "+7, 1к10+4"], ["Второе дыхание", "1к10+3"], ["Всплеск действий", "1 раз"], ["Состояния", "нет"], ["Смерть", "0 из 3"]] },
+  { key: "magic", name: "Магия", pg: "#0f0d15", c: "#7b8be6", cards: [["Свет", "заговор"], ["Волшебная рука", "заговор"], ["Щит", "1 круг"], ["Невидимость", "2 круг"], ["Огненный шар", "3 круг"], ["Слот 1 круга", "4 из 4"], ["Слот 2 круга", "3 из 3"]] },
+  { key: "feat", name: "Умения", pg: "#0d1410", c: "#59b46b", cards: [["Боевой стиль", "Защита"], ["Дополнительная атака", "2 атаки"], ["Рыцарь Эха", "подкласс"], ["Мастер большого оружия", "черта"], ["Благородный", "предыстория"], ["Тёмное зрение", "60 фт"], ["Дварфийская стойкость", "раса"]] },
+  { key: "gear", name: "Вещи", pg: "#15120b", c: "#d9a94e", cards: [["Латы рыцаря", "надето"], ["Алебарда +1", "в руках"], ["Мешок", "12 фнт"], ["Верёвка", "50 фт"], ["Зелье лечения", "3 шт."], ["Факелы", "5 шт."], ["Казна", "1220 зм"]] },
+  { key: "notes", name: "Заметки", pg: "#140e12", c: "#c78bd0", cards: [["Сессия 3", "23 окт"], ["Настоятель Борин", "союзник"], ["Кендлкип", "место"], ["Письмо барона", "задание"], ["Следы у склада", "улика"], ["Покровитель", "запись"], ["Прочее", "заметка"]] }
+];
+const EXT = new Audio().canPlayType('audio/ogg; codecs="vorbis"') ? "ogg" : "m4a";
+const SFX = { clack: ["die-throw-1", "die-throw-2", "die-throw-3", "die-throw-4"], throw: ["dice-throw-1", "dice-throw-2", "dice-throw-3"], cloth: ["cloth1", "cloth2", "cloth3"] };
+let sound = true;
+function sfx(kind, delay, vol, rate) {
+  if (!sound) return;
+  setTimeout(() => {
+    const names = SFX[kind];
+    const a = new Audio(`../assets/audio/sfx/${names[Math.floor(Math.random() * names.length)]}.${EXT}`);
+    a.volume = Math.min(1, vol);
+    a.playbackRate = rate;
+    a.play().catch(() => {});
+  }, delay);
+}
+const stage = document.getElementById("stage");
+const bar = document.getElementById("bar");
+const gem = document.getElementById("gem");
+const meter = document.getElementById("meter");
+const pages = TABS.map(t => {
+  const el = document.createElement("section");
+  el.className = "page";
+  el.style.setProperty("--pg", t.pg);
+  el.innerHTML = `<h2>${t.name}</h2>` + t.cards.map(([a, b]) => `<div class="card" style="--c:${t.c}"><i></i><span><b>${a}</b><small>${b}</small></span></div>`).join("");
+  stage.append(el);
+  return el;
+});
+const btns = TABS.map((t, i) => {
+  const b = document.createElement("button");
+  b.className = "t";
+  b.textContent = t.name;
+  b.addEventListener("click", () => go(i));
+  bar.append(b);
+  return b;
+});
+let cur = 0;
+let variant = VARIANTS.find(v => v.id === "seal");
+let live = null;
+let slow = false;
+pages[0].classList.add("on");
+btns[0].classList.add("on");
+const place = () => (gem.style.transform = `translateX(${cur * 100}%)`);
+place();
+const list = document.getElementById("list");
+VARIANTS.forEach(v => {
+  const prev = VARIANTS[VARIANTS.indexOf(v) - 1];
+  if (!prev || prev.grp !== v.grp) {
+    const h = document.createElement("h3");
+    h.className = "grp";
+    h.textContent = v.grp;
+    list.append(h);
+  }
+  const b = document.createElement("button");
+  b.className = "var" + (v === variant ? " on" : "");
+  b.innerHTML = `<b>${v.name}<span class="tag w${v.w}">${WEIGHT_WORD[v.w]}</span></b><small>${v.note}</small>`;
+  b.addEventListener("click", () => {
+    variant = v;
+    list.querySelectorAll(".var").forEach(x => x.classList.toggle("on", x === b));
+    go((cur + 1) % TABS.length);
+  });
+  list.append(b);
+});
+function frames() {
+  const f = [];
+  let last = performance.now();
+  let run = true;
+  const step = t => {
+    f.push(t - last);
+    last = t;
+    if (run) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+  return () => {
+    run = false;
+    const d = f.slice(1);
+    if (!d.length) return;
+    const worst = Math.round(Math.max(...d));
+    const slowN = d.filter(x => x > 34).length;
+    meter.innerHTML = `Кадров: <b>${d.length}</b>, худший: <b>${worst} мс</b>, медленных (больше 34 мс): <b>${slowN}</b>`;
+  };
+}
+function go(to) {
+  if (live) live.finish();
+  if (to === cur) return;
+  const from = cur;
+  cur = to;
+  btns.forEach((b, i) => b.classList.toggle("on", i === to));
+  place();
+  const o = pages[from];
+  const n = pages[to];
+  n.classList.add("on");
+  const stop = frames();
+  live = playFx(variant, {
+    stage,
+    o,
+    n,
+    d: to > from ? 1 : -1,
+    from,
+    to,
+    count: TABS.length,
+    slow: slow ? 3 : 1,
+    sheet: i => {
+      const el = pages[i].cloneNode(true);
+      el.classList.add("on");
+      return el;
+    },
+    items: page => [...page.querySelectorAll(".card, h2")],
+    sound: sfx,
+    onEnd: () => {
+      o.classList.remove("on");
+      stop();
+    }
+  });
+}
+document.getElementById("slow").addEventListener("click", e => {
+  slow = !slow;
+  e.currentTarget.classList.toggle("on", slow);
+});
+document.getElementById("snd").addEventListener("click", e => {
+  sound = !sound;
+  e.currentTarget.classList.toggle("on", sound);
+});
+let loadTimer = 0;
+document.getElementById("load").addEventListener("click", e => {
+  const on = !loadTimer;
+  if (on) loadTimer = setInterval(() => {
+    const t = performance.now();
+    while (performance.now() - t < 38);
+  }, 50);
+  else {
+    clearInterval(loadTimer);
+    loadTimer = 0;
+  }
+  e.currentTarget.classList.toggle("on", on);
+});
+let autoTimer = 0;
+document.getElementById("auto").addEventListener("click", e => {
+  const on = !autoTimer;
+  if (on) autoTimer = setInterval(() => go((cur + 1) % TABS.length), slow ? 2200 : 1300);
+  else {
+    clearInterval(autoTimer);
+    autoTimer = 0;
+  }
+  e.currentTarget.classList.toggle("on", on);
+});
+window.__standOk = true;
+</script>
+<script>setTimeout(function () { if (!window.__standOk) document.getElementById("fail").hidden = false; }, 1500);</script>
+</body>
+</html>

@@ -3,7 +3,7 @@ import { mountHome } from "./home.js";
 import { mountSheet } from "./sheet.js";
 import { closeAllModals, whenHistoryIdle, onModalEntry, applyLite } from "./ui.js";
 applyLite();
-import "./pwa.js";
+import { keepStorage } from "./pwa.js";
 
 const root = document.getElementById("app");
 let unmount = null;
@@ -79,4 +79,5 @@ function registerWorker() {
 }
 
 registerWorker();
+keepStorage();
 start();

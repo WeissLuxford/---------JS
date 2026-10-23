@@ -1,4 +1,5 @@
 import { canInstall } from "./pwa.js";
+import { tabFxLabel } from "./sheet-tabfx.js";
 import { SKILLS, ABILITIES, mod, compute, normalize, fmt, importCharacter, payCoins, COIN_NAMES, COIN_CP, COINS, coinsText, coinsTotalCp, CONDITIONS, RARITY, FEATURE_CATS, SCENE_TIMES, SCENE_WEATHER, sceneInfo } from "./rules.js";
 import { icon } from "./icons.js";
 import { esc, $, toast, openModal, compressImage, confirmDialog, rollLog, liteOn, weakDevice, fxSettings, canVibrate, playSound, dateTime, timeAgo, download, pickFile, rollCardOn } from "./ui.js";
@@ -487,6 +488,7 @@ export function installDialogs(X) {
         ["dice", "d20", "Бросить кубы"],
         ["achievements", "crown", "Достижения и летопись"],
         ...(r.canEdit && !r.propose ? [["dice-skin", "d20", "Кубики: " + skinFor(S.c.diceSkin).name]] : []),
+        ["tabfx", "d20", "Анимация вкладок: " + tabFxLabel()],
         ["roll-mode", "d20", "Режим броска: " + (S.rollMode === "adv" ? "преимущество" : S.rollMode === "dis" ? "помеха" : "обычный")],
         ...(S.d.level < 20 && r.canEdit ? [["level-up", "star", "Повысить уровень"]] : [])
       ]],
