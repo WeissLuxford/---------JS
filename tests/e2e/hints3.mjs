@@ -1,0 +1,86 @@
+import { chromium, launchOpts, E2E_OUT } from "./env.mjs";
+const OUT = E2E_OUT;
+const r = [];
+const ok = (n, c, x = "") => r.push(`${c ? "PASS" : "FAIL"} ${n}${x ? " :: " + x : ""}`);
+const sleep = ms => new Promise(res => setTimeout(res, ms));
+const browser = await chromium.launch(launchOpts);
+const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, serviceWorkers: "block" });
+await ctx.route(/gstatic\.com|googleapis\.com|google\.com/, x => x.abort());
+const page = await ctx.newPage();
+const errors = [];
+page.on("pageerror", e => errors.push(e.message));
+await page.goto("http://localhost:8765/#/c/kirion-thorndike/notes");
+await page.waitForSelector(".sheet");
+await sleep(400);
+const write = async t => {
+  await page.click("[data-journal]");
+  await page.keyboard.type(t);
+  await page.keyboard.press("Enter");
+  await sleep(350);
+};
+const row = t => page.locator(".ja-hints .jh", { has: page.locator(".jh-l", { hasText: t }) });
+const lastToast = () => page.locator(".toast").last().innerText().catch(() => "");
+const char = async () => {
+  await sleep(1500);
+  return page.evaluate(() => {
+    const c = JSON.parse(localStorage.getItem("dnd.chars") || "{}")["kirion-thorndike"];
+    const items = Array.isArray(c.items) ? c.items : Object.values(c.items || {});
+    return { items: items.map(i => ({ name: i.name, qty: i.qty, type: i.type })), gp: c.coins.gp, xp: c.info.xp, level: c.info.level };
+  });
+};
+await write("Нашли в тайнике 500 зм.");
+await row("500").locator("[data-sign='1']").click();
+await sleep(300);
+const start = await char();
+const dagger0 = (start.items.find(i => i.name === "Кинжал") || {}).qty || 0;
+
+await write("Купили 2 зелья лечения за 100 зм у алхимика.");
+ok("one hint for item and price", (await page.locator(".ja-hints .jh").count()) === 1, (await page.locator(".ja-hints").innerText().catch(() => "")).replace(/\n/g, " "));
+ok("potion with price", (await row("Зелье лечения").innerText()).includes("−100"), await row("Зелье лечения").innerText());
+await page.locator(".ja-hints").scrollIntoViewIfNeeded();
+await page.screenshot({ path: OUT + "hints3-item.png" });
+await row("Зелье лечения").locator("[data-mode=addpay]").click();
+await sleep(300);
+let now = await char();
+const potion = now.items.find(i => i.name === "Зелье лечения");
+ok("potion in inventory", !!potion && potion.qty === 2 && potion.type === "consumable", JSON.stringify(potion));
+ok("gold paid", now.gp === start.gp - 100, `${start.gp} -> ${now.gp}`);
+await page.locator(".toast .toast-undo").last().click();
+now = await char();
+ok("undo removes potion and returns gold", !now.items.some(i => i.name === "Зелье лечения") && now.gp === start.gp, `${now.gp}`);
+await row("Зелье лечения").locator("[data-mode=addpay]").click();
+await sleep(300);
+
+await write("Нашли в сундуке кинжал и странную книгу.");
+await row("Кинжал").locator("[data-act=jh-item]").click();
+await sleep(200);
+await row("Странная книга").locator("[data-act=jh-item]").click();
+now = await char();
+ok("existing dagger stacked", (now.items.find(i => i.name === "Кинжал") || {}).qty === dagger0 + 1, String(dagger0));
+ok("new generic item", now.items.some(i => i.name === "Странная книга"));
+
+await write("Продал кинжал за 8 зм.");
+ok("sell offers money", (await row("Кинжал").innerText()).includes("+8"), await row("Кинжал").innerText());
+await row("Кинжал").locator("[data-mode=removegain]").click();
+const sold = await char();
+ok("sold one dagger with money", (sold.items.find(i => i.name === "Кинжал") || {}).qty === dagger0 && sold.gp === now.gp + 8, `${now.gp} -> ${sold.gp}`);
+
+await write("Получили по 1000 опыта за дракона.");
+await row("Опыт").locator("[data-act=jh-xp]").click();
+await sleep(300);
+const xp = await char();
+ok("xp added", xp.xp === start.xp + 1000, `${start.xp} -> ${xp.xp}`);
+await write("Апнулись! Новый уровень.");
+ok("level hint", (await row("Новый уровень").count()) === 1);
+await row("Новый уровень").locator("[data-act=jh-level]").click();
+await sleep(600);
+ok("level up window opens", (await page.locator(".modal-back.in").count()) >= 1);
+await page.keyboard.press("Escape");
+await sleep(300);
+await page.click(".tab[data-tab=inventory]").catch(() => {});
+await sleep(800);
+ok("potion visible in inventory", (await page.locator("text=Зелье лечения").count()) >= 1);
+ok("no horizontal scroll", await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+ok("no errors", errors.length === 0, errors.join(" | "));
+console.log(r.join("\n"));
+await browser.close();

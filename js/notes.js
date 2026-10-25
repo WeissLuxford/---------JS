@@ -6,6 +6,7 @@ export const NOTE_SECTIONS = [
   { key: "places", name: "Места", icon: "gi/lorc/treasure-map", add: "Место" },
   { key: "quests", name: "Задания", icon: "gi/delapouite/flag-objective", add: "Задание" },
   { key: "clues", name: "Улики", icon: "gi/lorc/footprint", add: "Улика" },
+  { key: "questions", name: "Вопросы", icon: "gi/lorc/wax-seal", add: "Вопрос" },
   { key: "patron", name: "Покровитель", icon: "gi/delapouite/warlock-hood", add: "Запись" },
   { key: "misc", name: "Прочее", icon: "gi/lorc/papers", add: "Заметка" }
 ];
@@ -14,6 +15,7 @@ export const SECTION_NAME = Object.fromEntries(NOTE_SECTIONS.map(s => [s.key, s.
 
 export const NOTE_STATUS = { active: ["Активно", "#e9c77a"], done: ["Выполнено", "#4fcf6a"], failed: ["Провалено", "#e5533d"] };
 export const NOTE_ATTITUDE = { ally: ["Союзник", "#4fcf6a"], neutral: ["Нейтрально", "#c9b48a"], hostile: ["Враг", "#e5533d"] };
+export const QUESTION_STATE = { open: ["Запечатано", "#d0573f"], answered: ["Вскрыто", "#4fcf6a"] };
 export const CLUE_STATE = { lead: ["Зацепка", "#e9c77a"], confirmed: ["Подтверждено", "#4fcf6a"], false: ["Ложный след", "#8d8577"] };
 
 const ENDINGS = ["иями", "ями", "ами", "ого", "его", "ому", "ему", "ыми", "ими", "ой", "ей", "ом", "ем", "ам", "ям", "ах", "ях", "ою", "ею", "ая", "яя", "ое", "ее", "ые", "ие", "ый", "ий", "ую", "юю", "ов", "ев", "ья", "ье", "ью", "а", "я", "у", "ю", "е", "ы", "и", "о", "ь", "й"];
@@ -170,12 +172,13 @@ export function mentionNames(c) {
     if (x.sec !== "people" && x.sec !== "places") continue;
     const parts = x.name.split(/\s+/);
     if (parts.length < 2) continue;
+    const phrase = parts.some(p => /^[а-яёa-z]/.test(p) && !TITLE_WORDS.has(norm(p)) && !["де", "ла", "ле", "ван", "фон", "дер", "ди", "да", "дю", "аль", "эль", "бен", "ибн"].includes(norm(p)));
     for (const part of parts) {
       const clean = part.replace(/[^A-Za-zА-Яа-яЁё-]/g, "");
       const w = norm(clean);
       if (w.length < 4 || !/^[A-ZА-ЯЁ]/.test(clean) || TITLE_WORDS.has(w) || count.get(w) !== 1 || seen.has(w)) continue;
       seen.add(w);
-      list.push({ name: clean, sec: x.sec, id: x.id, strict: true });
+      list.push({ name: clean, sec: x.sec, id: x.id, strict: phrase ? "cap" : true });
     }
   }
   return list.sort((a, b) => b.name.length - a.name.length);
@@ -195,20 +198,35 @@ const ci = (text, strictFirst) => {
   return out;
 };
 
+export const COMMON_NAMES = new Set(["вера", "надежда", "любовь", "лев", "мила", "роза", "лилия", "ива", "лиса", "кот", "волк", "ворон", "сокол", "орел", "медведь", "змей", "клык", "коготь", "гром", "буря", "луна", "звезда", "заря", "слава", "мир", "свет", "ночь", "тень", "рок", "дар", "жук", "бык", "камень", "пепел", "руна", "май", "маг", "шут", "ада", "ад", "рай", "сила", "воля", "доля", "весна", "зима", "осень", "лето", "солнце", "небо", "море", "река", "лес", "гора", "поле", "вор", "лорд", "мастер", "король", "принц", "герой", "барон", "граф"]);
+
+function wordPattern(word, capFirst) {
+  const w = norm(word);
+  const short = w.length === 3 && /[айяьоеу]$/.test(w);
+  const st = short ? w.slice(0, 2) : stem(word);
+  const tail = short ? "(?:[йяюеиаоуыь]|ем|ом|ой|ей)" : st.length < w.length ? "[а-яё]{0,3}" : /[а-яё]$/i.test(word) ? "[а-яё]{0,2}" : "";
+  return ci(esc(word).slice(0, st.length), capFirst) + tail;
+}
+
 function namePattern(name, strict = false) {
   const parts = String(name).trim().split(/\s+/);
-  const lastWord = parts.pop();
-  const short = norm(lastWord).length === 3 && /[айяьоеу]$/.test(norm(lastWord));
-  const st = short ? norm(lastWord).slice(0, 2) : stem(lastWord);
-  const tail = short ? "[а-яё]{1,2}" : st.length < norm(lastWord).length ? "[а-яё]{0,3}" : /[а-яё]$/i.test(lastWord) ? "[а-яё]{0,2}" : "";
-  const head = parts.map(p => ci(esc(p), false)).join("\\s+");
-  const lastRe = ci(esc(lastWord).slice(0, st.length), (strict || short) && !head) + tail;
-  return (head ? head + "\\s+" : "") + lastRe;
+  const single = parts.length === 1;
+  return parts.map((p, i) => wordPattern(p, i === 0 && (strict === "cap" || ((single || strict) && COMMON_NAMES.has(norm(p)))))).join("\\s+");
 }
+
+let matcherMemo = { key: null, value: null };
 
 export function mentionMatcher(c) {
   const names = mentionNames(c);
   if (!names.length) return null;
+  const key = names.map(x => `${x.name}|${x.sec}|${x.id}|${x.strict}`).join("\n");
+  if (matcherMemo.key === key) return matcherMemo.value;
+  const value = buildMatcher(names);
+  matcherMemo = { key, value };
+  return value;
+}
+
+function buildMatcher(names) {
   const byPattern = names.map(x => ({ ...x, re: new RegExp(`^${namePattern(x.name, x.strict)}$`, "u") }));
   const big = new RegExp(`(^|[^а-яёА-ЯЁa-zA-Z0-9])(${byPattern.map(x => namePattern(x.name, x.strict)).join("|")})(?![а-яёА-ЯЁa-zA-Z0-9])`, "gu");
   return {
@@ -359,6 +377,106 @@ export function appendEntry(text, entry, now = Date.now()) {
   const body = [first, ...rest].join("\n");
   const base = String(text || "").replace(/\s+$/, "");
   return base ? `${base}\n${body}` : body;
+}
+
+const ENTRY = /^\s*- \*\*(\d\d:\d\d)\*\*\s?(.*)$/;
+
+export function sessionEntries(text) {
+  const parts = [];
+  let free = [];
+  let cur = null;
+  const flushFree = () => {
+    if (free.join("").trim()) parts.push({ free: free.join("\n") });
+    free = [];
+  };
+  for (const l of String(text || "").replace(/\r/g, "").split("\n")) {
+    const m = l.match(ENTRY);
+    if (m) {
+      flushFree();
+      cur = { time: m[1], text: m[2] };
+      parts.push(cur);
+    } else if (cur && /^\s{2,}\S/.test(l)) cur.text += "\n" + l.trim();
+    else {
+      cur = null;
+      free.push(l);
+    }
+  }
+  flushFree();
+  return parts;
+}
+
+export function journalMentions(c, id) {
+  const index = linkIndex(c);
+  const matcher = mentionMatcher(c);
+  const out = [];
+  for (const s of (c.notes && c.notes.sessions) || []) {
+    for (const p of sessionEntries(s.text)) {
+      const lines = p.time ? [p.text] : String(p.free || "").split("\n").map(l => l.trim()).filter(Boolean);
+      for (const text of lines) if (referencedIds(c, { id: "", text }, index, matcher).has(id)) out.push({ sesId: s.id, title: s.title || "Сессия", day: noteDay(s), created: Number(s.created) || 0, time: p.time || "", text });
+    }
+  }
+  return out.sort((a, b) => b.created - a.created || b.time.localeCompare(a.time));
+}
+
+export function journalLines(c, index = linkIndex(c), matcher = mentionMatcher(c)) {
+  const out = [];
+  const list = ((c.notes && c.notes.sessions) || []).slice().sort((a, b) => (Number(a.created) || 0) - (Number(b.created) || 0));
+  for (const s of list) {
+    for (const p of sessionEntries(s.text)) {
+      const lines = p.time ? [p.text] : String(p.free || "").split("\n").map(l => l.trim()).filter(Boolean);
+      for (const text of lines) {
+        const ids = referencedIds(c, { id: "", text }, index, matcher);
+        ids.delete(s.id);
+        if (ids.size) out.push({ sesId: s.id, title: s.title || "Сессия", day: noteDay(s), time: p.time || "", text, ids });
+      }
+    }
+  }
+  return out;
+}
+
+export function noteDossier(c, id, lines = journalLines(c)) {
+  const own = lines.filter(l => l.ids.has(id));
+  if (!own.length) return null;
+  const info = new Map();
+  for (const s of NOTE_SECTIONS) if (s.key !== "sessions") for (const n of (c.notes && c.notes[s.key]) || []) info.set(n.id, { sec: s.key, id: n.id, title: n.title || "Без названия" });
+  const placeIn = l => [...l.ids].map(x => info.get(x)).find(x => x && x.sec === "places" && x.id !== id) || null;
+  const at = l => ({ sesId: l.sesId, title: l.title, day: l.day, time: l.time, text: l.text, place: placeIn(l) });
+  const seen = own.slice().reverse().find(placeIn);
+  const counts = new Map();
+  for (const l of own) for (const x of l.ids) if (x !== id && info.has(x)) counts.set(x, (counts.get(x) || 0) + 1);
+  const together = [...counts.entries()].sort((a, b) => b[1] - a[1] || info.get(a[0]).title.localeCompare(info.get(b[0]).title, "ru")).slice(0, 6).map(([x, n]) => ({ ...info.get(x), n }));
+  return { count: own.length, first: at(own[0]), last: at(own[own.length - 1]), seen: seen ? at(seen) : null, together };
+}
+
+const ASK_WORDS = new Set(["кто", "что", "где", "когда", "почему", "зачем", "как", "какой", "какая", "какое", "какие", "чей", "чья", "чьи", "ли", "был", "была", "были", "было", "это", "этот", "эта", "тот", "там", "тут", "его", "её", "ее", "их", "нас", "нам", "они", "она", "он", "мы", "вообще", "такой", "такая", "сколько", "откуда", "куда", "чем", "кого", "кому", "чего", "есть", "будет", "может", "можно", "нужно", "надо", "если", "или", "который", "которая", "которые"]);
+
+export function askStems(text) {
+  return [...new Set(words(plainText(text)).filter(w => w.length >= 4 && !ASK_WORDS.has(w)).map(stem))];
+}
+
+export function questionClues(c, q, max = 20) {
+  const index = linkIndex(c);
+  const matcher = mentionMatcher(c);
+  const qs = askStems(q.title + " " + (q.text || ""));
+  const qids = referencedIds(c, { id: q.id, text: q.title + " " + (q.text || "") }, index, matcher);
+  const qn = norm(q.title).replace(/[^a-zа-я0-9]+/g, " ").trim();
+  const out = [];
+  const list = ((c.notes && c.notes.sessions) || []).slice().sort((a, b) => (Number(a.created) || 0) - (Number(b.created) || 0));
+  for (const s of list) {
+    for (const p of sessionEntries(s.text)) {
+      const lines = p.time ? [p.text] : String(p.free || "").split("\n").map(l => l.trim()).filter(Boolean);
+      for (const text of lines) {
+        if (norm(text).replace(/[^a-zа-я0-9]+/g, " ").trim() === qn) continue;
+        const ws = new Set(askStems(text));
+        const ids = referencedIds(c, { id: "", text }, index, matcher);
+        const shared = qs.filter(x => ws.has(x)).length;
+        const people = [...qids].filter(x => ids.has(x)).length;
+        const score = shared + people * 2;
+        if (shared >= 2 || (people >= 1 && shared >= 1) || people >= 2) out.push({ sesId: s.id, title: s.title || "Сессия", day: noteDay(s), time: p.time || "", text, score });
+      }
+    }
+  }
+  return out.slice(-max).reverse();
 }
 
 export function pinnedNotes(c) {

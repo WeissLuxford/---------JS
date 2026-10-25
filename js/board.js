@@ -1,8 +1,8 @@
 import { icon, iconFile } from "./icons.js";
 import { esc, openModal } from "./ui.js";
-import { NOTE_SECTIONS, SECTION_NAME, NOTE_ATTITUDE, CLUE_STATE, NOTE_STATUS, referencedIds, linkIndex, mentionMatcher, plainText, norm } from "./notes.js";
+import { NOTE_SECTIONS, SECTION_NAME, NOTE_ATTITUDE, CLUE_STATE, NOTE_STATUS, referencedIds, linkIndex, mentionMatcher, plainText, norm, sessionEntries } from "./notes.js";
 
-export const BOARD_SECTIONS = { people: "#e9c77a", places: "#6fc7b8", quests: "#f29b4b", clues: "#e5674f", sessions: "#9aa3b5", patron: "#c07cff", misc: "#b9ab92" };
+export const BOARD_SECTIONS = { people: "#e9c77a", places: "#6fc7b8", quests: "#f29b4b", clues: "#e5674f", questions: "#d0573f", sessions: "#9aa3b5", patron: "#c07cff", misc: "#b9ab92" };
 const DEFAULT_ON = ["people", "places", "quests", "clues"];
 
 function hash(str) {
@@ -32,6 +32,25 @@ export function buildGraph(c, { sections = DEFAULT_ON, onlyLinked = false } = {}
   for (const s of NOTE_SECTIONS) {
     for (const n of (c.notes && c.notes[s.key]) || []) {
       const refs = referencedIds(c, n, index, matcher);
+      if (s.key === "sessions" && !byId.has(n.id)) {
+        for (const p of sessionEntries(n.text)) {
+          const lines = p.time ? [p.text] : String(p.free || "").split("\n").filter(l => l.trim());
+          for (const text of lines) {
+            const ids = [...referencedIds(c, { id: n.id, text }, index, matcher)].filter(x => byId.has(x));
+            const label = (n.title || "Сессия") + (p.time ? " · " + p.time : "");
+            for (let i = 0; i < ids.length; i++) {
+              for (let j = i + 1; j < ids.length; j++) {
+                const [a, b] = ids[i] < ids[j] ? [ids[i], ids[j]] : [ids[j], ids[i]];
+                const e = edges.get(`${a}|${b}`) || { a, b, w: 0, via: [] };
+                e.w += 1;
+                if (e.via.length < 8 && !e.via.includes(label)) e.via.push(label);
+                edges.set(`${a}|${b}`, e);
+              }
+            }
+          }
+        }
+        continue;
+      }
       for (const to of refs) {
         if (byId.has(n.id) && byId.has(to)) {
           const key = n.id < to ? `${n.id}|${to}` : `${to}|${n.id}`;

@@ -495,6 +495,7 @@ export function installDialogs(X) {
       ["Найти", [
         ["search-all", "search", "Поиск по листу"],
         ["roll-log", "scroll", "Журнал бросков"],
+        ...((S.c.hintIgnore || []).length && r.canEdit ? [["hint-hidden", "eye", "Скрытые подсказки заметок"]] : []),
         ["rules-ref", "book", "Шпаргалка правил"],
         ...(canInstall() ? [["install", "phone", "Установить как приложение"]] : [])
       ]],

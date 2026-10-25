@@ -29,7 +29,7 @@ test("graph links notes directly and through journal entries", () => {
   assert.ok(has("c1", "l1"));
   assert.ok(has("c1", "p2"));
   assert.ok(has("p1", "p2"));
-  assert.ok(g.edges.find(e => (e.a === "p1" && e.b === "p2") || (e.a === "p2" && e.b === "p1")).via.includes("Сессия 1"));
+  assert.ok(g.edges.find(e => (e.a === "p1" && e.b === "p2") || (e.a === "p2" && e.b === "p1")).via.some(v => v.startsWith("Сессия 1 · 20:10")));
   assert.equal(g.nodes.find(n => n.id === "p3").degree, 0);
   const linked = B.buildGraph(sample(), { onlyLinked: true });
   assert.ok(!linked.nodes.some(n => n.id === "p3"));

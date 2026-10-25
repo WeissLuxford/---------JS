@@ -263,17 +263,21 @@ export function installCards(X) {
       title: n ? `Изменить: ${SECTION_NAME[section] || "запись"}` : `Новая запись: ${SECTION_NAME[section] || "заметки"}`,
       fields: noteFields(section, () => linkTargets(S.c)),
       value,
-      onSave: val => X.mutate(c => {
-        const list = c.notes[section];
-        const i = list.findIndex(x => x.id === val.id);
-        if (i >= 0) {
-          const next = { ...list[i] };
-          const keys = changedKeys(initial, val);
-          for (const k of keys) next[k] = val[k];
-          if (keys.length) next.updated = Date.now();
-          list[i] = next;
-        } else list.unshift(val);
-      }),
+      onSave: val => {
+        const ok = X.mutate(c => {
+          const list = c.notes[section];
+          const i = list.findIndex(x => x.id === val.id);
+          if (i >= 0) {
+            const next = { ...list[i] };
+            const keys = changedKeys(initial, val);
+            for (const k of keys) next[k] = val[k];
+            if (keys.length) next.updated = Date.now();
+            list[i] = next;
+          } else list.unshift(val);
+        });
+        if (ok !== false && section === "sessions" && X.hintsFromEdit) X.hintsFromEdit(n ? initial.text : "", val.text);
+        return ok;
+      },
       onDelete: n ? () => X.mutate(c => { c.notes[section] = c.notes[section].filter(x => x.id !== n.id); }) : null
     });
   }

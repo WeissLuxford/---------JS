@@ -3,7 +3,8 @@ import { icon, actionMark, acIcon, hpIcon, PORTRAIT_PLACEHOLDER } from "./icons.
 import { esc, pips, rich, artFx } from "./ui.js";
 import { DOLL_SLOTS, dollLayout, SILHOUETTE } from "./doll.js";
 import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum, purseGp, PROF_KINDS, classOf, featureColor, itemGlows, fxOf } from "./entities.js";
-import { NOTE_SECTIONS, SECTION_NAME, NOTE_STATUS, NOTE_ATTITUDE, CLUE_STATE, noteTagsOf, searchNotes, queryStems, highlight, snippetHtml, plainText, richLinks, backlinks, currentSession, pinnedNotes, linkTargets, noteDates, shortDate } from "./notes.js";
+import { liveHints, findDoubles } from "./note-hints.js";
+import { NOTE_SECTIONS, SECTION_NAME, NOTE_STATUS, NOTE_ATTITUDE, CLUE_STATE, QUESTION_STATE, questionClues, noteTagsOf, searchNotes, queryStems, highlight, snippetHtml, plainText, richLinks, backlinks, currentSession, pinnedNotes, linkTargets, noteDates, shortDate, sessionEntries, journalMentions, noteDossier } from "./notes.js";
 
 export const TABS = [
   { key: "char", name: "Персонаж", short: "Герой", icon: "tabChar" },
@@ -713,7 +714,7 @@ function noteBadge(n, sec) {
   return st ? `<span class="badge" style="--c:${st[1]}">${st[0]}</span>` : "";
 }
 
-const STAMPED = { quests: ["done", "failed"], clues: ["confirmed", "false"] };
+const STAMPED = { quests: ["done", "failed"], clues: ["confirmed", "false"], questions: ["answered"] };
 
 function noteStamp(n, sec, big = false) {
   const g = NOTE_GROUPS[sec];
@@ -730,32 +731,6 @@ function noteDatesHtml(n) {
 function sessionDateCol(n) {
   const d = noteDates(n).made;
   return d ? `<time class="ses-date" datetime="${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}"><b>${d.getDate()}</b><small>${shortDate(d).split(" ")[1]}</small></time>` : `<span class="ses-date none"></span>`;
-}
-
-const ENTRY = /^\s*- \*\*(\d\d:\d\d)\*\*\s?(.*)$/;
-
-function sessionEntries(text) {
-  const parts = [];
-  let free = [];
-  let cur = null;
-  const flushFree = () => {
-    if (free.join("").trim()) parts.push({ free: free.join("\n") });
-    free = [];
-  };
-  for (const l of String(text || "").replace(/\r/g, "").split("\n")) {
-    const m = l.match(ENTRY);
-    if (m) {
-      flushFree();
-      cur = { time: m[1], text: m[2] };
-      parts.push(cur);
-    } else if (cur && /^\s{2,}\S/.test(l)) cur.text += "\n" + l.trim();
-    else {
-      cur = null;
-      free.push(l);
-    }
-  }
-  flushFree();
-  return parts;
 }
 
 export function sessionHtml(text, links) {
@@ -799,7 +774,8 @@ function noteCard(n, sec, ctx, o = {}) {
 const NOTE_GROUPS = {
   people: { field: "attitude", states: NOTE_ATTITUDE, order: [["ally", "Союзники"], ["neutral", "Нейтральные"], ["hostile", "Враги"], ["", "Пока не ясно"]] },
   quests: { field: "status", states: NOTE_STATUS, order: [["active", "Активные"], ["", "Без статуса"], ["done", "Выполненные"], ["failed", "Проваленные"]] },
-  clues: { field: "state", states: CLUE_STATE, order: [["confirmed", "Подтверждено"], ["lead", "Зацепки"], ["", "Не проверено"], ["false", "Ложные следы"]] }
+  clues: { field: "state", states: CLUE_STATE, order: [["confirmed", "Подтверждено"], ["lead", "Зацепки"], ["", "Не проверено"], ["false", "Ложные следы"]] },
+  questions: { field: "status", states: QUESTION_STATE, order: [["open", "Невскрытые письма"], ["answered", "Вскрытые"]] }
 };
 
 export function noteState(n, sec) {
@@ -817,6 +793,10 @@ function initials(t) {
 export function noteMedal(n, sec, big = false) {
   const st = noteState(n, sec);
   const c = st ? st[1] : "var(--gold)";
+  if (sec === "questions") {
+    const open = n.status !== "answered";
+    return `<span class="jr-medal seal ${open ? "" : "broken"} ${big ? "big" : ""}" style="--c:${open ? QUESTION_STATE.open[1] : QUESTION_STATE.answered[1]}">${icon(open ? "gi/lorc/wax-seal" : "gi/lorc/envelope")}</span>`;
+  }
   return sec === "people"
     ? `<span class="jr-medal person ${big ? "big" : ""}" style="--c:${c}">${esc(initials(n.title))}</span>`
     : `<span class="jr-medal ${big ? "big" : ""}" style="--c:${c}">${icon(secIcon(sec))}</span>`;
@@ -827,13 +807,13 @@ function noteEntry(n, sec, o = {}) {
   const title = n.title || "Без названия";
   const prev = stems.length ? snippetHtml(n.text, stems, 110) : esc(cut(plainText(n.text), 110));
   const st = noteState(n, sec);
-  const dim = n.status === "done" || n.status === "failed" || n.state === "false";
+  const dim = n.status === "done" || n.status === "failed" || n.state === "false" || !!n.dead;
   const todo = String(n.text || "").match(/^\s*[-*] \[[ xXхХ]\]/gm) || [];
   const done = todo.filter(t => /\[[xXхХ]\]/.test(t)).length;
   const dates = noteDates(n);
   const when = dates.edit ? shortDate(dates.edit) : shortDate(dates.made);
   const goal = todo.length ? `<span class="jr-goal ${done === todo.length ? "all" : ""}" title="Выполнено целей">${done} из ${todo.length}</span>` : "";
-  return `<button class="jr-entry ${dim ? "dim" : ""}" style="--c:${st ? st[1] : "var(--gold)"}" data-rid="${esc(n.id)}" data-act="read-note" data-sec="${sec}" data-id="${esc(n.id)}">
+  return `<button class="jr-entry ${dim ? "dim" : ""} ${n.dead ? "dead" : ""}" style="--c:${st ? st[1] : "var(--gold)"}" data-rid="${esc(n.id)}" data-act="read-note" data-sec="${sec}" data-id="${esc(n.id)}">
     ${noteMedal(n, sec)}
     <span class="jr-t"><b>${stems.length ? highlight(title, stems) : esc(title)}</b>${n.subtitle ? `<small>${stems.length ? highlight(n.subtitle, stems) : esc(n.subtitle)}</small>` : ""}${prev ? `<span class="jr-prev">${prev}</span>` : ""}</span>
     <span class="jr-side">${goal}${n.pinned ?`<i class="jr-pin" title="В «Важном»">${icon("star")}</i>` : ""}${o.showSec ? `<span class="badge sec">${esc(SECTION_NAME[sec] || "")}</span>` : ""}${o.showSec && st ? `<span class="badge" style="--c:${st[1]}">${st[0]}</span>` : ""}${when ? `<time class="jr-date">${when}</time>` : ""}</span>
@@ -843,8 +823,9 @@ function noteEntry(n, sec, o = {}) {
 function groupedEntries(list, sec, ui) {
   const g = NOTE_GROUPS[sec];
   if (!g || ui.ordering) return `<div class="jr-list" data-reorder="notes.${sec}">${list.map(n => noteEntry(n, sec)).join("")}</div>`;
-  const keyOf = n => (g.order.some(([k]) => k === (n[g.field] || "")) ? n[g.field] || "" : "");
-  return g.order.map(([k, label]) => {
+  const keyOf = n => (sec === "questions" ? (n.status === "answered" ? "answered" : "open") : sec === "people" && n.dead ? "dead" : g.order.some(([k]) => k === (n[g.field] || "")) ? n[g.field] || "" : "");
+  const order = sec === "people" ? [...g.order, ["dead", "Нет в живых"]] : g.order;
+  return order.map(([k, label]) => {
     const items = list.filter(n => keyOf(n) === k);
     if (!items.length) return "";
     const st = g.states[k];
@@ -854,17 +835,37 @@ function groupedEntries(list, sec, ui) {
 
 export function noteReadHtml(c, sec, n, { readOnly = false } = {}) {
   const st = noteState(n, sec);
-  const back = backlinks(c).get(n.id) || [];
+  const said = sec === "sessions" ? [] : journalMentions(c, n.id);
+  const back = (backlinks(c).get(n.id) || []).filter(b => !said.some(x => x.sesId === b.id));
   const tags = noteTagsOf(n);
   const s = NOTE_SECTIONS.find(x => x.key === sec) || {};
-  const stamp = noteStamp(n, sec, true);
-  return `<article class="nr" style="--c:${st ? st[1] : "var(--gold-2)"}">
+  const stamp = n.dead ? `<span class="stamp big dead" style="--c:#8d8577">Нет в живых</span>` : noteStamp(n, sec, true);
+  const links = richLinks(c)(n.id);
+  const dos = sec === "sessions" ? null : noteDossier(c, n.id);
+  const when = x => `<button class="nrd-when" data-act="open-note" data-sec="sessions" data-id="${esc(x.sesId)}">${esc(x.title)}${x.day ? `, ${shortDate(x.day)}` : ""}</button>`;
+  const chip = x => `<button class="tag" data-act="open-note" data-sec="${x.sec}" data-id="${esc(x.id)}">${esc(x.title)}${x.n > 1 ? `<small>×${x.n}</small>` : ""}</button>`;
+  const dossier = dos ? `<dl class="nr-dossier">
+      <div><dt>Впервые</dt><dd>${when(dos.first)}${dos.first.place ? ` · ${chip(dos.first.place)}` : ""}</dd></div>
+      ${dos.last.sesId !== dos.first.sesId ? `<div><dt>Последний раз</dt><dd>${when(dos.last)}${dos.last.place ? ` · ${chip(dos.last.place)}` : ""}</dd></div>` : ""}
+      ${sec === "people" && dos.seen && dos.seen.place && (!dos.last.place || dos.last.place.id !== dos.seen.place.id) ? `<div><dt>Где видели</dt><dd>${chip(dos.seen.place)} · ${when(dos.seen)}</dd></div>` : ""}
+      ${dos.together.length ? `<div class="wide"><dt>Чаще рядом</dt><dd>${dos.together.map(chip).join("")}</dd></div>` : ""}
+    </dl>` : "";
+  const journal = said.length ?`<section class="nr-journal"><h4>${icon("gi/delapouite/notebook")}В журнале<small>${said.length}</small></h4><ol>${said.slice(0, 60).map(x => `<li><button class="nrj-when" data-act="open-note" data-sec="sessions" data-id="${esc(x.sesId)}"><b>${esc(x.title)}</b>${x.day ? ` · ${shortDate(x.day)}` : ""}${x.time ? ` · ${esc(x.time)}` : ""}</button><div class="nrj-t">${rich(x.text, links)}</div></li>`).join("")}</ol></section>` : "";
+  const isQ = sec === "questions";
+  const clues = isQ ? questionClues(c, n) : [];
+  const letter = isQ ? `${n.status === "answered" && n.answer ? `<section class="nr-answer"><h4>${icon("gi/lorc/envelope")}Ответ</h4><div class="note-text">${rich(n.answer, links)}</div></section>` : ""}
+    <section class="nr-journal nr-clues"><h4>${icon("gi/lorc/magnifying-glass")}Зацепки из журнала${clues.length ? `<small>${clues.length}</small>` : ""}</h4>${clues.length ? `<ol>${clues.map(x => `<li><button class="nrj-when" data-act="open-note" data-sec="sessions" data-id="${esc(x.sesId)}"><b>${esc(x.title)}</b>${x.day ? ` · ${shortDate(x.day)}` : ""}${x.time ? ` · ${esc(x.time)}` : ""}</button><div class="nrj-t">${rich(x.text, links)}</div></li>`).join("")}</ol>` : `<p class="hint">Пока ничего. Записи журнала с теми же людьми, местами и словами появятся здесь сами.</p>`}</section>` : "";
+  const qBtn = isQ ? (n.status === "answered" ? `<button class="btn ghost sm" data-act="q-reseal" data-id="${esc(n.id)}">${icon("gi/lorc/wax-seal")}Запечатать снова</button>` : `<button class="btn sm q-open-btn" data-act="q-open" data-id="${esc(n.id)}">${icon("gi/lorc/envelope")}Вскрыть: ответ найден</button>`) : "";
+  return `<article class="nr ${isQ ? "nr-letter" : ""}" style="--c:${st ? st[1] : "var(--gold-2)"}">
     <header class="nr-h">${noteMedal(n, sec, true)}<div class="nr-ti"><span class="nr-sec">${icon(s.icon || "scroll")}${esc(s.name || "")}${st && !stamp ? ` · <b>${st[0]}</b>` : ""}</span><h2>${esc(n.title || "Без названия")}</h2>${n.subtitle ? `<p class="nr-sub">${esc(n.subtitle)}</p>` : ""}${noteDatesHtml(n)}${stamp}</div></header>
     <div class="nr-orn" aria-hidden="true"><i></i></div>
-    <div class="nr-text note-text">${rich(n.text, richLinks(c)(n.id)) || `<p class="dim">Пока пусто. Нажми «Изменить», чтобы записать.</p>`}</div>
+    ${dossier}
+    ${rich(n.text, links) || (!said.length && !isQ) ? `<div class="nr-text note-text">${rich(n.text, links) || `<p class="dim">Пока пусто. Нажми «Изменить», чтобы записать.</p>`}</div>` : ""}
+    ${letter}
+    ${journal}
     ${tags.length ? `<div class="nr-tags">${tags.map(t => `<button class="tag" data-act="note-tag" data-k="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}
     ${back.length ? `<div class="nr-back"><span>${icon("link")}Упоминается</span>${back.map(b => `<button class="tag" data-act="open-note" data-sec="${b.sec}" data-id="${esc(b.id)}">${esc(b.title)}</button>`).join("")}</div>` : ""}
-    ${readOnly ? "" : `<footer class="nr-foot"><button class="btn ghost sm ${n.pinned ? "on" : ""}" data-act="pin-note" data-sec="${sec}" data-id="${esc(n.id)}" aria-pressed="${n.pinned ? "true" : "false"}">${icon("star")}${n.pinned ? "В «Важном»" : "В «Важное»"}</button><button class="btn gold sm" data-act="edit-note" data-sec="${sec}" data-id="${esc(n.id)}">${icon("edit")}Изменить</button></footer>`}
+    ${readOnly ? "" : `<footer class="nr-foot"><button class="btn ghost sm ${n.pinned ? "on" : ""}" data-act="pin-note" data-sec="${sec}" data-id="${esc(n.id)}" aria-pressed="${n.pinned ? "true" : "false"}">${icon("star")}${n.pinned ? "В «Важном»" : "В «Важное»"}</button>${qBtn}<button class="btn gold sm" data-act="edit-note" data-sec="${sec}" data-id="${esc(n.id)}">${icon("edit")}Изменить</button></footer>`}
   </article>`;
 }
 
@@ -900,21 +901,77 @@ export function notesList(ctx) {
     places: "Мест пока нет: города, районы, таверны, тайные ходы.",
     quests: "Заданий пока нет.",
     clues: "Улик пока нет. Для расследований: что нашли, где, и насколько это верно.",
+    questions: "Открытых вопросов нет. Напиши в журнал строку со знаком «?», и скрипт предложит запечатать её в письмо. Когда ответ найдётся, письмо вскроется.",
     patron: "Здесь пока пусто",
     misc: "Здесь можно хранить что угодно: законы мира, слухи, план города, правила Мастера."
   };
   const empty = (c.notes[s] || []).length ? "Под этот фильтр ничего не подходит" : hints[s] || "Здесь пока пусто";
   if (!list.length) return (c.notes[s] || []).length ? `<p class="empty">${empty}</p>` : emptyState(empty);
   if (s === "sessions") return `<div class="notes single" data-reorder="notes.sessions">${list.map(n => noteCard(n, s, ctx, { links, back })).join("")}</div>`;
-  return groupedEntries(list, s, ui);
+  return (ui.ordering || ui.noteTag ? "" : mergeBanner(c, s, ui)) + groupedEntries(list, s, ui);
 }
 
-function journalBox(c) {
+function hintRow(h) {
+  const skip = `<button class="icon-btn jh-x" data-act="jh-skip" data-k="${esc(h.key)}" title="${h.kind === "name" ? "Это не имя, больше не предлагать" : "Убрать подсказку"}" aria-label="Убрать подсказку">${icon("close")}</button>`;
+  if (h.kind === "name") {
+    const b = (sec, label) => `<button class="chip toggle ${h.guess === sec ? "on" : ""}" data-act="jh-make" data-k="${esc(h.key)}" data-sec="${sec}">${label}</button>`;
+    return `<li class="jh"><span class="jh-l">${icon(h.guess === "places" ? "gi/lorc/treasure-map" : h.guess === "misc" ? "gi/lorc/papers" : "gi/lorc/rally-the-troops")}<b title="Новое имя: куда записать?">${esc(h.name)}</b></span><span class="jh-b">${b("people", "Человек")}${b("places", "Место")}${b("misc", "Прочее")}${skip}</span></li>`;
+  }
+  if (h.kind === "coins") {
+    const unit = (COINS.find(k => k.key === h.unit) || {}).short || "ЗМ";
+    const b = (mode, label, on) => `<button class="chip toggle ${on ? "on" : ""}" data-act="jh-coins" data-k="${esc(h.key)}" data-sign="${mode}">${label}</button>`;
+    return `<li class="jh"><span class="jh-l">${icon("gi/delapouite/two-coins")}<b>${h.amount} ${unit}</b></span><span class="jh-b">${h.balance ? b("set", "В кошельке ровно", true) : ""}${b("1", "+ Получили", h.sign > 0)}${b("-1", "− Потратили", h.sign < 0)}${skip}</span></li>`;
+  }
+  const one = (act, label, ic, text) => `<li class="jh"><span class="jh-l">${icon(ic)}<span>${text}</span></span><span class="jh-b"><button class="chip toggle on" data-act="${act}" data-k="${esc(h.key)}">${label}</button>${skip}</span></li>`;
+  if (h.kind === "alias") return `<li class="jh"><span class="jh-l">${icon("gi/lorc/two-shadows")}<span><b>${esc(h.name)}</b>: это ${esc(h.title)}?</span></span><span class="jh-b"><button class="chip toggle on" data-act="jh-alias" data-k="${esc(h.key)}">Да, другое имя</button><button class="chip toggle" data-act="jh-alias-no" data-k="${esc(h.key)}">Нет, новый</button>${skip}</span></li>`;
+  if (h.kind === "att") return one("jh-att", h.att === "hostile" ? "Сделать врагом" : "Сделать союзником", h.att === "hostile" ? "gi/lorc/crossed-swords" : "gi/delapouite/shaking-hands", `<b>${esc(h.title)}</b>: ${h.att === "hostile" ? "враг?" : "союзник?"}`);
+  if (h.kind === "item") {
+    const unit = h.price ? (COINS.find(k => k.key === h.price.unit) || {}).short || "ЗМ" : "";
+    const b = (mode, label, on) => `<button class="chip toggle ${on ? "on" : ""}" data-act="jh-item" data-k="${esc(h.key)}" data-mode="${mode}">${label}</button>`;
+    const what = `<b>${esc(h.name)}</b>${h.qty > 1 ? ` ×${h.qty}` : ""}`;
+    const btns = h.mode === "add"
+      ? (h.price ? b("addpay", `В инвентарь, −${h.price.amount} ${unit}`, true) + b("add", "Только в инвентарь", false) : b("add", h.id ? `Ещё ${h.qty} в инвентарь` : "В инвентарь", true))
+      : h.mode === "use"
+        ? b("use", `Потрачено ${h.qty}`, true)
+        : (h.price ? b("removegain", `Убрать, +${h.price.amount} ${unit}`, true) + b("remove", "Только убрать", false) : b("remove", "Убрать из инвентаря", true));
+    return `<li class="jh"><span class="jh-l">${icon("gi/delapouite/backpack")}<span>${what}</span></span><span class="jh-b">${btns}${skip}</span></li>`;
+  }
+  if (h.kind === "ask") return one("jh-ask", "Запечатать в письмо", "gi/lorc/wax-seal", `Вопрос: <b>${esc(h.title)}</b>`);
+  if (h.kind === "answer") return one("jh-answer", "Вскрыть письмо", "gi/lorc/envelope", `Похоже на ответ: <b>${esc(h.title)}</b>`);
+  if (h.kind === "xp") return one("jh-xp", "Добавить опыт", "gi/delapouite/upgrade", `Опыт: <b>+${h.amount}</b>`);
+  if (h.kind === "level") return one("jh-level", "Повысить уровень", "gi/delapouite/progression", `<b>Новый уровень${h.target ? ` ${h.target}` : ""}?</b>`);
+  if (h.kind === "quest") return one("jh-quest", "Создать задание", "gi/delapouite/flag-objective", `Задание: <b>${esc(h.title)}</b>`);
+  if (h.kind === "qdone") return one("jh-qdone", h.status === "failed" ? "Отметить проваленным" : "Отметить выполненным", h.status === "failed" ? "gi/sbed/cancel" : "gi/delapouite/check-mark", `<b>${esc(h.title)}</b>: ${h.status === "failed" ? "провалено?" : "выполнено?"}`);
+  return one("jh-dead", "Да, отметить", "gi/lorc/tombstone", `<b>${esc(h.title)}</b>: нет в живых?`);
+}
+
+export function mergeBanner(c, sec, ui) {
+  if (sec !== "people" && sec !== "places") return "";
+  const list = findDoubles(c, sec, ui.mergeSkip || []);
+  if (!list.length) return "";
+  return `<div class="ja-hints merge-hints"><div class="jh-h"><span>Похоже на одно и то же</span></div><ul>${list.slice(0, 4).map(d => `<li class="jh"><span class="jh-l">${icon("gi/lorc/linked-rings")}<span><b>${esc(d.dropTitle)}</b> и <b>${esc(d.keepTitle)}</b></span></span><span class="jh-b"><button class="chip toggle on" data-act="merge-notes" data-k="${esc(d.key)}" data-sec="${sec}" data-keep="${esc(d.keep)}" data-drop="${esc(d.drop)}">Объединить</button><button class="chip toggle" data-act="merge-skip" data-k="${esc(d.key)}" data-label="${esc(d.dropTitle)} и ${esc(d.keepTitle)}">Это разные</button></span></li>`).join("")}</ul></div>`;
+}
+
+function journalHints(c, ui) {
+  const list = liveHints(c, ui.jHints);
+  if (!list.length) return "";
+  const shown = ui.jHintsAll ? list : list.slice(0, 3);
+  const more = list.length - shown.length;
+  const row = h => {
+    const html = hintRow(h);
+    if (!h.src) return html;
+    return html.replace(`<span class="jh-l">`, `<span class="jh-l" data-act="jh-why" role="button" tabindex="0" title="Почему? Нажми, чтобы увидеть запись">`).replace(/<\/li>$/, `<small class="jh-src">Из записи: «${esc(h.src)}»</small></li>`);
+  };
+  return `<div class="ja-hints"><div class="jh-h"><span>Скрипт заметил</span><button class="btn ghost sm" data-act="jh-clear">Убрать все</button></div><ul>${shown.map(row).join("")}</ul>${more ? `<button class="btn ghost sm jh-more" data-act="jh-more">Ещё ${more}</button>` : ""}</div>`;
+}
+
+function journalBox(c, ui = {}) {
   const cur = currentSession(c);
   return `<div class="journal-add">
     <div class="ja-h">${icon("quill")}<span><b>${cur ? esc(cur.title) : "Новая сессия"}</b><small>${cur ? esc(cur.subtitle || "") : "начнётся с первой записи"}</small></span><span class="spacer"></span><button class="btn ghost sm" data-act="session-new">${icon("plus")}Новая сессия</button></div>
     <textarea data-journal rows="2" placeholder="Что случилось? Набери [[, чтобы сослаться на человека или место" aria-label="Запись в журнал"></textarea>
     <div class="ja-foot"><span class="hint explain">Enter: записать со временем, Shift+Enter: новая строка.</span><button class="btn ghost sm" data-act="writing-help" data-k="journal">${icon("book")}Как записывать</button><button class="btn gold sm" data-act="journal-add">${icon("check")}Записать</button></div>
+    ${journalHints(c, ui)}
   </div>`;
 }
 
@@ -943,7 +1000,7 @@ export function tabNotes(ctx) {
   const search = `<label class="search-box notes-search">${icon("search")}<input type="search" data-ui="notes-q" list="notes-q-list" placeholder="Найти в любой заметке: имя, место, слово" value="${esc(ui.notesQ || "")}" aria-label="Поиск по всем заметкам" autocomplete="off"></label><datalist id="notes-q-list">${options.map(o => `<option value="${esc(o)}"></option>`).join("")}</datalist>`;
   const tags = [...new Set((c.notes[s] || []).flatMap(noteTagsOf))].sort((a, b) => a.localeCompare(b, "ru"));
   const filters = tags.length ? `<div class="note-filters" ${searching ? "hidden" : ""}>${tags.map(t => `<button class="tag ${ui.noteTag === t ? "on" : ""}" data-act="note-tag" data-k="${esc(t)}" aria-pressed="${ui.noteTag === t ? "true" : "false"}">#${esc(t)}</button>`).join("")}</div>` : "";
-  const journal = s === "sessions" && !searching ? journalBox(c) : "";
+  const journal = s === "sessions" && !searching ? journalBox(c, ui) : "";
   const count = (c.notes[s] || []).length;
   const head = `<div class="notes-head" ${searching ? "hidden" : ""}><h3 class="jr-title">${icon(sec.icon)}${esc(sec.name)}${count ? `<small>${count}</small>` : ""}</h3><span class="spacer"></span>${s === "sessions" ? "" : `<button class="btn ghost sm" data-act="writing-help">${icon("book")}Как записывать</button>`}${count > 1 ? orderBtn(ctx) : ""}${s === "sessions" ? "" : addBtn("add-note", sec.add, `data-sec="${s}"`)}</div>`;
   return pinnedStrip(c) + nav + search + `<div class="journal-slot" ${searching ? "hidden" : ""}>${journal}</div>` + head + filters + `<div class="jr-body" data-notes-list>${notesList(ctx)}</div>`;

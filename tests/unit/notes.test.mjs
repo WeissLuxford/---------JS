@@ -107,7 +107,7 @@ test("journal: current session window, numbering and entries with time", () => {
 
 test("note sections, cleaning and history", () => {
   const c = R.normalize({ name: "x", notes: { clues: [{ id: "c1", title: 5, state: "bogus", pinned: "yes", created: "12" }, ["junk"]], places: "oops" } });
-  assert.deepEqual(R.NOTE_KEYS, ["sessions", "people", "places", "quests", "clues", "patron", "misc"]);
+  assert.deepEqual(R.NOTE_KEYS, ["sessions", "people", "places", "quests", "clues", "questions", "patron", "misc"]);
   assert.equal(c.notes.clues.length, 1);
   assert.equal(c.notes.clues[0].title, "5");
   assert.equal(c.notes.clues[0].state, "");

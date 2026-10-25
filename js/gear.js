@@ -60,6 +60,17 @@ export const GEAR = [
   { kind: "gear", name: "Сундук", nameEn: "Chest", group: "Контейнеры", capacity: 300, weight: 25, value: "5 зм", props: "Вмещает 12 кубических футов или 300 фунтов снаряжения. С собой обычно не носят." }
 ];
 
+export const POTIONS = [
+  { name: "Зелье лечения", rarity: "common", weight: 0.5, value: "50 зм", dice: "2d4+2", effect: "Восстанавливает 2к4 + 2 хита. Выпить или напоить другого: действие." },
+  { name: "Большое зелье лечения", rarity: "uncommon", weight: 0.5, value: "", dice: "4d4+4", effect: "Восстанавливает 4к4 + 4 хита. Выпить или напоить другого: действие." },
+  { name: "Отличное зелье лечения", rarity: "rare", weight: 0.5, value: "", dice: "8d4+8", effect: "Восстанавливает 8к4 + 8 хитов. Выпить или напоить другого: действие." },
+  { name: "Превосходное зелье лечения", rarity: "veryRare", weight: 0.5, value: "", dice: "10d4+20", effect: "Восстанавливает 10к4 + 20 хитов. Выпить или напоить другого: действие." }
+];
+
+export function potionToItem(p, uid, qty = 1) {
+  return { id: "it-" + uid(), name: p.name, type: "consumable", rarity: p.rarity, qty, weight: p.weight, value: p.value, equipped: false, attuned: false, requiresAttunement: false, action: "action", uses: "", recharge: "none", used: 0, damage: [{ dice: p.dice, type: "healing", addMod: false }], effect: p.effect, description: "", atkAbility: "", atkProf: false, atkBonus: 0, range: "", acBase: null, acDex: "full", acBonus: 0 };
+}
+
 export function gearToItem(g, uid) {
   const base = { id: "it-" + uid(), name: g.name, rarity: "common", qty: 1, weight: g.weight, value: g.value, equipped: false, attuned: false, requiresAttunement: false, action: "", uses: "", recharge: "long", used: 0, effect: g.props || "", description: `${g.group}${g.nameEn ? ` · ${g.nameEn}` : ""}. Из таблицы SRD 5.1.` };
   if (g.kind === "weapon") return { ...base, type: "weapon", action: "action", damage: [{ dice: g.dice, type: g.type, addMod: false }], atkAbility: g.ability, atkProf: true, atkBonus: 0, range: g.range };

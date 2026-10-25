@@ -582,7 +582,7 @@ export function newCharacter(name = "Новый персонаж") {
     items: [],
     coins: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
     personality: { appearance: "", traits: "", ideals: "", bonds: "", flaws: "", backstory: "", allies: "" },
-    notes: { sessions: [], people: [], places: [], quests: [], clues: [], patron: [], misc: [] }
+    notes: { sessions: [], people: [], places: [], quests: [], clues: [], questions: [], patron: [], misc: [] }
   };
 }
 
@@ -683,15 +683,20 @@ export function presetEffect(key, extra = {}, level = 0) {
   return cleanEffect({ ...p, ...scaled, preset: key, id: "ef-" + uid(), ...extra });
 }
 
-export const NOTE_KEYS = ["sessions", "people", "places", "quests", "clues", "patron", "misc"];
+export const NOTE_KEYS = ["sessions", "people", "places", "quests", "clues", "questions", "patron", "misc"];
 
 const NOTE_ENUMS = { status: ["active", "done", "failed"], attitude: ["ally", "neutral", "hostile"], state: ["lead", "confirmed", "false"] };
 
+const QUESTION_ENUM = ["open", "answered"];
+
 function cleanNote(x, k, i) {
   const out = { ...x, id: cleanId(x.id, "nt-" + k, i) };
-  for (const f of ["title", "subtitle", "text", "tags", "aliases", "date"]) if (f in out) out[f] = String(out[f] ?? "");
-  for (const [f, ok] of Object.entries(NOTE_ENUMS)) if (f in out) out[f] = ok.includes(out[f]) ? out[f] : "";
-  for (const f of ["collapsed", "pinned"]) if (f in out) out[f] = !!out[f];
+  for (const f of ["title", "subtitle", "text", "tags", "aliases", "date", "answer"]) if (f in out) out[f] = String(out[f] ?? "");
+  for (const [f, list] of Object.entries(NOTE_ENUMS)) {
+    const ok = k === "questions" && f === "status" ? QUESTION_ENUM : list;
+    if (f in out) out[f] = ok.includes(out[f]) ? out[f] : "";
+  }
+  for (const f of ["collapsed", "pinned", "dead"]) if (f in out) out[f] = !!out[f];
   for (const f of ["created", "touched", "updated"]) if (f in out) out[f] = Math.max(0, num(out[f]));
   return out;
 }
@@ -726,6 +731,7 @@ export function normalize(c) {
   out.armor.dexCap = ["full", "2", "0"].includes(String(out.armor.dexCap)) ? String(out.armor.dexCap) : "full";
   out.armor.addAbility = ABILITY_KEYS.includes(out.armor.addAbility) ? out.armor.addAbility : "";
   out.armor.shield = !!out.armor.shield;
+  out.hintIgnore = (Array.isArray(src.hintIgnore) ? src.hintIgnore : []).filter(x => x && typeof x.k === "string" && x.k).map(x => ({ k: x.k.slice(0, 200), t: String(x.t ?? "").slice(0, 120) })).slice(-500);
   out.resistances = String(out.resistances ?? "");
   const def = src.defenses && typeof src.defenses === "object" && !Array.isArray(src.defenses) ? src.defenses : null;
   out.defenses = def ? { resist: cleanTypes(def.resist), vuln: cleanTypes(def.vuln), immune: cleanTypes(def.immune) } : parseDefenses(out.resistances);

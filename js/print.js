@@ -104,7 +104,7 @@ function storyPart(c) {
 const PRINT_LINKS = { link: (name, label) => `<u>${label || name}</u>` };
 
 function notesPart(c) {
-  const titles = { sessions: "Журнал сессий", people: "Люди", places: "Места", quests: "Задания", clues: "Улики", patron: "Покровитель", misc: "Прочее" };
+  const titles = { sessions: "Журнал сессий", people: "Люди", places: "Места", quests: "Задания", clues: "Улики", questions: "Вопросы", patron: "Покровитель", misc: "Прочее" };
   const body = NOTE_KEYS.map(k => (c.notes[k].length ? `<h3>${titles[k]}</h3>${c.notes[k].map(n => `<div class="p-item"><div class="p-item-h"><b>${esc(n.title || "Без названия")}</b>${n.subtitle ? `<span>${esc(n.subtitle)}</span>` : ""}</div>${n.text ? `<div class="p-desc">${rich(n.text, PRINT_LINKS)}</div>` : ""}</div>`).join("")}` : "")).join("");
   return sec("Заметки", body, "p-break");
 }

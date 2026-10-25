@@ -1316,7 +1316,7 @@ export function attachLinkSuggest(ta, getTargets) {
     if (!it) return;
     const end = ta.selectionStart;
     const after = ta.value.slice(end, end + 2) === "]]" ? 2 : 0;
-    const text = `[[${it.title}]]`;
+    const text = it.as ? `[[${it.title}|${it.as}]]` : `[[${it.title}]]`;
     hide();
     replaceText(ta, start, end + after, text, start + text.length, start + text.length);
   };
@@ -1332,8 +1332,10 @@ export function attachLinkSuggest(ta, getTargets) {
     const all = (getTargets() || []).map(t => ({ title: t.title, sub: t.secName + (t.aliases && t.aliases.length ? ` · ${t.aliases.join(", ")}` : ""), keys: [t.title, ...(t.aliases || [])].map(lnorm) }));
     const starts = all.filter(t => !q || t.keys.some(k => k.startsWith(q)));
     const inside = q ? all.filter(t => !starts.includes(t) && t.keys.some(k => k.includes(q))) : [];
-    items = [...starts, ...inside].slice(0, 8);
-    if (q && !all.some(t => t.keys.includes(q))) items.push({ title: m[1].trim(), sub: "новая ссылка: заметку можно создать потом" });
+    const root = q.length >= 4 ? q.slice(0, q.length - (q.length >= 6 ? 2 : 1)) : "";
+    const close = root && !/\s/.test(q) ? all.filter(t => !starts.includes(t) && !inside.includes(t) && t.keys.some(k => k.split(/\s+/).some(w => w.startsWith(root)))).map(t => ({ ...t, as: m[1].trim(), sub: `${t.sub} · в тексте останется «${m[1].trim()}»` })) : [];
+    items = [...starts, ...inside, ...close].slice(0, 8);
+    if (q && !all.some(t => t.keys.includes(q)) && !close.length) items.push({ title: m[1].trim(), sub: "новая ссылка: заметку можно создать потом" });
     if (!items.length) return hide();
     active = Math.min(active, items.length - 1);
     draw();

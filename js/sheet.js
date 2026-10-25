@@ -925,7 +925,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     return m;
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-armor", "edit-abilities", "edit-prof", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "note-create-link", "feature-library", "box-stored", "spell-ability", "doll-slot", "doll-swap", "art-add", "art-frame"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-armor", "edit-abilities", "edit-prof", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "jh-make", "jh-coins", "jh-dead", "jh-alias", "jh-att", "jh-quest", "jh-qdone", "jh-item", "jh-xp", "jh-level", "jh-ask", "jh-answer", "q-open", "q-reseal", "merge-notes", "note-create-link", "feature-library", "box-stored", "spell-ability", "doll-slot", "doll-swap", "art-add", "art-frame"]);
 
   const UNDO = {
     "hp-quick": el => (Number(el.dataset.n) < 0 ? `Урон ${-Number(el.dataset.n)}` : `Лечение ${el.dataset.n}`),
@@ -1307,7 +1307,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       case "add-item": return X.editEntity("item", null, { magic: "artifact", weapon: "weapon", armor: "armor", consumable: "consumable", tool: "tool" }[S.ui.invFilter] || "gear");
       case "add-note":
         if (el.dataset.sec === "sessions") return X.startSession();
-        return X.editNote(el.dataset.sec, null);
+        return X.editNote(el.dataset.sec, null, el.dataset.sec === "questions" ? { status: "open" } : {});
       case "open-note": return X.openNote(el.dataset.sec, el.dataset.id);
       case "read-note": return X.readNote(el.dataset.sec, el.dataset.id);
       case "writing-help": return openWritingHelp(el.dataset.k || "");
@@ -1315,6 +1315,32 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       case "note-create-link": return X.createFromLink(el.dataset.name || "");
       case "quick-note": return X.quickNote();
       case "session-new": return X.startSession();
+      case "jh-make":
+      case "jh-coins":
+      case "jh-dead":
+      case "jh-skip":
+      case "jh-clear":
+      case "jh-alias":
+      case "jh-alias-no":
+      case "jh-att":
+      case "jh-quest":
+      case "jh-qdone":
+      case "jh-item":
+      case "jh-xp":
+      case "jh-level":
+      case "jh-ask":
+      case "jh-answer": return X.hintAct(a, el);
+      case "q-open": return X.openLetter(el.dataset.id);
+      case "q-reseal": return X.resealLetter(el.dataset.id);
+      case "jh-why": {
+        const li = el.closest(".jh");
+        if (li) li.classList.toggle("why");
+        return;
+      }
+      case "hint-hidden": return X.hiddenHints();
+      case "merge-notes":
+      case "merge-skip": return X.mergeAct(a, el);
+      case "jh-more": S.ui.jHintsAll = true; return renderTab();
       case "journal-add": {
         const ta = $("[data-journal]", root);
         if (ta && X.journalAdd(ta.value)) X.focusJournal();

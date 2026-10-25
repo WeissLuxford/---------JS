@@ -1,5 +1,5 @@
-const VERSION = "v53";
-const BUILD = "cb3cec606b";
+const VERSION = "v54";
+const BUILD = "9b535b2f10";
 const SHELL = "dnd-shell-" + VERSION + "-" + BUILD;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -53,6 +53,7 @@ const PRECACHE = [
   "js/library.js",
   "js/main.js",
   "js/notes.js",
+  "js/note-hints.js",
   "js/print.js",
   "js/pwa.js",
   "js/ref.js",
