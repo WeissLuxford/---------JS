@@ -13,7 +13,7 @@ export const CREDITS = [
   {
     group: "Правила и тексты",
     items: [
-      { title: "System Reference Document 5.1", url: "https://dnd.wizards.com/resources/systems-reference-document", author: "Wizards of the Coast LLC", license: "CC BY 4.0", note: "Заклинания, умения, оружие, доспехи и зелья лечения в библиотеках взяты из SRD 5.1, переведены и пересказаны." }
+      { title: "System Reference Document 5.1", url: "https://dnd.wizards.com/resources/systems-reference-document", author: "Wizards of the Coast LLC", license: "CC BY 4.0", note: "Заклинания, умения, оружие, доспехи и зелья лечения в библиотеках взяты из SRD 5.1, переведены и пересказаны. Заклинания вне SRD описаны своими словами по правилам игры." }
     ]
   },
   {

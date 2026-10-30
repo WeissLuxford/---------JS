@@ -30,7 +30,7 @@ function clashes(list, look) {
 const chars = [["Кирион", normalize(kirion())], ...read("data/templates.json").map(t => [t.key, normalize(t.c)])];
 
 test("no two spells share icon and color", () => {
-  assert.deepEqual(clashes(read("data/spells-srd.json"), sp => { const r = spellIcon({ damageSwap: {} }, sp); return r.icon + " " + r.color; }), []);
+  assert.deepEqual(clashes([...read("data/spells-srd.json"), ...read("data/spells-extra.json")], sp => { const r = spellIcon({ damageSwap: {} }, sp); return r.icon + " " + r.color; }), []);
   for (const [who, c] of chars) assert.deepEqual(clashes(c.spells, sp => { const r = spellIcon(c, sp); return r.icon + " " + r.color; }), [], who);
 });
 

@@ -1,5 +1,5 @@
 const VERSION = "v54";
-const BUILD = "9b535b2f10";
+const BUILD = "926a1d9dc1";
 const SHELL = "dnd-shell-" + VERSION + "-" + BUILD;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -80,6 +80,7 @@ const PRECACHE = [
   "js/tabs.js",
   "js/ui.js",
   "data/spells-srd.json",
+  "data/spells-extra.json",
   "data/features-srd.json",
   "data/templates.json",
   "assets/icons/picker.json"

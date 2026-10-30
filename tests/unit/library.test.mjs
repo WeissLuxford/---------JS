@@ -7,7 +7,7 @@ const P = new URL("../../js/", import.meta.url).href;
 const { toSpell, guessClass, CLASSES } = await import(P + "library.js");
 const { cardFor } = await import(P + "entities.js");
 const R = await import(P + "rules.js");
-const data = JSON.parse(readFileSync(new URL("../../data/spells-srd.json", import.meta.url), "utf8"));
+const data = [...JSON.parse(readFileSync(new URL("../../data/spells-srd.json", import.meta.url), "utf8")), ...JSON.parse(readFileSync(new URL("../../data/spells-extra.json", import.meta.url), "utf8"))];
 
 test("SRD library: every spell is valid and renders as a card", () => {
   assert.ok(data.length > 300, String(data.length));

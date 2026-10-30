@@ -14,7 +14,7 @@ const read = f => fs.readFileSync(new URL("../../" + f, import.meta.url), "utf8"
 const src = read("js/icons.js");
 const { ART, USED } = await import(P + "icon-art.js");
 const ALL = new Set([...src.slice(0, src.indexOf("export const ICON_NAMES")).matchAll(/^  ([a-zA-Z0-9]+):/gm)].map(m => m[1]).concat(Object.keys(ART), USED));
-const spells = JSON.parse(read("data/spells-srd.json"));
+const spells = [...JSON.parse(read("data/spells-srd.json")), ...JSON.parse(read("data/spells-extra.json"))];
 const feats = JSON.parse(read("data/features-srd.json"));
 const c = R.normalize({ name: "x" });
 const share = list => {

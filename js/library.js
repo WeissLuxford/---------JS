@@ -19,7 +19,10 @@ export async function loadSpells() {
   if (cache) return cache;
   const res = await fetch(new URL("../data/spells-srd.json", import.meta.url));
   if (!res.ok) throw new Error("load");
-  const raw = await res.json();
+  const base = await res.json();
+  const extraRes = await fetch(new URL("../data/spells-extra.json", import.meta.url)).catch(() => null);
+  const extra = extraRes && extraRes.ok ? await extraRes.json().catch(() => []) : [];
+  const raw = [...(Array.isArray(base) ? base : []), ...(Array.isArray(extra) ? extra.map(x => ({ ...x, source: "Не SRD" })) : [])];
   cache = (Array.isArray(raw) ? raw : []).filter(x => x && typeof x === "object" && typeof x.name === "string").map((x, i) => ({ ...x, key: String(x.nameEn || x.name) + "#" + i, classes: Array.isArray(x.classes) ? x.classes.filter(k => k in CLASSES) : [] }));
   return cache;
 }
@@ -34,7 +37,7 @@ export function guessClass(c) {
 }
 
 export function toSpell(lib, item) {
-  const sp = { id: "sp-" + uid(), castAt: null, source: "SRD 5.1", cost: "slot", uses: "", recharge: "long", used: 0, prepared: true };
+  const sp = { id: "sp-" + uid(), castAt: null, source: lib.source || "SRD 5.1", cost: "slot", uses: "", recharge: "long", used: 0, prepared: true };
   for (const k of FIELDS) sp[k] = lib[k] ?? (k === "damage" ? [] : k === "level" ? 0 : "");
   if (item) Object.assign(sp, { cost: "item", itemId: item.id, scaling: "none", source: item.name || "Предмет", ...itemCharges(lib) });
   return normalize({ name: "x", spells: [sp] }).spells[0];
@@ -147,7 +150,7 @@ async function renderSpells(box, { get, onAdd, item = null }) {
     ${item ? `<p class="hint">Заклинание будет тратить заряды «${esc(item.name || "предмета")}». Сколько зарядов и сколько урона даёт лишний заряд, видно на карточке; поменять можно кнопкой «Изменить» у заклинания.</p>` : ""}
     <div class="lib-count hint" data-count></div>
     <div class="lib-list" data-list></div>
-    <p class="hint small lib-src">Заклинания из System Reference Document 5.1, Wizards of the Coast LLC, лицензия CC-BY-4.0. Тексты переведены и сокращены для этого сайта. После добавления заклинание можно изменить как угодно.</p>`;
+    <p class="hint small lib-src">Заклинания из System Reference Document 5.1, Wizards of the Coast LLC, лицензия CC-BY-4.0. Тексты переведены и сокращены для этого сайта. Заклинания с пометкой "Не SRD" (Громовой клинок и другие) описаны своими словами по их механике. После добавления заклинание можно изменить как угодно.</p>`;
   const listEl = m.body.querySelector("[data-list]");
   const countEl = m.body.querySelector("[data-count]");
   const draw = () => {
