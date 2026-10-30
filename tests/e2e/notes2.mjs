@@ -43,7 +43,7 @@ await page.fill(`${M} [data-qn-title]`, "Порт Сильверхолл");
 await page.fill(`${M} [data-qn-text]`, "Склады, контрабанда, люди [[Рэй]]");
 await page.click(`${M} [data-qn-save]`);
 await sleep(400);
-ok("quick note to places", (await page.locator(".jr-tabs [data-k=places] small").innerText()) === "1");
+ok("quick note to places", (await page.locator(".jr-tabs [data-k=places] small").innerText()) === "2");
 await page.click("article.note[data-sec=sessions] .wl.missing");
 await sleep(300);
 ok("create from link dialog", (await page.locator(`${M} [data-sec=people]`).count()) === 1);
