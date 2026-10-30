@@ -11,6 +11,7 @@ import { skinFor } from "./achievements.js";
 import { NOTE_SECTIONS, SECTION_NAME, searchNotes, queryStems, words } from "./notes.js";
 import { describeWho, isMe, KIND_ICONS } from "./device.js";
 import { currentUid } from "./access.js";
+import { giftsAvailable } from "./dm-gifts.js";
 import { banAccount } from "./admin.js";
 import { clone, explainOn } from "./sheet-util.js";
 import { wakeOn, wakeSupported } from "./wake.js";
@@ -490,7 +491,8 @@ export function installDialogs(X) {
         ...(r.canEdit && !r.propose ? [["dice-skin", "d20", "Кубики: " + skinFor(S.c.diceSkin).name]] : []),
         ["tabfx", "d20", "Анимация вкладок: " + tabFxLabel()],
         ["roll-mode", "d20", "Режим броска: " + (S.rollMode === "adv" ? "преимущество" : S.rollMode === "dis" ? "помеха" : "обычный")],
-        ...(S.d.level < 20 && r.canEdit ? [["level-up", "star", "Повысить уровень"]] : [])
+        ...(S.d.level < 20 && r.canEdit ? [["level-up", "star", "Повысить уровень"]] : []),
+        ...(giftsAvailable(X) ? [["dm-gifts", "crown", "Дары и заметки Мастера"]] : [])
       ]],
       ["Найти", [
         ["search-all", "search", "Поиск по листу"],

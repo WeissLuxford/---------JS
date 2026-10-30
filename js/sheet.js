@@ -10,6 +10,7 @@ import { describeChanges } from "./changes.js";
 import { subscribeChar, saveChanges, addHistory, onStatus, createChar, getMode, watchInvite, addRecent, deleteCharacter, pendingWrites, newCharId, humanError, watchProposals, watchMyProposal, saveProposal, deleteProposal } from "./store.js";
 import { cloudDiff, rebase, applyCloud } from "./cloud.js";
 import { onAccess, getAccess, myEmail, signIn, IN_APP } from "./access.js";
+import { runDmGifts } from "./dm-gifts.js";
 import { openAccounts } from "./admin.js";
 import { openShare } from "./share.js";
 import { setAmbient } from "./ambient.js";
@@ -925,7 +926,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
     return m;
   }
 
-  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-armor", "edit-abilities", "edit-prof", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "jh-make", "jh-coins", "jh-dead", "jh-alias", "jh-att", "jh-quest", "jh-qdone", "jh-item", "jh-xp", "jh-level", "jh-ask", "jh-answer", "q-open", "q-reseal", "merge-notes", "note-create-link", "feature-library", "box-stored", "spell-ability", "doll-slot", "doll-swap", "art-add", "art-frame"]);
+  const MUTATING = new Set(["short-rest", "long-rest", "hp", "hp-quick", "inspiration", "spend-hd", "death", "toggle-save", "cycle-skill", "edit-armor", "edit-abilities", "edit-prof", "add-attack", "add-spell", "spell-library", "toggle-order", "add-effect", "level-up", "dedupe-attacks", "cover", "collect-ammo", "scene", "pin-use", "coin-pay", "coin-get", "add-xp", "dm-gifts", "gear-table", "edit-effect", "remove-effect", "next-round", "end-combat", "add-feature", "add-item", "add-note", "edit-note", "pact-pip", "slot-pip", "use-pip", "toggle-cond", "exhaustion", "drop-conc", "import", "archive", "unarchive", "delete", "pin-note", "journal-add", "session-new", "jh-make", "jh-coins", "jh-dead", "jh-alias", "jh-att", "jh-quest", "jh-qdone", "jh-item", "jh-xp", "jh-level", "jh-ask", "jh-answer", "q-open", "q-reseal", "merge-notes", "note-create-link", "feature-library", "box-stored", "spell-ability", "doll-slot", "doll-swap", "art-add", "art-frame"]);
 
   const UNDO = {
     "hp-quick": el => (Number(el.dataset.n) < 0 ? `Урон ${-Number(el.dataset.n)}` : `Лечение ${el.dataset.n}`),
@@ -970,6 +971,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
       case "roll-log": return X.rollLogDialog();
       case "dice": return openDiceRoller();
       case "level-up": return X.openLevelUp();
+      case "dm-gifts": return runDmGifts(X);
       case "install": {
         const { installApp } = await import("./pwa.js");
         return installApp();

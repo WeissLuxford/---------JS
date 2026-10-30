@@ -1,5 +1,5 @@
-const VERSION = "v54";
-const BUILD = "72352a1796";
+const VERSION = "v55";
+const BUILD = "cccb115bc4";
 const SHELL = "dnd-shell-" + VERSION + "-" + BUILD;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
@@ -75,6 +75,7 @@ const PRECACHE = [
   "js/sheet-undo.js",
   "js/sheet-util.js",
   "js/store.js",
+  "js/dm-gifts.js",
   "js/sync.js",
   "js/tab-fx.js",
   "js/tabs.js",
