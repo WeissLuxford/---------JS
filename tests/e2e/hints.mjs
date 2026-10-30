@@ -26,9 +26,10 @@ await write("Выпили в трактире «Низкий фонарь», Х�
 ok("three hints shown first", (await page.locator(".jh").count()) === 3);
 ok("more button", (await page.locator("[data-act=jh-more]").innerText()).includes("3"));
 await page.click("[data-act=jh-more]");
+await page.waitForFunction(() => document.querySelectorAll(".jh").length === 6);
 await sleep(250);
 const texts = (await page.locator(".jh").allInnerTexts()).join(" | ").replace(/\n/g, " ");
-await page.locator(".ja-hints").scrollIntoViewIfNeeded();
+await page.evaluate(() => { const el = document.querySelector(".ja-hints"); if (el) el.scrollIntoView({ block: "center" }); });
 await page.screenshot({ path: OUT + "hints-list.png" });
 ok("all six hints", (await page.locator(".jh").count()) === 6, texts);
 ok("name in base form", texts.includes("Лиара Портир") && !texts.includes("Лиару"), texts);
