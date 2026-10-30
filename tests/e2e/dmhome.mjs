@@ -22,6 +22,7 @@ await page.locator(".sheet").getByText("Прочее", { exact: true }).first().
 await sleep(300);
 const notes = await page.locator(".sheet").innerText();
 ok("law notes listed", notes.includes("Закон о магии") && notes.includes("Уголовный кодекс"));
+ok("rules note listed", notes.includes("Правила и ритм игры"));
 await page.getByText("Закон о магии (кратко)").first().click();
 await sleep(400);
 await page.screenshot({ path: E2E_OUT + "dmhome-notes.png" });
