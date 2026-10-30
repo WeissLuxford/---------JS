@@ -177,6 +177,8 @@ function storeSaved(id, v) {
 const STATUS_COLOR = sec => (sec === "people" ? NOTE_ATTITUDE : sec === "clues" ? CLUE_STATE : sec === "quests" ? NOTE_STATUS : {});
 const SEC_ICON = Object.fromEntries(NOTE_SECTIONS.map(s => [s.key, s.icon]));
 const NODE_H = 40;
+const MIN_ZOOM = 0.15;
+const WORLD = 4000;
 
 function initials(t) {
   const w = String(t || "").replace(/[^\p{L}\s-]/gu, " ").split(/[\s-]+/).filter(Boolean);
@@ -258,7 +260,7 @@ export function openBoard({ c, charId, onOpen }) {
     H = Math.max(520, Math.round((W * rect.height) / rect.width));
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   }
-  const clampSaved = v => Object.fromEntries(Object.entries(v).filter(([, p]) => p && Number.isFinite(p.x) && Number.isFinite(p.y)).map(([k, p]) => [k, { x: Math.max(100, Math.min(W - 100, p.x)), y: Math.max(40, Math.min(H - 50, p.y)) }]));
+  const clampSaved = v => Object.fromEntries(Object.entries(v).filter(([, p]) => p && Number.isFinite(p.x) && Number.isFinite(p.y)).map(([k, p]) => [k, { x: Math.max(-WORLD, Math.min(WORLD, p.x)), y: Math.max(-WORLD, Math.min(WORLD, p.y)) }]));
   const view = m.body.querySelector("[data-bd-view]");
   const card = m.body.querySelector("[data-bd-card]");
   const emptyEl = m.body.querySelector("[data-bd-empty]");
@@ -346,6 +348,18 @@ export function openBoard({ c, charId, onOpen }) {
     if (st.sel && !graph.nodes.some(n => n.id === st.sel)) st.sel = "";
     draw();
   };
+  const fitView = () => {
+    const items = graph.nodes.map(n => ({ p: pos.get(n.id), w: nodeW(n.title) })).filter(x => x.p);
+    if (!items.length) return;
+    const x0 = Math.min(...items.map(i => i.p.x - i.w / 2)) - 24;
+    const x1 = Math.max(...items.map(i => i.p.x + i.w / 2)) + 24;
+    const y0 = Math.min(...items.map(i => i.p.y - NODE_H)) - 24;
+    const y1 = Math.max(...items.map(i => i.p.y + NODE_H)) + 24;
+    if (x0 >= 0 && y0 >= 0 && x1 <= W && y1 <= H) return;
+    const s = Math.max(MIN_ZOOM, Math.min(1, W / (x1 - x0), H / (y1 - y0)));
+    st.view = { s, x: (W - (x1 - x0) * s) / 2 - x0 * s, y: (H - (y1 - y0) * s) / 2 - y0 * s };
+    applyView();
+  };
   const toLocal = (clientX, clientY) => {
     const pt = svg.createSVGPoint();
     pt.x = clientX;
@@ -377,7 +391,7 @@ export function openBoard({ c, charId, onOpen }) {
     if (drag.type === "pinch" && pointers.size === 2) {
       const [a, b] = [...pointers.values()];
       const d = Math.hypot(a.sx - b.sx, a.sy - b.sy);
-      const s = Math.max(0.35, Math.min(3, drag.s * (d / Math.max(1, drag.d))));
+      const s = Math.max(MIN_ZOOM, Math.min(3, drag.s * (d / Math.max(1, drag.d))));
       st.view.x = drag.cx - ((drag.cx - drag.vx) * s) / drag.s;
       st.view.y = drag.cy - ((drag.cy - drag.vy) * s) / drag.s;
       st.view.s = s;
@@ -435,7 +449,7 @@ export function openBoard({ c, charId, onOpen }) {
   svg.addEventListener("wheel", e => {
     e.preventDefault();
     const p = toLocal(e.clientX, e.clientY);
-    const s = Math.max(0.35, Math.min(3, st.view.s * (e.deltaY < 0 ? 1.12 : 0.89)));
+    const s = Math.max(MIN_ZOOM, Math.min(3, st.view.s * (e.deltaY < 0 ? 1.12 : 0.89)));
     st.view.x = p.sx - (p.sx - st.view.x) * (s / st.view.s);
     st.view.y = p.sy - (p.sy - st.view.y) * (s / st.view.s);
     st.view.s = s;
@@ -462,7 +476,7 @@ export function openBoard({ c, charId, onOpen }) {
     const z = e.target.closest("[data-bd-zoom]");
     if (z) {
       const f = Number(z.dataset.bdZoom);
-      const s = Math.max(0.35, Math.min(3, st.view.s * f));
+      const s = Math.max(MIN_ZOOM, Math.min(3, st.view.s * f));
       st.view.x = W / 2 - ((W / 2 - st.view.x) * s) / st.view.s;
       st.view.y = H / 2 - ((H / 2 - st.view.y) * s) / st.view.s;
       st.view.s = s;
@@ -472,7 +486,8 @@ export function openBoard({ c, charId, onOpen }) {
       saved = {};
       storeSaved(charId, saved);
       st.view = { x: 0, y: 0, s: 1 };
-      return rebuild(true);
+      rebuild(true);
+      return fitView();
     }
     const go = e.target.closest("[data-bd-go]");
     if (go) {
@@ -497,5 +512,6 @@ export function openBoard({ c, charId, onOpen }) {
     rebuild();
   });
   rebuild(true);
+  fitView();
   return m;
 }
