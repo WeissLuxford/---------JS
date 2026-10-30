@@ -27,6 +27,12 @@ export const CREDITS = [
     ]
   },
   {
+    group: "Картинки",
+    items: [
+      { title: "Human silhouette gender neutral front", url: "https://commons.wikimedia.org/wiki/File:Human_silhouette_gender_neutral_front.svg", author: "Sebastian Wallroth", license: "CC0", note: "Силуэт тела на вкладке «Вещи», пока нет своей картинки во весь рост." }
+    ]
+  },
+  {
     group: "Библиотеки",
     items: [
       { title: "Dice Box", url: "https://fantasticdice.games", author: "Frank Ali, 3D Dice", authorUrl: "https://github.com/3d-dice", license: "MIT", note: "3D-кубики, которые катятся по экрану." },
