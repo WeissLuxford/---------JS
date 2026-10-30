@@ -2,6 +2,7 @@ import { uid, payCoins, coinsText, COINS, xpInfo } from "./rules.js";
 import { icon } from "./icons.js";
 import { esc, toast, openModal, openForm, rich, attachLinkSuggest } from "./ui.js";
 import { noteReadHtml } from "./tabs.js";
+import { sealFx, inkLast, flip } from "./paper-fx.js";
 import { NOTE_SECTIONS, SECTION_NAME, currentSession, newSession, appendEntry, linkTargets, queryStems, markMatches, searchNotes, questionClues } from "./notes.js";
 import { entryHints, mergeHints, liveHints, itemFromHint } from "./note-hints.js";
 
@@ -132,6 +133,7 @@ export function installNotes(X) {
           n.answer = text;
           n.updated = Date.now();
         }), () => `${icon("gi/lorc/envelope")} Письмо вскрыто: «${esc(q.title)}». Оно во «Вскрытых»`);
+        sealFx("crack");
         return true;
       }
     });
@@ -144,6 +146,7 @@ export function installNotes(X) {
       const n = (ch.notes.questions || []).find(x => x.id === qid);
       if (n) n.status = "open";
     }), () => `${icon("gi/lorc/wax-seal")} «${esc(q.title)}» снова запечатано`);
+    sealFx("stamp");
   }
 
   function hintsFromEdit(before, after) {
@@ -167,11 +170,14 @@ export function installNotes(X) {
     if (!find(sec, nid)) return toast("Заметка не найдена: возможно, её удалили", { kind: "bad" });
     const cur = { sec, id: nid };
     const m = openModal({ cls: "note-read" });
+    let shown = false;
     const show = () => {
       const n = find(cur.sec, cur.id);
       if (!n) return m.close();
       m.body.innerHTML = noteReadHtml(S.c, cur.sec, n, { readOnly: X.readOnly() });
       m.body.scrollTop = 0;
+      if (shown) flip(m.body.querySelector(".nr"));
+      shown = true;
     };
     show();
     m.body.addEventListener("click", e => {
@@ -250,6 +256,7 @@ export function installNotes(X) {
       return false;
     }
     setHints(S.ui.jHints);
+    setTimeout(() => inkLast(root), 120);
     if (fresh.length && (S.tab !== "notes" || (S.ui.notesSection || "sessions") !== "sessions" || String(S.ui.notesQ || "").trim())) toast(`${icon("quill")} Скрипт заметил: ${fresh.length}. Подсказки ждут под полем журнала`, { timeout: 2600 });
     else if (!quiet && created) toast(`${icon("quill")} Начата «${esc(created)}»`, { kind: "good", timeout: 1800 });
     return true;
