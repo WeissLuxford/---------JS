@@ -53,3 +53,21 @@ test("layout is deterministic, inside the board and keeps saved positions", () =
   assert.ok(near("p1", "l1") < near("p3", "l1") + 400);
   assert.equal(B.layoutGraph({ nodes: [], edges: [] }).size, 0);
 });
+
+test("manual links add a thread and cuts remove an automatic one", () => {
+  const has = (g, a, b) => g.edges.some(e => (e.a === a && e.b === b) || (e.a === b && e.b === a));
+  const c = sample();
+  assert.ok(!has(B.buildGraph(c), "p3", "l1"));
+  assert.ok(B.setLink(c, "p3", "l1", true));
+  const g = B.buildGraph(R.normalize(c));
+  assert.ok(has(g, "p3", "l1"));
+  assert.ok(g.edges.find(e => e.a === "l1" && e.b === "p3" || e.a === "p3" && e.b === "l1").manual);
+  assert.ok(has(B.buildGraph(c), "p1", "l1"));
+  assert.ok(B.setLink(c, "l1", "p1", false));
+  assert.ok(!has(B.buildGraph(R.normalize(c)), "p1", "l1"));
+  assert.ok(B.setLink(c, "p1", "l1", true));
+  assert.ok(has(B.buildGraph(R.normalize(c)), "p1", "l1"));
+  assert.ok(B.setLink(c, "p3", "l1", false));
+  assert.ok(!has(B.buildGraph(R.normalize(c)), "p3", "l1"));
+  assert.equal(B.setLink(c, "p3", "nope", true), false);
+});

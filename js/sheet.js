@@ -1349,7 +1349,7 @@ export function mountSheet(root, id, initialTab, navigate, opts = {}) {
         return;
       }
       case "clue-state": S.ui.clueState = el.dataset.k; return renderTab();
-      case "board": return import("./board.js").then(({ openBoard }) => openBoard({ c: S.c, charId: id, onOpen: X.openNote }));
+      case "board": return import("./board.js").then(({ openBoard, setLink }) => openBoard({ c: S.c, get: () => S.c, charId: id, onOpen: X.openNote, onLink: X.readOnly() ? null : (a, b, on) => X.mutate(ch => { setLink(ch, a, b, on); }, { render: false }) }));
       case "help-card": {
         hideHoverCard();
         const html = cardFor(S.c, S.d, el.dataset.card);

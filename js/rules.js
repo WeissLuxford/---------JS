@@ -696,6 +696,7 @@ function cleanNote(x, k, i) {
     const ok = k === "questions" && f === "status" ? QUESTION_ENUM : list;
     if (f in out) out[f] = ok.includes(out[f]) ? out[f] : "";
   }
+  for (const f of ["link", "cut"]) if (f in out) out[f] = (Array.isArray(out[f]) ? out[f] : []).filter(v => typeof v === "string" && v).slice(0, 80);
   for (const f of ["collapsed", "pinned", "dead"]) if (f in out) out[f] = !!out[f];
   for (const f of ["created", "touched", "updated"]) if (f in out) out[f] = Math.max(0, num(out[f]));
   return out;

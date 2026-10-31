@@ -72,6 +72,18 @@ export function buildGraph(c, { sections = DEFAULT_ON, onlyLinked = false } = {}
       }
     }
   }
+  const pairKey = (x, y) => (x < y ? `${x}|${y}` : `${y}|${x}`);
+  const allNotes = NOTE_SECTIONS.flatMap(s => (c.notes && c.notes[s.key]) || []);
+  for (const n of allNotes) for (const to of Array.isArray(n.cut) ? n.cut : []) edges.delete(pairKey(n.id, to));
+  for (const n of allNotes) {
+    for (const to of Array.isArray(n.link) ? n.link : []) {
+      if (!byId.has(n.id) || !byId.has(to) || n.id === to) continue;
+      const key = pairKey(n.id, to);
+      const e = edges.get(key) || { a: n.id < to ? n.id : to, b: n.id < to ? to : n.id, w: 1, via: [] };
+      e.manual = true;
+      edges.set(key, e);
+    }
+  }
   const list = [...edges.values()];
   const degree = new Map();
   for (const e of list) {
@@ -81,6 +93,25 @@ export function buildGraph(c, { sections = DEFAULT_ON, onlyLinked = false } = {}
   const kept = onlyLinked ? nodes.filter(n => degree.has(n.id)) : nodes;
   for (const n of kept) n.degree = degree.get(n.id) || 0;
   return { nodes: kept, edges: list };
+}
+
+export function setLink(c, a, b, on) {
+  const find = id => {
+    for (const s of NOTE_SECTIONS) {
+      const n = ((c.notes && c.notes[s.key]) || []).find(x => x.id === id);
+      if (n) return n;
+    }
+    return null;
+  };
+  const na = find(a);
+  const nb = find(b);
+  if (!na || !nb || a === b) return false;
+  for (const [n, other] of [[na, b], [nb, a]]) {
+    for (const f of ["link", "cut"]) if (Array.isArray(n[f])) n[f] = n[f].filter(x => x !== other);
+  }
+  const f = on ? "link" : "cut";
+  na[f] = [...(Array.isArray(na[f]) ? na[f] : []), b];
+  return true;
 }
 
 export function layoutGraph(graph, saved = {}, { width = 1000, height = 700, iterations = 260 } = {}) {
@@ -235,8 +266,9 @@ function iconDefs() {
   }).join("");
 }
 
-export function openBoard({ c, charId, onOpen }) {
-  const st = { sections: new Set(DEFAULT_ON), onlyLinked: false, sel: "", q: "", view: { x: 0, y: 0, s: 1 } };
+export function openBoard({ c, get, charId, onOpen, onLink }) {
+  const cur = () => (get ? get() : c) || c;
+  const st = { sections: new Set(DEFAULT_ON), onlyLinked: false, sel: "", q: "", linking: "", view: { x: 0, y: 0, s: 1 } };
   let W = 1000;
   let H = 700;
   let saved = loadSaved(charId);
@@ -252,7 +284,7 @@ export function openBoard({ c, charId, onOpen }) {
       <div class="bd-empty" data-bd-empty hidden></div>
     </div>
     <div class="bd-card" data-bd-card hidden></div>
-    <p class="hint explain bd-hint">Нити тянутся по ссылкам [[Имя]] и упоминаниям имён, а через журнал: если двое упомянуты в одной записи, между ними тоже нить. Карточки можно двигать, место запомнится на этом устройстве.</p>`;
+    <p class="hint explain bd-hint">Нити тянутся по ссылкам [[Имя]] и упоминаниям имён, а через журнал: если двое упомянуты в одной записи, между ними тоже нить. Выдели карточку: кнопка «Связать» тянет свою нить, крестик у соседа убирает связь. Карточки можно двигать, место запомнится на этом устройстве.</p>`;
   const svg = m.body.querySelector(".bd-svg");
   const rect = svg.getBoundingClientRect();
   if (rect.width > 0 && rect.width < 700) {
@@ -309,7 +341,7 @@ export function openBoard({ c, charId, onOpen }) {
       const b = pos.get(e.b);
       if (!a || !b) return "";
       const on = st.sel && (e.a === st.sel || e.b === st.sel);
-      return `<path class="bd-edge ${on ? "on" : ""} ${st.sel && !on ? "dim" : ""}" data-edge="${i}" d="${edgePath(a, b)}" stroke-width="${Math.min(5, 1.6 + e.w * 0.6).toFixed(1)}"><title>${esc(e.via.length ? "Через: " + e.via.join(", ") : "Ссылка в заметке")}</title></path>`;
+      return `<path class="bd-edge ${on ? "on" : ""} ${st.sel && !on ? "dim" : ""}" data-edge="${i}" d="${edgePath(a, b)}" stroke-width="${Math.min(5, 1.6 + e.w * 0.6).toFixed(1)}"><title>${esc(e.manual ? "Связано вручную" : e.via.length ? "Через: " + e.via.join(", ") : "Ссылка в заметке")}</title></path>`;
     }).join("");
     const order = st.sel ? [...graph.nodes.filter(n => n.id !== st.sel), ...graph.nodes.filter(n => n.id === st.sel)] : graph.nodes;
     const nodesSvg = order.map(n => nodeSvg(n, `${dim(n.id) ? "dim" : ""} ${st.sel === n.id ? "sel" : ""} ${hit && hit.has(n.id) ? "hit" : ""} ${n.status === "false" ? "false" : ""}`)).join("");
@@ -337,11 +369,12 @@ export function openBoard({ c, charId, onOpen }) {
     card.style.setProperty("--c", (stc || [])[1] || BOARD_SECTIONS[n.sec]);
     card.innerHTML = `<div class="bd-card-h"><span class="bd-card-sec">${icon(SEC_ICON[n.sec])}${esc(SECTION_NAME[n.sec])}${stc ? ` · <b>${esc(stc[0])}</b>` : ""}</span><h3>${esc(n.title)}</h3>${n.subtitle ? `<small>${esc(n.subtitle)}</small>` : ""}</div>
       <p>${esc(plainText(n.text).slice(0, 220) || "Пусто")}</p>
-      ${near.length ? `<div class="bd-near">${icon("link")}${near.map(x => `<button class="tag" data-bd-go="${esc(x.id)}">${esc(x.title)}</button>`).join("")}</div>` : ""}
-      <div class="form-actions"><button class="btn ghost sm" data-bd-unsel>Снять выделение</button><button class="btn gold sm" data-bd-open>${icon("scroll")}Открыть</button></div>`;
+      ${near.length ? `<div class="bd-near">${icon("link")}${near.map(x => `<span class="bd-nb"><button class="tag" data-bd-go="${esc(x.id)}">${esc(x.title)}</button>${onLink ? `<button class="bd-cut" data-bd-cut="${esc(x.id)}" title="Убрать связь" aria-label="Убрать связь с ${esc(x.title)}">${icon("close")}</button>` : ""}</span>`).join("")}</div>` : ""}
+      ${st.linking === n.id ? `<p class="hint bd-linking">Нажми на карточку, с которой связать.</p>` : ""}
+      <div class="form-actions"><button class="btn ghost sm" data-bd-unsel>Снять выделение</button>${onLink ? `<button class="btn ghost sm ${st.linking === n.id ? "on" : ""}" data-bd-link>${icon("link")}${st.linking === n.id ? "Отмена" : "Связать"}</button>` : ""}<button class="btn gold sm" data-bd-open>${icon("scroll")}Открыть</button></div>`;
   };
   const rebuild = (relayout = false) => {
-    graph = buildGraph(c, { sections: [...st.sections], onlyLinked: st.onlyLinked });
+    graph = buildGraph(cur(), { sections: [...st.sections], onlyLinked: st.onlyLinked });
     if (relayout || !pos) pos = layoutGraph(graph, clampSaved(saved), { width: W, height: H });
     else pos = layoutGraph(graph, Object.fromEntries([...pos].map(([id, p]) => [id, { x: p.x, y: p.y }])), { width: W, height: H, iterations: 120 });
     spreadCards(graph.nodes, pos, { width: W, height: H });
@@ -434,8 +467,14 @@ export function openBoard({ c, charId, onOpen }) {
         moveNode(drag.id);
         saved = { ...saved, [drag.id]: { x: Math.round(q.x), y: Math.round(q.y) } };
         storeSaved(charId, saved);
+      } else if (st.linking && st.linking !== drag.id) {
+        const from = st.linking;
+        st.linking = "";
+        if (onLink && onLink(from, drag.id, true)) rebuild();
+        else draw();
       } else {
         st.sel = st.sel === drag.id ? "" : drag.id;
+        st.linking = "";
         draw();
       }
     } else if (drag.type === "pan" && !drag.moved && st.sel) {
@@ -488,6 +527,15 @@ export function openBoard({ c, charId, onOpen }) {
       st.view = { x: 0, y: 0, s: 1 };
       rebuild(true);
       return fitView();
+    }
+    const cut = e.target.closest("[data-bd-cut]");
+    if (cut) {
+      if (st.sel && onLink && onLink(st.sel, cut.dataset.bdCut, false)) rebuild();
+      return;
+    }
+    if (e.target.closest("[data-bd-link]")) {
+      st.linking = st.linking === st.sel ? "" : st.sel;
+      return showCard();
     }
     const go = e.target.closest("[data-bd-go]");
     if (go) {
