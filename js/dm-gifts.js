@@ -11,13 +11,24 @@ const GIFTS = {
   notes: { patron: ["n-patron-campaign"], places: ["pl-crownspire"], misc: ["n-dm-rules", "n-law-magic", "n-law-crime"] }
 };
 
+const BACKSTORY_NOTE = { id: "ses-backstory", title: "Предыстория", subtitle: "До начала игры", status: "", attitude: "", created: 1, text: "**Семья (5-6 лет)**\n- Работорговцы пришли за семьёй Кириона ради денег. Родители не отдали детей и погибли, защищая их.\n- Подоспел Халвар Торндайк, спас Кириона, его брата и сестру и взял к себе домой. Родителей спасти не успел.\n- Кирион запомнил главное: родителей убили из-за рабства.\n\n**Дом Торндайков (примерно с 6 до 15 лет)**\n- Приняли в большую семью, вырастили добрым, научили любить и ценить людей.\n- Ненависть к рабству осталась, особенно к тем, кто наживается на людях.\n- Подростком помогал механикам, учился и изучал артефакты. Учёба стала способом забыть о мире вокруг.\n- Несколько лет назад в городе осел Рэй, и Кирион стал равняться на него: свободный, сильный, умный, самостоятельный и заботливый.\n\n**Договор (около 15 лет)**\n- Изучая запретные знания, случайно наткнулся на Мефистофеля.\n- Сознательно заключил договор ради знаний и силы, стал сильнее, лучше и увереннее. Семья о договоре не знает.\n\n**Начало игры (16 лет)**\n- Попросился к Рэю в дело, чтобы набраться опыта, полный надежд. В компанию его не взяли из-за возраста.\n- Колдун 5 уровня, покровитель Исчадие. Всё равно рвётся в дело." };
+
+const STORY = {
+  marker: "ses-backstory",
+  personality: ["ideals", "bonds", "flaws", "backstory", "allies"],
+  replace: { people: ["p-ray", "p-halvar", "p-siblings", "p-mephistopheles"], patron: ["n-patron-pact"], quests: ["q-prove-to-ray"] }
+};
+
 const has = (list, id) => Array.isArray(list) && list.some(x => x && x.id === id);
+
+const storyDone = c => has(c.notes && c.notes.sessions, STORY.marker) || /работорговцы пришли/.test(String((c.personality && c.personality.backstory) || ""));
 
 export function giftsMissing(c) {
   if (!c) return false;
   if (GIFTS.spells.some(id => !has(c.spells, id))) return true;
   if (GIFTS.features.some(id => !has(c.features, id))) return true;
   const notes = c.notes && typeof c.notes === "object" ? c.notes : {};
+  if (!storyDone(c)) return true;
   return Object.entries(GIFTS.notes).some(([k, ids]) => ids.some(id => !has(notes[k], id)));
 }
 
@@ -59,12 +70,29 @@ export function applyGifts(c, seed) {
       }
     }
   }
+  if (!storyDone(c)) {
+    c.personality = c.personality && typeof c.personality === "object" ? c.personality : {};
+    for (const f of STORY.personality) if (seed.personality && typeof seed.personality[f] === "string") c.personality[f] = seed.personality[f];
+    for (const [k, ids] of Object.entries(STORY.replace)) {
+      if (!Array.isArray(c.notes[k])) c.notes[k] = [];
+      for (const id of ids) {
+        const n = ((seed.notes || {})[k] || []).find(x => x.id === id);
+        if (!n) continue;
+        const i = c.notes[k].findIndex(x => x && x.id === id);
+        if (i >= 0) c.notes[k][i] = n;
+        else c.notes[k].push(n);
+      }
+    }
+    if (!Array.isArray(c.notes.sessions)) c.notes.sessions = [];
+    if (!has(c.notes.sessions, BACKSTORY_NOTE.id)) c.notes.sessions.push({ ...BACKSTORY_NOTE });
+    added.push(BACKSTORY_NOTE.title);
+  }
   return { added, dropped };
 }
 
 export async function runDmGifts(X) {
   if (!giftsAvailable(X)) return;
-  const ok = await confirmDialog("Добавить в лист дары и заметки Мастера: Печать Кании, умение «Узнавание заклинаний» (вместо Гения договоров), заметки о Кроунспайре, Мефистофеле, правилах и законах? То, что уже есть, не трогается. Можно отменить кнопкой «Отменить».", { ok: "Добавить" });
+  const ok = await confirmDialog("Добавить в лист дары и заметки Мастера: Печать Кании, умение «Узнавание заклинаний» (вместо Гения договоров), заметки о Кроунспайре, Мефистофеле, правилах и законах, а также новую предысторию: запись в журнале, идеалы, привязанности, слабости, предыстория и заметки о Халваре, Рэе, брате с сестрой и договоре перепишутся (если правил их руками, сначала сохрани копию)? Остальное не трогается. Можно отменить кнопкой «Отменить».", { ok: "Добавить" });
   if (!ok) return;
   let seed;
   try {

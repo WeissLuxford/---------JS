@@ -61,3 +61,24 @@ test("the button is only for the owner of this one character", () => {
   assert.equal(giftsAvailable(mk(KIRION_ID, "owner", seed())), false);
   assert.equal(giftsAvailable(mk(KIRION_ID, "owner", stripped(), "t1")), false);
 });
+
+test("the backstory replaces profile texts and notes once, with a journal entry", () => {
+  const c = stripped();
+  c.notes.sessions = [];
+  c.personality.backstory = "старое";
+  c.personality.ideals = "старое";
+  c.notes.people[0].text = "моя правка";
+  assert.equal(giftsMissing(c), true);
+  const res = applyGifts(c, seed());
+  assert.ok(res.added.includes("Предыстория"));
+  assert.equal(c.personality.ideals, seed().personality.ideals);
+  assert.notEqual(c.notes.people[0].text, "моя правка");
+  assert.ok(c.notes.sessions.some(n => n.id === "ses-backstory"));
+  assert.equal(giftsMissing(c), false);
+  const once = JSON.stringify(c);
+  c.personality.ideals = "после";
+  const again = applyGifts(c, seed());
+  assert.equal(c.personality.ideals, "после");
+  assert.deepEqual(again.added, []);
+  assert.notEqual(JSON.stringify(c), once);
+});

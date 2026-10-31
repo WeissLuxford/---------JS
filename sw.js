@@ -1,5 +1,5 @@
 const VERSION = "v56";
-const BUILD = "338497956a";
+const BUILD = "e49507c048";
 const SHELL = "dnd-shell-" + VERSION + "-" + BUILD;
 const CDN = "dnd-cdn-" + VERSION;
 const PRECACHE = [
