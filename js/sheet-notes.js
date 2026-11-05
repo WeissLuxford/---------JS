@@ -4,6 +4,7 @@ import { esc, toast, openModal, openForm, rich, attachLinkSuggest } from "./ui.j
 import { noteReadHtml } from "./tabs.js";
 import { sealFx, inkLast, flip } from "./paper-fx.js";
 import { NOTE_SECTIONS, SECTION_NAME, currentSession, newSession, appendEntry, linkTargets, queryStems, markMatches, searchNotes, questionClues } from "./notes.js";
+import { takeSnap } from "./session-stats.js";
 import { entryHints, mergeHints, liveHints, itemFromHint } from "./note-hints.js";
 
 const RECENT_KEY = "dnd.notes.recent.";
@@ -250,6 +251,7 @@ export function installNotes(X) {
       cur.text = appendEntry(cur.text, clean, now);
       cur.touched = now;
       cur.collapsed = false;
+      if (cur.snap) cur.snapEnd = takeSnap(ch);
     });
     if (ok === false) {
       S.ui.jHints = before;

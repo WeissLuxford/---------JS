@@ -1,4 +1,5 @@
 import { esc } from "./ui.js";
+import { takeSnap } from "./session-stats.js";
 
 export const NOTE_SECTIONS = [
   { key: "sessions", name: "Журнал", icon: "gi/delapouite/notebook", add: "Сессия" },
@@ -354,6 +355,11 @@ export const isoDate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d
 
 export const SESSION_GAP = 12 * 60 * 60 * 1000;
 
+export function sessionIsLive(c, ses, now = Date.now()) {
+  const cur = currentSession(c, now);
+  return !!cur && cur.id === ses.id;
+}
+
 export function currentSession(c, now = Date.now()) {
   const list = ((c.notes && c.notes.sessions) || []).filter(n => Number(n.created) > 0);
   const last = list.sort((a, b) => Number(b.created) - Number(a.created))[0];
@@ -365,7 +371,7 @@ export function currentSession(c, now = Date.now()) {
 export function newSession(c, now = Date.now(), id = "nt-ses-" + now.toString(36)) {
   const d = new Date(now);
   const n = ((c.notes && c.notes.sessions) || []).length + 1;
-  return { id, title: `Сессия ${n}`, subtitle: dateText(d), date: isoDate(d), created: now, touched: now, text: "", tags: "", collapsed: false, pinned: false };
+  return { id, title: `Сессия ${n}`, subtitle: dateText(d), date: isoDate(d), created: now, touched: now, text: "", tags: "", collapsed: false, pinned: false, snap: takeSnap(c) };
 }
 
 export function appendEntry(text, entry, now = Date.now()) {

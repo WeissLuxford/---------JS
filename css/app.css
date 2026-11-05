@@ -2870,3 +2870,6 @@ kbd { display: inline-block; min-width: 22px; padding: 1px 7px; border-radius: 6
   .modal-back.in .modal.note-read, .nr.flip, .tl-e.ink .tl-t, .tl-e .pen, .seal-fx .sf, .seal-fx .sf i { animation: none !important; }
   .tl-e .pen, .seal-fx { display: none; }
 }
+.ses-sum { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 18px 10px 42px; }
+.ses-sum span { padding: 2px 9px; border: 1px solid color-mix(in srgb, var(--gold-2) 35%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--gold-2) 8%, transparent); font-size: 12.5px; color: var(--muted, var(--faint)); }
+.ses-sum span.bad { border-color: color-mix(in srgb, #e7a18f 45%, var(--line)); background: color-mix(in srgb, #e7a18f 9%, transparent); }

@@ -4,7 +4,8 @@ import { esc, pips, rich, artFx } from "./ui.js";
 import { DOLL_SLOTS, dollLayout, SILHOUETTE } from "./doll.js";
 import { spellIcon, itemIcon, featureIcon, attackIcon, spellAtk, spellDc, fmtNum, purseGp, PROF_KINDS, classOf, featureColor, itemGlows, fxOf } from "./entities.js";
 import { liveHints, findDoubles } from "./note-hints.js";
-import { NOTE_SECTIONS, SECTION_NAME, NOTE_STATUS, NOTE_ATTITUDE, CLUE_STATE, QUESTION_STATE, questionClues, noteTagsOf, searchNotes, queryStems, highlight, snippetHtml, plainText, richLinks, backlinks, currentSession, pinnedNotes, linkTargets, noteDates, shortDate, sessionEntries, journalMentions, noteDossier } from "./notes.js";
+import { sessionTotals } from "./session-stats.js";
+import { NOTE_SECTIONS, SECTION_NAME, NOTE_STATUS, NOTE_ATTITUDE, CLUE_STATE, QUESTION_STATE, questionClues, noteTagsOf, searchNotes, queryStems, highlight, snippetHtml, plainText, richLinks, backlinks, currentSession, sessionIsLive, pinnedNotes, linkTargets, noteDates, shortDate, sessionEntries, journalMentions, noteDossier } from "./notes.js";
 
 export const TABS = [
   { key: "char", name: "Персонаж", short: "Герой", icon: "tabChar" },
@@ -752,6 +753,12 @@ export function sessionHtml(text, links) {
 
 const entriesWord = n => (n % 10 === 1 && n % 100 !== 11 ? "запись" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "записи" : "записей");
 
+function sessionSummary(c, n, sec) {
+  if (sec !== "sessions" || !n.snap) return "";
+  const items = sessionTotals(c, n, sessionIsLive(c, n));
+  return items.length ? `<div class="ses-sum" aria-label="Итоги сессии">${items.map(x => `<span class="${x.bad ? "bad" : ""}">${esc(x.text)}</span>`).join("")}</div>` : "";
+}
+
 function noteCard(n, sec, ctx, o = {}) {
   const { ui } = ctx;
   const local = ui.noteOpen || {};
@@ -766,6 +773,7 @@ function noteCard(n, sec, ctx, o = {}) {
   return `<article data-rid="${esc(n.id)}" data-sec="${sec}" class="note ${sec === "sessions" ? "session" : ""} ${shut ? "collapsed" : ""} ${n.pinned ? "pinned" : ""} ${n.status === "done" || n.status === "failed" || n.state === "false" ? "dim" : ""}">
     <header>${sec === "sessions" ? sessionDateCol(n) : ""}<button class="note-toggle" data-act="toggle-note" data-sec="${sec}" data-id="${esc(n.id)}" aria-expanded="${shut ? "false" : "true"}"><span class="note-chev">${icon("down")}</span><span class="note-titles"><h4>${stems.length ? highlight(title, stems) : esc(title)}</h4>${n.subtitle ? `<span class="note-sub">${stems.length ? highlight(n.subtitle, stems) : esc(n.subtitle)}</span>` : ""}${preview ? `<span class="note-prev">${preview}</span>` : ""}</span></button>${o.showSec ? `<span class="badge sec">${esc(SECTION_NAME[sec] || "")}</span>` : ""}${noteBadge(n, sec)}<button class="icon-btn note-pin ${n.pinned ? "on" : ""}" data-act="pin-note" data-sec="${sec}" data-id="${esc(n.id)}" title="${n.pinned ? "Открепить из «Важного»" : "Закрепить в «Важном»"}" aria-pressed="${n.pinned ? "true" : "false"}">${icon("star")}</button><button class="icon-btn" data-act="edit-note" data-sec="${sec}" data-id="${esc(n.id)}" title="Изменить" aria-label="Изменить «${esc(title)}»">${icon("edit")}</button></header>
     ${tags.length ? `<div class="note-tags">${tags.map(t => `<button class="tag ${ui.noteTag === t ? "on" : ""}" data-act="note-tag" data-k="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}
+    ${shut ? "" : sessionSummary(ctx.c, n, sec)}
     ${shut ? "" : `<div class="note-text">${(sec === "sessions" ? sessionHtml(n.text, linkOpts) : rich(n.text, linkOpts)) || `<p class="dim">Пусто</p>`}</div>`}
     ${back.length ? `<div class="note-back"><span>${icon("link")}Упоминается:</span>${back.map(b => `<button class="tag" data-act="open-note" data-sec="${b.sec}" data-id="${esc(b.id)}">${esc(b.title)}</button>`).join("")}</div>` : ""}
   </article>`;

@@ -1,4 +1,5 @@
 import { GEAR } from "./gear.js";
+import { cleanSnap } from "./session-stats.js";
 export const ABILITIES = [
   { key: "str", color: "#ff5a4a", icon: "tw/ability/strength", name: "Сила", short: "СИЛ", desc: "Физическая мощь: атаки и урон оружием ближнего боя, Атлетика, переноска тяжестей." },
   { key: "dex", color: "#5fd36a", icon: "tw/ability/dexterity", name: "Ловкость", short: "ЛОВ", desc: "Проворство и реакция: КД без тяжёлой брони, инициатива, дальнобойное и фехтовальное оружие." },
@@ -699,6 +700,11 @@ function cleanNote(x, k, i) {
   for (const f of ["link", "cut"]) if (f in out) out[f] = (Array.isArray(out[f]) ? out[f] : []).filter(v => typeof v === "string" && v).slice(0, 80);
   for (const f of ["collapsed", "pinned", "dead"]) if (f in out) out[f] = !!out[f];
   for (const f of ["created", "touched", "updated"]) if (f in out) out[f] = Math.max(0, num(out[f]));
+  for (const f of ["snap", "snapEnd"]) if (f in out) {
+    const v = cleanSnap(out[f]);
+    if (v) out[f] = v;
+    else delete out[f];
+  }
   return out;
 }
 
