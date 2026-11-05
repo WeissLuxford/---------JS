@@ -684,6 +684,13 @@ export function presetEffect(key, extra = {}, level = 0) {
   return cleanEffect({ ...p, ...scaled, preset: key, id: "ef-" + uid(), ...extra });
 }
 
+export function hasFeat(c, en, ru) {
+  return (Array.isArray(c.features) ? c.features : []).some(f => {
+    const n = String(f.nameEn || "").trim().toLowerCase();
+    return n ? n === en : String(f.name || "").trim().toLowerCase() === ru;
+  });
+}
+
 export const NOTE_KEYS = ["sessions", "people", "places", "quests", "clues", "questions", "patron", "misc"];
 
 const NOTE_ENUMS = { status: ["active", "done", "failed"], attitude: ["ally", "neutral", "hostile"], state: ["lead", "confirmed", "false"] };
@@ -878,10 +885,10 @@ export function compute(c) {
   const ex = Number(c.exhaustion) || 0;
   const die = maxDie(c.hitDie);
   const perLevel = Math.floor(die / 2) + 1;
-  const autoMax = Math.max(1, Math.max(1, die + mods.con) + Math.max(0, level - 1) * Math.max(1, perLevel + mods.con) + level * (Number(c.hp.bonusPerLevel) || 0) + (Number(c.hp.rollAdj) || 0));
+  const autoMax = Math.max(1, Math.max(1, die + mods.con) + Math.max(0, level - 1) * Math.max(1, perLevel + mods.con) + level * ((Number(c.hp.bonusPerLevel) || 0) + (hasFeat(c, "tough", "крепкий") ? 2 : 0)) + (Number(c.hp.rollAdj) || 0));
   const fullMax = c.hp.maxOverride != null && c.hp.maxOverride !== "" ? Number(c.hp.maxOverride) : autoMax;
   const hpMax = ex >= 4 ? Math.max(1, Math.floor(fullMax / 2)) : fullMax;
-  const baseSpeed = Number(c.speed) || 0;
+  const baseSpeed = (Number(c.speed) || 0) + (hasFeat(c, "mobile", "подвижный") ? 10 : 0);
   const stopped = ex >= 5 || ["grappled", "restrained", "paralyzed", "stunned", "unconscious", "petrified"].some(k => cond[k]);
   const effects = Array.isArray(c.effects) ? c.effects : [];
   const boosted = Math.max(0, baseSpeed + effects.reduce((sum, e) => sum + (Number(e.speed) || 0), 0)) * (effects.some(e => e.speedX2) ? 2 : 1);
@@ -905,7 +912,7 @@ export function compute(c) {
   const str = Number(c.abilities.str) || 0;
   const load = { light: str * 5, heavy: str * 10, max: carry, push: str * 30 };
   const d = { load, level, pb, mods, saves, skills, passive, ac: ac + acBonus, baseAc: ac, hpMax, fullMax, autoMax, speed, baseSpeed, defenses, spell, pact, slots, carry, weight: Math.round(weight * 10) / 10, attuned, tier: cantripTier(level) };
-  d.init = mods.dex + (Number(c.initBonus) || 0);
+  d.init = mods.dex + (Number(c.initBonus) || 0) + (hasFeat(c, "alert", "бдительный") ? 5 : 0);
   d.hitDice = { total: level, left: Math.max(0, level - (Number(c.hp.hitDiceUsed) || 0)), die: c.hitDie };
   d.uses = {};
   for (const list of [c.features, c.items, c.spells]) {

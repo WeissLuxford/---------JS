@@ -51,7 +51,9 @@ export async function loadFeatures() {
   if (featCache) return featCache;
   const res = await fetch(new URL("../data/features-srd.json", import.meta.url));
   if (!res.ok) throw new Error("load");
-  const raw = await res.json();
+  const extraRes = await fetch(new URL("../data/features-extra.json", import.meta.url)).catch(() => null);
+  const extra = extraRes && extraRes.ok ? await extraRes.json().catch(() => []) : [];
+  const raw = [...(await res.json()), ...(Array.isArray(extra) ? extra : [])];
   const base = (Array.isArray(raw) ? raw : []).filter(x => x && typeof x === "object" && typeof x.name === "string" && typeof x.key === "string");
   const inv = INVOCATIONS.map(x => ({ key: "inv-" + x.key, group: "invocation", cls: "warlock", sub: "", subEn: "", race: "", subrace: "", level: x.level || 0, name: x.name, nameEn: "", action: /неограниченно|раз за длинный отдых/i.test(x.description) ? "action" : "passive", recharge: /раз за длинный отдых/i.test(x.description) ? "long" : "always", uses: /раз за длинный отдых/i.test(x.description) ? "1" : "", description: x.description + (x.level ? ` Нужен ${x.level} уровень колдуна.` : "") + (x.pact ? ` Нужен ${{ tome: "Договор гримуара", blade: "Договор клинка", chain: "Договор цепи" }[x.pact]}.` : "") + (x.cantrip ? " Нужен заговор Мистический заряд." : "") }));
   featCache = [...base, ...inv];
@@ -290,7 +292,7 @@ async function renderFeatures(box, { get, onAdd }) {
     <label class="fld chk lib-mine"><input type="checkbox" data-mine ${st.mine ? "checked" : ""}><span>Только до моего уровня и моего подкласса</span></label>
     <div class="lib-count hint" data-count></div>
     <div class="lib-list" data-list></div>
-    <p class="hint small lib-src">Умения из System Reference Document 5.1, Wizards of the Coast LLC, лицензия CC-BY-4.0. Описания пересказаны своими словами. После добавления умение можно изменить как угодно.</p>`;
+    <p class="hint small lib-src">Умения из System Reference Document 5.1, Wizards of the Coast LLC, лицензия CC-BY-4.0. Описания пересказаны своими словами. Черты вне SRD (Бдительный, Везунчик, Крепкий и другие из Руководства игрока) тоже описаны своими словами, русские названия сайта неофициальные. После добавления умение можно изменить как угодно.</p>`;
   const listEl = box.querySelector("[data-list]");
   const countEl = box.querySelector("[data-count]");
   const sync = () => {
