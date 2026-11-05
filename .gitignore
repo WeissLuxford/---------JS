@@ -8,3 +8,5 @@ tests/visual/dnd-e2e/
 *.md
 !README.md
 !**/README.md
+!LICENSE.md
+!**/LICENSE.md
